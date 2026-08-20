@@ -1,6 +1,6 @@
 [package]
 name = "legacy-warzone-launcher"
-version = "1.7.1"
+version = "1.7.2"
 description = "Legacy Warzone Launcher - Jupiter Mod & IW8 Mod"
 authors = ["beanstalk313_16060"]
 edition = "2021"
