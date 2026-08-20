@@ -1,0 +1,261 @@
+UPDATED 30/07/2026 BY HYPER X
+
+
+UPDATED:VONDEL NIGHT FIXED, AND SOME OTHER COMMAND GOT A REWORK AND ADDED TO
+
+
+
+
+
+
+
+
+
+
+【﻿ＲＥＳＵＲＧＥＮＣＥ】
+
+Rebirth Island /ui_gametype resurgence;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgence;
+
+Fortunes Keep Resurgence / ui_gametype resurgence;exec #x4614027DCA9FAFA63;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgence;
+
+Vondel resurgence / ui_gametype resurgence;exec #x413DC4D00BF9AEFB3;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgence;
+
+Hellspawn Resurgence/ ui_gametype resurgence;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgence;#x3ef237da69bb64ef6 mp_jup_escape5_hell
+
+
+
+
+
+【﻿ＪＵＧＧＥＲＮＡＵＴ】
+Juggernaut Mode Rebirth /ui_gametype jugg;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B jugg;
+
+Juggernaut URZIKSTAN /ui_gametype jugg;exec #x43B0AD900F42FF5D5;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B jugg;
+
+
+
+
+【﻿ＲＡＮＫＥＤ　ＲＥＳＵＲＧＥＮＣＥ】
+Ranked Resurgence Rebirth/ui_gametype resranked;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resranked;
+
+Ranked Resurgence Fortune's Keep/ui_gametype resranked;exec #x4614027DCA9FAFA63;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resranked;
+
+Ranked Resurgence VONDEL/ui_gametype resranked;exec #x413DC4D00BF9AEFB3;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resranked;
+
+
+
+【﻿ＬＯＣＫＤＯＷＮ】
+
+Lockdowwn Ribirth Mode /ui_gametype zonecontrol;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zonecontrol;
+
+Lockdowwn Vondel Mode /ui_gametype zonecontrol;exec #x413DC4D00BF9AEFB3;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zonecontrol;
+
+Lockdowwn Fortune's Keep Mode /ui_gametype zonecontrol;exec #x4614027DCA9FAFA63;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zonecontrol;
+
+Lockdowwn Vondel Night Mode /ui_gametype zonecontrol;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zonecontrol;#x3ef237da69bb64ef6 mp_jup_delta_alt
+
+Lockdowwn Hellspawn Mode /ui_gametype zonecontrol;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zonecontrol;#x3ef237da69bb64ef6 mp_jup_escape5_hell
+
+
+
+【﻿ＰＬＵＮＤＥＲ】
+
+Plunder Rebirth  / ui_gametype plunder;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B plunder;
+#x3a07d25d87bb595de 2000000000
+
+Plunder Vondel  / ui_gametype plunder;exec #x41FEDD0BAA22135A8;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B plunder;
+#x3a07d25d87bb595de 2000000000
+
+Plunder Fortune's Keep Mode  / ui_gametype plunder;exec #x4614027DCA9FAFA63;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B plunder;
+#x3a07d25d87bb595de 2000000000
+
+Plunder HELLSPAWN/ ui_gametype plunder;exec #x41FEDD0BAA22135A8;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B plunder;#x3ef237da69bb64ef6 mp_jup_escape5_hell
+#x3a07d25d87bb595de 2000000000
+
+Plunder Vondel Night / ui_gametype plunder;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B plunder;#x3ef237da69bb64ef6 mp_jup_delta_alt
+#x3a07d25d87bb595de 2000000000
+
+Plunder Urzikstan / ui_gametype plunder;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B plunder;#x3ef237da69bb64ef6 mp_jup_bigmap_wz2;seta #x3a07d25d87bb595de 2000000000
+
+
+
+【﻿ＺＯＭＢＩＥ　ＲＯＹＡＬ】
+Zombie Royale Hellspawn/ ui_gametype zxp;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zxp;/ui_gametype zxp;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zxp;#x3ef237da69bb64ef6 mp_jup_escape5_hell
+
+Zombie Royale Vondel Night/ ui_gametype zxp;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zxp;/ui_gametype zxp;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B zxp;#x3ef237da69bb64ef6 mp_jup_delta_alt
+
+
+
+【﻿ＰＵＲＧＡＴＯＲＹ】
+                       
+Purgatory Zombie Solo / ui_gametype limbo;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B limbo;seta #x3279375A0BFB2862F 100
+
+Purgatory LAN/ ui_gametype limbo;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B limbo;(You can crash and get CWhook error)
+
+
+
+
+【﻿ＳＵＰＲＥＭＥ　ＲＥＳＵＲＧＥＮＣＥ】
+
+Rebirth Island /ui_gametype resurgsupreme;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgsupreme;
+
+
+
+
+【﻿ＭＩＮＩ　ＲＯＹＡＬ】
+
+Mini Royale Vondel /ui_gametype mini;exec #x413DC4D00BF9AEFB3;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B mini;
+
+Urzikstan Mini Royale /ui_gametype br;exec #x41D0100B4F74A50F9;seta #x3E65E9A96EB2FF62B mini;#x3ef237da69bb64ef6 mp_jup_bigmap_wz2  
+
+
+
+
+【﻿ＬＯＡＤＥＤ　ＲＥＳＵＲＧＥＮＣＥ】
+Resurgence Loaded Rebirth Island(not working it give u DEV ERROR) /seta #x3E65E9A96EB2FF62B resurgloaded;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgloaded;
+
+
+
+
+【﻿ＭＡＳＳＩＶＥ　ＲＥＳＵＲＧＥＮＣＥ】
+Rebirth Island Massive /ui_gametype resurgmass;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgmass;
+
+Fortune's Keeps Massive / ui_gametype resurgmass;exec #x4614027DCA9FAFA63;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgmass;
+
+Vondel Massive / ui_gametype resurgmass;exec #x413DC4D00BF9AEFB3;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resurgmass;
+
+
+
+
+【﻿ＢＡＴＴＬＥ　ＲＯＹＡＬ】(not recommended for urzikstan)
+
+Battle royal urzikstan(not working you crash) /ui_gametype br;exec #x43B0AD900F42FF5Dset enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B br;#x3ef237da69bb64ef6 mp_jup_bigmap_wz2  
+ (broken map and cfg u might crash in loading screen i recommand to play plunder or mini royal if u want to play urzikstan)
+
+
+
+
+
+【﻿ＰＯＩ　ＲＥＳＵＲＧＥＮＣＥ】
+
+Rebirth Island POI /ui_gametype poiresurgence;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B poiresurgence;
+
+Fortune's Keeps POI / ui_gametype poiresurgence;exec #x4614027DCA9FAFA63;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B poiresurgence;
+
+Vondel POI / ui_gametype poiresurgence;exec #x413DC4D00BF9AEFB3;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B poiresurgence;
+
+
+
+
+
+【﻿ＢＡＴＴＬＥ　ＲＯＹＡＬ　ＲＡＮＫＥＤ】(not recommended)
+
+ui_gametype br_ranked;exec #x43B0AD900F42FF5Dset enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B br_ranked;  
+(not working for urzikstan)
+
+
+
+
+
+
+
+
+【﻿ＥＸＥＭＰＬＥ　ＧＡＭＥ　ＭＯＤＥ】
+
+DUOS/TRIOS/QUADS GAME MODE: EXEMPLE:seta #x3E65E9A96EB2FF62B "Game mode you want";exec "Vondel rebirth or any map cfg";set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B "Game mode you want";
+
+
+
+
+
+
+
+
+
+
+
+【﻿ＯＴＨＥＲ】
+
+seta #x3E65E9A96EB2FF62B resurgmass
+seta #x3E65E9A96EB2FF62B resurgsupreme
+seta #x3E65E9A96EB2FF62B resur_trios resurgence trios  
+seta #x3E65E9A96EB2FF62B mini_trios  
+seta #x3E65E9A96EB2FF62B poiresurgence  
+seta #x3E65E9A96EB2FF62B resur_duos_escape 
+seta #x3E65E9A96EB2FF62B br_duos  
+seta #x3E65E9A96EB2FF62B mini_duos 
+seta #x3E65E9A96EB2FF62B poiresurgence_trios 
+seta #x3E65E9A96EB2FF62B poiresurgence_solos 
+seta #x3E65E9A96EB2FF62B resur_quads_escape  
+seta #x3E65E9A96EB2FF62B br_trios_delta 
+seta #x3E65E9A96EB2FF62B br_quads_delta 
+seta #x3E65E9A96EB2FF62B mini_solos 
+seta #x3E65E9A96EB2FF62B br_solos_delta 
+seta #x3E65E9A96EB2FF62B resurge_duos_fk 
+seta #x3E65E9A96EB2FF62B poiresurgence_quads 
+seta #x3E65E9A96EB2FF62B resur_solos_escape
+seta #x3E65E9A96EB2FF62B poiresurgence_duos 
+seta #x3E65E9A96EB2FF62B resur_solos 
+seta #x3E65E9A96EB2FF62B mini_quads 
+seta #x3E65E9A96EB2FF62B br_ranked 
+seta #x3E65E9A96EB2FF62B brtdm working (that deathmatch in battle royal idk what is that shit lol Try it)
+
+
+Resurgence Solo Rebirth Island / seta #x3E65E9A96EB2FF62B resur_solos;exec #x441C1E675F5527973;set enable_automation_bot 1;seta #x3116700c9b39c1eba 40;seta #x3E65E9A96EB2FF62B resur_solos;
+
+/exec resranked.cfg (you can add this in every ranked mode for different map)
+
+
+
+
+
+
+【﻿ＭＡＰ　ＮＡＭＥ】
+
+MAP:EXEMPLE:#x3ef237da69bb64ef6 "NAME MAP"
+
+#x3ef237da69bb64ef6 mp_jup_escape5_hell  (HELLSPAWN)
+
+#x3ef237da69bb64ef6 mp_jup_escape5 (REBIRTH ISLAND)
+
+#x3ef237da69bb64ef6 mp_jup_sm_island_2 (FORTUNE'S KEEPS)
+
+#x3ef237da69bb64ef6 mp_jup_delta (VONDEL) 
+
+#x3ef237da69bb64ef6 mp_jup_bigmap_wz2 (URZIKSTAN)
+
+#x3ef237da69bb64ef6 mp_jup_delta_alt (VONDEL NIGHT)
+
+
+
+
+
+
+RESURGENCE CFG FOR EVERY MAP:
+
+exec #x441C1E675F5527973 (rebirhisland)
+
+exec #x4614027DCA9FAFA63 (fortune's keep)
+
+exec #x413DC4D00BF9AEFB3 (Vondel)
+
+
+
+
+BATTLE ROYAL/MINI  URZIKSTAN CFG:
+
+exec #x43B0AD900F42FF5D5
+
+exec #x41D0100B4F74A50F9
+
+
+
+
+
+PLUNDER CFG:
+
+exec #x461DAB0A932840779 (urzikstan)
+
+exec #x41FEDD0BAA22135A8 (Vondel)
+
+#x41FEDD0BAA22135A8 (rebirth)
+

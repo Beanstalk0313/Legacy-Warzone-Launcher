@@ -1,0 +1,56 @@
+# Build + publish a GitHub Release (with auto-update artifacts) whenever a
+# version tag (v*) is pushed. The updater artifacts (installer .exe + .sig
+# signature + latest.json) are generated and attached automatically — the
+# app's startup updater check pulls latest.json from the release.
+#
+# One-time setup (see AUTO_UPDATE.md):
+#   1. Generate the signing key:        npm run tauri signer generate -- -w ~/.tauri/legacy-warzone-launcher.key
+#   2. Add the PUBLIC key (printed by step 1, or publickey.pem) to
+#      src-tauri/tauri.conf.json → plugins.updater.pubkey, and set the real
+#      repo in plugins.updater.endpoints.
+#   3. Add the PRIVATE key as GitHub Actions secrets:
+#        TAURI_SIGNING_PRIVATE_KEY          (path or contents of the .key file)
+#        TAURI_SIGNING_PRIVATE_KEY_PASSWORD (only if you set one)
+#   4. To release: bump the version (src-tauri/tauri.conf.json,
+#      src-tauri/Cargo.toml, package.json), commit, then tag and push:
+#        git tag v1.8.0 && git push origin v1.8.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build & publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Legacy Warzone Launcher v__VERSION__'
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: true
+          prerelease: false

@@ -1,0 +1,7052 @@
+/* Hitmarker & CoD Tactical Theme System */
+:root {
+  --font-family: 'Hitmarker', 'Rajdhani', -apple-system, sans-serif;
+  --font-heading: 'Hitmarker', 'Teko', 'Rajdhani', sans-serif;
+  
+  /* Jupiter Mod Theme Variables */
+  --jupiter-accent: #028fcc;
+  --jupiter-accent-hover: #03a6ed;
+  --jupiter-bg-red: #8b0000;
+  --jupiter-card-bg: #1c1e22;
+  
+  /* IW8 Mod Theme Variables */
+  --iw8-bg-dark: #0e0f12;
+  --iw8-panel-bg: #121418;
+  --iw8-button-bg: #181b20;
+  --iw8-button-hover: #262b33;
+  --iw8-red-accent: #d92323;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000000;
+  color: #ffffff;
+  font-family: var(--font-family);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Positioning context for the absolute-positioned ModStage that overlays the
+   launcher during the launch transition (so its inset: 0 resolves against
+   the actual interactive area, not the viewport). */
+.app-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* The interface is authored against one stable 16:9 design surface. The
+   canvas is uniformly scaled by UiCanvas in main.jsx, so a 1080p display or
+   a smaller window gets the exact same composition instead of each panel
+   independently changing size or wrapping. */
+.ui-canvas-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ui-canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2560px;
+  height: 1440px;
+  transform-origin: center center;
+  overflow: hidden;
+}
+
+/* Portaled modals, menus, toasts, and HUD overlays stay inside the scaled
+   canvas. This keeps fixed positioning aligned with the same 16:9 surface. */
+.ui-portal-root {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.ui-portal-root > * {
+  pointer-events: auto;
+}
+
+button, a {
+  font-family: var(--font-family);
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: none;
+  border-radius: 0;
+  text-decoration: none;
+}
+
+/* ==========================================================================
+   TAB SLIDING & MODAL ANIMATIONS
+   ========================================================================== */
+@keyframes slideInTab {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.tab-slide-container {
+  animation: slideInTab 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+
+/* ==========================================================================
+   LAUNCHER → MOD INTERFACE TRANSITION
+   The cutover is staged so the eye never sees a hard cut:
+
+   1. The chosen launcher tile expands via flex/transform to occupy the full
+      viewport. The other tile shrinks and fades. Both tiles' child elements
+      (logo + Play button) fade and scale up out of frame. Because both the
+      launcher tile and the mod interface container paint the same bg.jpg,
+      the user perceives one continuous image getting bigger, with the mod
+      UI layering in on top.
+   2. Once the tile is fully expanded, the ModStage becomes the canonical
+      view and the Launcher unmounts. Meanwhile, IW8's topographic header
+      drops in from above the viewport and Jupiter's cards stagger-rise from
+      below the viewport entrance.
+
+   The animation rules below are gated on:
+     - `.launcher-container.is-expanding-jupiter` / `.is-expanding-iw8`
+       (drives Launcher tile expansion), and
+     - `.iw8-interface-container.is-entering` /
+       `.jupiter-interface-container.is-entering` (drives per-element
+       entrance).
+   They're cleared from the DOM ~1100 ms after the click so steady-state
+   re-renders don't pay the cost of the animations indefinitely.
+   ========================================================================== */
+
+/* Stack order: ModStage is rendered after the Launcher in App.jsx and has
+   an explicit z-index so it overlays the expanding Launcher tile. The
+   shared bg image (jup_bg.jpg / iw8_bg.jpg) means the eye reads both
+   layers as one continuous surface during the cutover. */
+.mod-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.mod-stage.is-entering {
+  /* Lock user input until the entrance settles so a stray click can't fire
+     handlers mid-animation. Cleared by App.jsx at ~1100 ms by removing
+     this class. */
+  pointer-events: none;
+}
+
+/* The chosen tile takes the full row, and its bg image (the ::before)
+   stays scaled up to 1.18 around its own center. Combined with the
+   flex growth from 50% → 100% width (which moves the split's centerpoint
+   from x=25% → x=50% of the viewport), the bg image visibly zooms out
+   and recenters to become the full main-menu background.
+
+   IMPORTANT: the four rule blocks below are placed AFTER all the
+   launcher's :hover / :controller-focused rules — see the consolidated
+   block that follows `.btn-launcher-play-iw8`. They share specificity
+   with `.launcher-container:hover .launcher-split` (both 0,4,0), and
+   the per-element hover rules on .launcher-logo are even higher
+   (0,5,0), so source order is the only way to make these expand rules
+   win without `!important`. The cursor is still parked on the just-
+   clicked tile during the transition, so :hover is active for the
+   whole 480 ms window. */
+
+/* --- Mod UI entrance animations (keyframes) --- */
+
+@keyframes iw8HeaderDrop {
+  from { opacity: 0; transform: translateY(-100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes iw8BodyFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes iw8MenuItemRise {
+  from { opacity: 0; transform: translateX(-26px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes iw8QuitFade {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes jupiterHeaderFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes jupiterHeadlineRise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes jupiterCardRise {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes jupiterQuitFade {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --------------------------------------------------------------------------
+   REVERSE-DIRECTION KEYFRAMES (Return Home flow)
+   Each `from` is the element's steady state and each `to` is the exit
+   position, so the animation reads as a clean unwind of its corresponding
+   entrance keyframe above. The launcher collapse keyframes drive the
+   second half of the Return Home flow: the moment the ModStage unmounts
+   and the Launcher mounts at the ModStage's previous visual state. The
+   chosen split then animates its flex-grow from 100 → 1 (full width
+   → half width) while the other split grows back from invisible to its
+   steady half-screen size.
+   -------------------------------------------------------------------------- */
+@keyframes iw8HeaderExit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-100%); }
+}
+
+@keyframes iw8BodyFadeExit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes iw8MenuItemExit {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-26px); }
+}
+
+@keyframes iw8QuitExit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(20px); }
+}
+
+@keyframes jupiterHeaderExit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes jupiterHeadlineLower {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(20px); }
+}
+
+@keyframes jupiterCardLower {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(40px); }
+}
+
+@keyframes jupiterQuitExit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(20px); }
+}
+
+@keyframes launcherChosenCollapse {
+  /* Matches the ModStage's previous visual: chosen split at the same
+     flex-grow ratio as the prior full-viewport bg fill. From there it
+     smoothly shrinks back to flex-grow: 1 (half-width steady state). The
+     100 vs 1 ratio keeps the chosen split pinned to ~100 vw while the
+     other split is at flex-grow: 0. */
+  from { flex-grow: 100; opacity: 1; filter: none; }
+  to   { flex-grow: 1; }
+}
+
+@keyframes launcherOtherReturn {
+  from { flex-grow: 0; opacity: 0; transform: scale(0.96); }
+  to   { flex-grow: 1; opacity: 1; transform: scale(1); }
+}
+
+@keyframes launcherChildFadeReturn {
+  /* Fades the chosen split's logo + Play button back from invisible to
+     their steady state. Transform is intentionally left to the element's
+     base CSS so the IW8 logo's scale(clamp(1.4, 2.1, 2.4)) is preserved
+     throughout and there's no 1× → 1.4× restart-jump when .is-collapsing-
+     {mod} clears at t=1100 ms. */
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* --- IW8 entrance: topographic header drops from above, then UI layers --- */
+
+.iw8-interface-container.is-entering .iw8-header {
+  animation: iw8HeaderDrop 620ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+.iw8-interface-container.is-entering .iw8-main-body {
+  animation: iw8BodyFade 460ms ease 220ms both;
+}
+
+.iw8-interface-container.is-entering .iw8-menu-btn {
+  animation: iw8MenuItemRise 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.iw8-interface-container.is-entering .iw8-menu-btn:nth-child(1) { animation-delay: 280ms; }
+.iw8-interface-container.is-entering .iw8-menu-btn:nth-child(2) { animation-delay: 360ms; }
+.iw8-interface-container.is-entering .iw8-menu-btn:nth-child(3) { animation-delay: 440ms; }
+
+.iw8-interface-container.is-entering .iw8-quit-btn-wrapper {
+  animation: iw8QuitFade 460ms cubic-bezier(0.16, 1, 0.3, 1) 600ms both;
+}
+
+/* --- Jupiter entrance: header fade, headline + cards stagger-rise --- */
+
+.jupiter-interface-container.is-entering .jupiter-header {
+  animation: jupiterHeaderFade 380ms ease 80ms both;
+}
+
+.jupiter-interface-container.is-entering .jupiter-active-headline-lowered {
+  animation: jupiterHeadlineRise 540ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
+}
+
+.jupiter-interface-container.is-entering .jupiter-card-wrapper {
+  animation: jupiterCardRise 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.jupiter-interface-container.is-entering .jupiter-card-wrapper:nth-child(1) { animation-delay: 300ms; }
+.jupiter-interface-container.is-entering .jupiter-card-wrapper:nth-child(2) { animation-delay: 380ms; }
+.jupiter-interface-container.is-entering .jupiter-card-wrapper:nth-child(3) { animation-delay: 460ms; }
+
+.jupiter-interface-container.is-entering .jupiter-quit-btn-wrapper {
+  animation: jupiterQuitFade 460ms cubic-bezier(0.16, 1, 0.3, 1) 600ms both;
+}
+
+/* --- Reverse-direction exit rules (Return Home flow) ---
+   Each element runs its corresponding exit keyframe above. The total
+   exit choreography is intentionally shorter than the entrance so it
+   clears the 620 ms phase-1 window that the App-level state machine
+   holds .is-leaving for (ModStage alone → setCurrentView('launcher') at
+   click+620 → ModStage unmounts → Launcher mounts with .is-collapsing-
+   {mod}). Menu items and Jupiter cards use a reversed-order stagger so
+   the unwind reads as "last-to-arrive, first-to-leave" — a small
+   perceptual cue that the user is on the way out. */
+
+.iw8-interface-container.is-leaving .iw8-header {
+  animation: iw8HeaderExit 580ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.iw8-interface-container.is-leaving .iw8-main-body {
+  animation: iw8BodyFadeExit 400ms ease 60ms both;
+}
+
+.iw8-interface-container.is-leaving .iw8-menu-btn {
+  animation: iw8MenuItemExit 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.iw8-interface-container.is-leaving .iw8-menu-btn:nth-child(3) { animation-delay: 0ms; }
+.iw8-interface-container.is-leaving .iw8-menu-btn:nth-child(2) { animation-delay: 80ms; }
+.iw8-interface-container.is-leaving .iw8-menu-btn:nth-child(1) { animation-delay: 160ms; }
+
+.iw8-interface-container.is-leaving .iw8-quit-btn-wrapper {
+  animation: iw8QuitExit 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.jupiter-interface-container.is-leaving .jupiter-header {
+  animation: jupiterHeaderExit 380ms ease both;
+}
+
+.jupiter-interface-container.is-leaving .jupiter-active-headline-lowered {
+  animation: jupiterHeadlineLower 540ms cubic-bezier(0.16, 1, 0.3, 1) 60ms both;
+}
+
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper {
+  animation: jupiterCardLower 540ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(3) { animation-delay: 0ms; }
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(2) { animation-delay: 80ms; }
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(1) { animation-delay: 160ms; }
+
+.jupiter-interface-container.is-leaving .jupiter-quit-btn-wrapper {
+  animation: jupiterQuitExit 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+
+/* ==========================================================================
+   LAUNCHER MAIN MENU (pick warzone main menu.png)
+   Signature MW19 / WZ1 Sliding Split Hover Effect with Real Artwork
+   ========================================================================== */
+.launcher-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+
+.launcher-split {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 201.6px;
+  padding-bottom: 120px;
+  transition: flex 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.45s ease,
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.4s ease;
+  overflow: hidden;
+  cursor: default;
+  isolation: isolate;
+}
+
+.launcher-split::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.launcher-split > * {
+  position: relative;
+  z-index: 1;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.launcher-container:not(.controller-mode) .launcher-split:hover::before,
+.launcher-container.controller-mode .launcher-split.controller-focused::before {
+  transform: scale(1.045);
+}
+
+/* The "expand and center to become the background" effect is delivered
+   entirely by flex growth + cover-fit — there is intentionally NO
+   ::before transform here. As the chosen split grows from flex:1 (50%
+   of row) to flex:6 (~100% of row), the ::before's `background-size:
+   cover` re-fits the same image to fill the larger split, so the
+   image's centerpoint slides from x=25% to x=50% of the viewport
+   while progressively revealing its left/right edges. At the t=480 ms
+   cutover, the Launcher unmounts and the ModStage's container paints
+   the SAME .jup_bg.jpg / .iw8_bg.jpg at the SAME cover-fit scale on
+   the SAME full-viewport surface, so the cutover is pixel-identical
+   and there's no per-frame snap. *//* Mouse hover and controller focus intentionally share one visual contract. */
+.launcher-container:not(.controller-mode):hover .launcher-split,
+.launcher-container.controller-mode .launcher-split {
+  flex: 0.8;
+  filter: brightness(0.35) grayscale(0.2);
+}
+
+.launcher-container:not(.controller-mode) .launcher-split:hover,
+.launcher-container.controller-mode .launcher-split.controller-focused {
+  flex: 1.4;
+  filter: brightness(1) grayscale(0);
+}
+
+/* Left Half - Jupiter Mod (WARZONE III) */
+.launcher-split.jupiter-side {
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.launcher-split.jupiter-side::before {
+  background-image: 
+    linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(180, 0, 0, 0.2) 50%, rgba(0, 0, 0, 0.75) 100%),
+    url('./assets/jup_bg.jpg');
+}
+
+/* Right Half - IW8 Mod (WARZONE 1) */
+.launcher-split.iw8-side {
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.launcher-split.iw8-side::before {
+  background-image: 
+    linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.85) 100%),
+    url('./assets/iw8_bg.jpg');
+}
+
+/* Launcher Logos & Layout */
+.launcher-logo {
+  max-height: 95px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 20px rgba(0, 0, 0, 0.9));
+  transition: transform 0.3s ease;
+}
+
+/* The IW8 asset has generous transparent padding, so enlarge its rendered
+   canvas to match the visible Warzone III mark. */
+.launcher-split.iw8-side .launcher-logo {
+  transform: scale(clamp(1.4, 2.1, 2.4));
+}
+
+.launcher-container:not(.controller-mode) .launcher-split.jupiter-side:hover .launcher-logo,
+.launcher-container.controller-mode .launcher-split.jupiter-side.controller-focused .launcher-logo {
+  transform: scale(1.06);
+}
+
+.launcher-container:not(.controller-mode) .launcher-split.iw8-side:hover .launcher-logo,
+.launcher-container.controller-mode .launcher-split.iw8-side.controller-focused .launcher-logo {
+  transform: scale(clamp(1.48, 2.226, 2.52));
+}
+
+.launcher-button-wrapper {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Launcher Play Buttons */
+.btn-launcher-play-jupiter {
+  background-color: var(--jupiter-accent);
+  color: #ffffff;
+  font-size: 2.5rem;
+  font-weight: 700;
+  padding: 16px 86px;
+  min-width: 280px;
+  min-height: 72px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.launcher-container:not(.controller-mode) .btn-launcher-play-jupiter:hover,
+.launcher-container.controller-mode .btn-launcher-play-jupiter.controller-focused {
+  background-color: var(--jupiter-accent-hover);
+  transform: translateY(-2px);
+}
+
+.btn-launcher-play-iw8 {
+  background-color: #1a1d24;
+  color: #ffffff;
+  font-size: 2.5rem;
+  font-weight: 700;
+  padding: 16px 86px;
+  min-width: 280px;
+  min-height: 72px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  transition: all 0.2s ease;
+}
+
+.launcher-container:not(.controller-mode) .btn-launcher-play-iw8:hover,
+.launcher-container.controller-mode .btn-launcher-play-iw8.controller-focused {
+  background-color: #2a2f3b;
+  border-color: #ffffff;
+  transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   LAUNCH — TILE EXPANSION RULES
+   Placed at the very end of the launcher section so source order lets
+   them win specificity ties against every :hover / :controller-focused
+   rule above. The chosen tile grows from flex:1 (50%) to flex:6 (100%),
+   fading its children (logo + Play button) and shrinking the OPPOSITE
+   tile to flex:0 + opacity:0. The chosen split's ::before is also being
+   scaled up around its center by the rule right above (.is-expanding-*
+   .launcher-split.{side}::before scale(1.18)) which is positioned after
+   the hover::before rule for the same reason.
+
+   As the chosen split grows:
+     - its centerpoint slides from x=25% to x=50% of the viewport, AND
+     - its ::before bg scales from 1.0 (the cover-fit baseline) to 1.18
+     - opacity:0 on the children (logo + Play button) clears them out
+   So the user reads the cutover as a single continuous image — the
+   Jupiter/IW8 half-screen bg — zooming out and recentering to fill the
+   whole window.
+   ========================================================================== */
+
+.launcher-container.is-expanding-jupiter .launcher-split.jupiter-side,
+.launcher-container.is-expanding-iw8 .launcher-split.iw8-side {
+  flex: 6;
+  filter: none;
+  pointer-events: none;
+}
+
+.launcher-container.is-expanding-jupiter .launcher-split.jupiter-side > *,
+.launcher-container.is-expanding-iw8 .launcher-split.iw8-side > * {
+  opacity: 0;
+  transform: scale(1.08);
+  pointer-events: none;
+}
+
+.launcher-container.is-expanding-jupiter .launcher-split.iw8-side,
+.launcher-container.is-expanding-iw8 .launcher-split.jupiter-side {
+  flex: 0;
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+}
+
+.launcher-container.is-expanding-jupiter .launcher-split.iw8-side::before,
+.launcher-container.is-expanding-iw8 .launcher-split.jupiter-side::before {
+  transform: scale(0.95);
+}
+
+/* --------------------------------------------------------------------------
+   LAUNCHER → MOD RETURN-HOME TILE COLLAPSE
+   Runs after the .is-leaving UI exits finish (App.jsx sets
+   `currentView='launcher'` at click+620, mounting the Launcher fresh at
+   that instant). Each rule references a keyframe defined in the
+   "REVERSE-DIRECTION KEYFRAMES" block above:
+
+     - chosen split (the one whose bg just filled the viewport while the
+       ModStage was mounted): flex-grow 100 → 1 via launcherChosenCollapse
+       so it shrinks back to its steady half-width. With flex-grow: 100 +
+       the other split at flex-grow: 0, the chosen takes the entire row
+       at animation-start, matching the visual that the ModStage just
+       unmounted; with both at flex-grow: 1, they each take 50 % at
+       animation-end.
+     - the other split: launcherOtherReturn animates it from collapsed
+       (flex-grow 0, opacity 0, scale 0.96 — the forward's is-expanding
+       end-state) back to its steady half-width (flex-grow 1, opacity 1,
+       scale 1).
+     - the chosen split's children (logo + Play button): the
+       launcherChildFadeReturn keyframe fades their opacity back in.
+       Transform is intentionally left to base CSS so the IW8 logo's
+       `scale(clamp(1.4, 2.1, 2.4))` is preserved throughout and there's
+       no jump when .is-collapsing-{mod} clears at click+1100.
+
+   Same specificity (0,4,0) as the .is-expanding rules; placed after
+   them AND after every .launcher-container :hover / :controller-focused
+   rule below so source order lets these win any ties during the
+   transition. Implicit pointer-events: none on the chosen split's
+   children isn't needed here (the forward flow never assigns it to the
+   Logo + Play button on the way back).
+   -------------------------------------------------------------------------- */
+
+/* Lock pointer-events off for the whole container during the collapse so
+   the mouse cursor doesn't drive hover state changes mid-animation. The
+   `cubic-bezier(0.16, 1, 0.3, 1)` easing curve plateaus very early
+   (~16% of the 480 ms window), so by t ≈ 77 ms the chosen split is
+   already visually at its rest half-width — and without this rule the
+   per-tile `:hover` (brightness 1) or dim-on-hover (brightness 0.35)
+   rule would fire a visible brightness flicker when the cursor happens
+   to lie over a split boundary at that exact moment. */
+.launcher-container.is-collapsing-jupiter,
+.launcher-container.is-collapsing-iw8 {
+  pointer-events: none;
+}
+
+.launcher-container.is-collapsing-jupiter .launcher-split.jupiter-side,
+.launcher-container.is-collapsing-iw8 .launcher-split.iw8-side {
+  animation: launcherChosenCollapse 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.launcher-container.is-collapsing-jupiter .launcher-split.jupiter-side > *,
+.launcher-container.is-collapsing-iw8 .launcher-split.iw8-side > * {
+  animation: launcherChildFadeReturn 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.launcher-container.is-collapsing-jupiter .launcher-split.iw8-side,
+.launcher-container.is-collapsing-iw8 .launcher-split.jupiter-side {
+  animation: launcherOtherReturn 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* --------------------------------------------------------------------------
+   JUPITER-ONLY LAUNCHER (VITE_JUPITER_ONLY=true — see .env.jupiter)
+   Built with `npm run dev:jupiter` / `npm run build:jupiter` (or the
+   tauri:*.jupiter variants), the launcher renders only the Warzone III
+   tile at full width — Launcher.jsx omits the IW8 split from the DOM
+   entirely. Placed AFTER every :hover / :controller-focused rule above
+   with equal-or-higher specificity, so the lone tile can NEVER shrink
+   to flex:0.8 or dim — including the `.launcher-container:hover` path
+   that fires when the pointer is over the bottom quit bar (which
+   overlays the split, so the split itself isn't :hover — without these
+   rules that path would shrink the lone tile and expose a blank black
+   strip where the IW8 split would have been). The single tile KEEPS the
+   shared hover zoom ::before scale(1.045) — a subtle full-screen pull
+   on hover.
+
+   The existing .is-expanding-jupiter / .is-collapsing-jupiter rules still
+   drive the launch/return choreography below this block. With a lone
+   full-width tile, flex:1 → flex:6 (and the collapse keyframe's
+   flex-grow 100 → 1) are width no-ops, so both transitions read as a
+   clean child fade against the same full-screen bg — pixel-identical
+   cutover to the ModStage either way, and `launcherOtherReturn` targets
+   the (absent) IW8 split harmlessly.
+   -------------------------------------------------------------------------- */
+.launcher-container.launcher-jupiter-only .launcher-split,
+.launcher-container.launcher-jupiter-only:not(.controller-mode):hover .launcher-split,
+.launcher-container.launcher-jupiter-only.controller-mode .launcher-split,
+.launcher-container.launcher-jupiter-only:not(.controller-mode) .launcher-split:hover,
+.launcher-container.launcher-jupiter-only.controller-mode .launcher-split.controller-focused {
+  flex: 1;
+  filter: none;
+}
+
+/* No right-edge divider when the Jupiter tile is the whole screen. */
+.launcher-container.launcher-jupiter-only .launcher-split.jupiter-side {
+  border-right: none;
+}
+
+
+.iw8-quit-btn.controller-focused,
+.iw8-quit-btn:hover,
+.iw8-quit-option-btn.controller-focused,
+.iw8-quit-option-btn:hover:not(.active) {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+.iw8-tab-btn:hover:not(.active),
+.iw8-tab-btn.controller-focused,
+.iw8-menu-btn:hover,
+.iw8-menu-btn.controller-focused {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.jupiter-tab-btn:hover,
+.jupiter-tab-btn.controller-focused {
+  background-color: rgba(40, 44, 52, 0.95);
+}
+
+.jupiter-card-wrapper:hover .jupiter-card,
+.jupiter-card-wrapper.controller-focused .jupiter-card {
+  border: 3px solid var(--jupiter-accent);
+  background-color: rgba(20, 24, 30, 0.98);
+}
+
+.jupiter-card-wrapper:hover .jupiter-card-select-bar-below,
+.jupiter-card-wrapper.controller-focused .jupiter-card-select-bar-below {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.jupiter-quit-option-btn:hover,
+.jupiter-quit-option-btn.controller-focused {
+  background-color: var(--jupiter-accent);
+}
+
+.controller-hints {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 3;
+  display: flex;
+  gap: 24px;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.controller-hints span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.controller-glyph {
+  position: relative;
+  display: inline-block;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 1.15rem;
+}
+
+.controller-glyph-dot {
+  position: absolute;
+  width: 0.32rem;
+  height: 0.32rem;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  transform: translate(-50%, -50%);
+}
+
+.controller-glyph-dot.active {
+  border-color: #ffffff;
+  background: #ffffff;
+  box-shadow: 0 0 7px rgba(255, 255, 255, 0.85);
+}
+
+.controller-glyph-dot-top {
+  top: 12%;
+  left: 50%;
+}
+
+.controller-glyph-dot-right {
+  top: 50%;
+  left: 88%;
+}
+
+.controller-glyph-dot-bottom {
+  top: 88%;
+  left: 50%;
+}
+
+.controller-glyph-dot-left {
+  top: 50%;
+  left: 12%;
+}
+
+.left-stick-glyph {
+  position: relative;
+  display: inline-block;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+}
+
+.left-stick-glyph-ring {
+  position: absolute;
+  inset: 0.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 50%;
+}
+
+.left-stick-glyph-stick {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.32rem;
+  height: 0.32rem;
+  border: 1px solid #ffffff;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  transform: translate(-50%, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launcher-split,
+  .launcher-split::before,
+  .launcher-split > *,
+  .launcher-logo,
+  .btn-launcher-play-jupiter,
+  .btn-launcher-play-iw8,
+  .iw8-interface-container,
+  .iw8-interface-container *,
+  .jupiter-interface-container,
+  .jupiter-interface-container * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+
+/* ==========================================================================
+   IW8 MOD MAIN INTERFACE (IW8 interface.png & wz1.jpg)
+   ========================================================================== */
+.iw8-interface-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: #050608;
+  /* Background follows the CONTENT mod: the .wallpaper-* modifier on the
+     container (driven by `mod` in IW8Interface) swaps --lwz-wallpaper so a
+     swapped shell (Dynamic Interfaces) keeps the content's native artwork. */
+  --lwz-wallpaper: url('./assets/iw8_bg.jpg');
+  background-image:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.55) 100%),
+    var(--lwz-wallpaper);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+
+.iw8-interface-container.wallpaper-jupiter {
+  --lwz-wallpaper: url('./assets/jup_bg.jpg');
+}
+
+/* Header Logo Images
+   The class on each <img> follows the LOGO ASSET (not the shell): with
+   Options > Dynamic Interfaces the shells swap logos, so the sizing must
+   travel with the asset. Both headers define how they render each asset:
+   the IW8 header is a tall topographic bar, the Jupiter header is a
+   compact 80px bar. */
+.header-logo-img-iw8 {
+  /* IW8's PNG includes large transparent margins; this makes the visible
+     Warzone 1 mark roughly five times its previous rendered height. */
+  height: 170px;
+  width: auto;
+  object-fit: contain;
+  object-position: center;
+  margin: -52px 0;
+  transform: translateX(-18px);
+  /* The translated + negatively-margined image creates a stacking context
+     whose bounding box straddles the leftmost header tabs (Play, Friends).
+     Their transparent PNG areas were intercepting clicks on the upper half of
+     those buttons. Letting clicks pass through restores the full hit zone. */
+  pointer-events: none;
+}
+
+/* The same IW8 asset inside the compact Jupiter 80px header bar: its
+   visible mark is roughly half the canvas height (the rest is transparent
+   padding), so the canvas must run close to the bar's full height for the
+   visible mark to match the Jupiter logo's 38px instead of rendering as a
+   postage stamp. No negative margins or translate — the Jupiter bar has no
+   tab row to straddle. */
+.jupiter-header .header-logo-img-iw8 {
+  height: 78px;
+  margin: 0;
+  transform: none;
+}
+
+/* Jupiter logo — tightly cropped, so it needs only a modest height. */
+.header-logo-img-jup {
+  height: 38px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* The same Jupiter asset inside the taller IW8 header: keep it prominent
+   but well below the IW8 mark's 120px+ canvas — the tight crop would
+   otherwise blow up to fill the whole title row. */
+.iw8-header .header-logo-img-jup {
+  height: 72px;
+  margin: 0;
+  transform: none;
+}
+
+/* Top Header Bar with Topographic Pattern */
+.iw8-header {
+  position: relative;
+  z-index: 10;
+  padding: 14px 32px 10px 32px;
+  background-color: #0d0f12;
+  background-image: 
+    url('./assets/iw8_topo.png'),
+    linear-gradient(180deg, rgba(24, 27, 33, 0.95) 0%, rgba(12, 13, 16, 0.98) 100%);
+  background-size: cover, 100% 100%;
+  background-position: center center, center center;
+  background-repeat: no-repeat, no-repeat;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 2px solid #ffffff;
+}
+
+.iw8-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+}
+
+.iw8-header-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iw8-header-divider {
+  width: calc(100% + 64px);
+  height: 2px;
+  margin-left: -32px;
+  background: #ffffff;
+}
+
+/* Signed-in user chip — top-right of the IW8 header. Mirrors the tab
+   button surface + hover so it reads as part of the theme. Only renders
+   while a user is signed in. */
+.iw8-user-chip {
+  position: absolute;
+  top: 14px;
+  right: 32px;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 6px 14px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: all 0.15s ease;
+}
+
+.iw8-user-chip:hover {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.iw8-tab-btn,
+.iw8-menu-btn,
+.iw8-quit-btn,
+.iw8-quit-option-btn {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.iw8-tab-btn {
+  padding: 8px 36px;
+  font-size: 1.25rem;
+}
+
+.iw8-tab-label {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.iw8-quit-btn:hover,
+.iw8-quit-option-btn:hover:not(.active) {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+.iw8-tab-btn.active,
+.iw8-quit-option-btn:hover,
+.iw8-quit-option-btn:active {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+/* IW8 Left Vertical Sidebar - Clean Slate Rectangular Buttons */
+.iw8-main-body {
+  position: relative;
+  z-index: 5;
+  flex: 1;
+  display: flex;
+  padding: 36px 48px;
+}
+
+.iw8-menu-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 380px;
+  z-index: 10;
+}
+
+.iw8-menu-btn {
+  font-size: 1.85rem;
+  text-align: left;
+  padding: 20px 32px;
+  position: relative;
+}
+
+.iw8-menu-btn:hover,
+.iw8-menu-btn.controller-focused {
+  transform: translateX(4px);
+}
+
+.iw8-menu-btn.placeholder-suppressed,
+.iw8-menu-btn.placeholder-suppressed:hover {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+  transform: none;
+}
+
+/* IW8 Bottom Right Quit Button */
+.iw8-quit-btn-wrapper {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 10;
+}
+
+.iw8-quit-btn {
+  font-size: 0.85rem;
+  padding: 6px 14px;
+}
+
+.iw8-quit-btn:active {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+
+/* ==========================================================================
+   JUPITER MOD MAIN INTERFACE (jupiter mod interface.png - NO GLOW)
+   ========================================================================== */
+.jupiter-interface-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: #050505;
+  /* Background follows the CONTENT mod: the .wallpaper-* modifier on the
+     container (driven by `mod` in JupiterInterface) swaps --lwz-wallpaper so
+     a swapped shell (Dynamic Interfaces) keeps the content's native artwork. */
+  --lwz-wallpaper: url('./assets/jup_bg.jpg');
+  background-image: 
+    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(140, 0, 0, 0.2) 50%, rgba(0, 0, 0, 0.8) 100%),
+    var(--lwz-wallpaper);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+
+.jupiter-interface-container.wallpaper-iw8 {
+  --lwz-wallpaper: url('./assets/iw8_bg.jpg');
+}
+
+/* Jupiter shell rendering IW8 (Warzone 1) content via Options > Dynamic
+   Interfaces: drop the signature red mid-stop so the Warzone 1 UI doesn't
+   sit under a red haze. The neutral dark gradient mirrors the IW8 shell's
+   own treatment. */
+.jupiter-interface-container.content-iw8 {
+  background-image:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.8) 100%),
+    var(--lwz-wallpaper);
+}
+
+/* Top Header Bar with Centered Tabs */
+.jupiter-header {
+  position: relative;
+  z-index: 10;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 48px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.jupiter-logo {
+  display: flex;
+  align-items: center;
+  /* Clear the top-left back-arrow quit button that now sits in the
+     header's corner (button spans ~18–62px from the left edge). */
+  padding-left: 40px;
+}
+
+/* Centered Header Navigation Tabs — the tab row has 7 entries
+   (Play | Modding | Account | Social | Discord | Help | Options), so the
+   buttons are sized to fit the 1280 px frameless window without colliding
+   with the left logo (~177 px) or the right user chip (~220 px). */
+.jupiter-header-tabs-centered {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jupiter-tab-btn {
+  background-color: rgba(20, 22, 26, 0.85);
+  color: #ffffff;
+  /* Longer + less tall than the original pill: wide horizontal padding,
+     slim vertical padding so the tab row reads as a flat strip. */
+  padding: 6px 26px;
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  backdrop-filter: blur(4px);
+}
+
+.jupiter-tab-btn:hover {
+  background-color: rgba(40, 44, 52, 0.95);
+}
+
+.jupiter-tab-btn.active {
+  background-color: var(--jupiter-accent);
+  color: #ffffff;
+}
+
+/* Signed-in user chip — top-right of the Jupiter header. Vertically
+   centered in the 80 px header, using the same surface as the tab
+   buttons with the cyan accent on hover. Only renders while a user is
+   signed in. */
+.jupiter-user-chip {
+  position: absolute;
+  top: 50%;
+  right: 48px;
+  transform: translateY(-50%);
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 8px 18px;
+  background-color: rgba(20, 22, 26, 0.85);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(4px);
+  transition: all 0.15s ease;
+}
+
+.jupiter-user-chip:hover {
+  background-color: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+  color: #ffffff;
+}
+
+/* Jupiter Body & Slightly-Below-Center Headline */
+.jupiter-main-body {
+  position: relative;
+  z-index: 5;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* No `justify-content: space-between` here on purpose: the headline
+     position is now controlled by an explicit `margin-top` so it lands
+     slightly below viewport center, and the cards row uses
+     `margin-top: auto` to stay anchored at the bottom. */
+  padding: 20px 36px 48px 36px;
+}
+
+.jupiter-active-headline-lowered {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Above the viewport's vertical center: 38 vh moves the tile text up
+     quite a bit. The floating Quick Play emblem is a HOLLOW ring, so even
+     where its lower arc reaches the headline's top line the text stays
+     visible through the ring's center. */
+  margin-top: 547.2px;
+  margin-bottom: 0;
+}
+
+.jupiter-active-headline-lowered h1 {
+  font-size: 5.5rem;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.jupiter-active-headline-lowered p {
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.03em;
+}
+
+/* Jupiter Cards Menu (16:9 Tiles with Artwork Cover + Below-Tile Hover Slide-Out Bar) */
+.jupiter-cards-row {
+  display: flex;
+  /* Push the row itself to the bottom of the main body's content area
+     so the headline + cards layout always reads as "headline slightly
+     below center, cards flush at the bottom". The margin-bottom lifts
+     the tiles off the very bottom edge (moved slightly higher) while the
+     reduced gap + body padding give the tiles more room (bigger). The
+     lift is modest on purpose — the taller tiles already grow upward
+     toward the fixed headline, so an aggressive margin would eat the
+     remaining breathing room. */
+  margin-top: auto;
+  margin-bottom: 16px;
+  gap: 24px;
+  align-items: flex-end;
+}
+
+.jupiter-card-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  max-width: 620px;
+}
+
+.jupiter-card {
+  width: 100%;
+  /* 16:9 aspect ratio with a fixed `max-width` on the wrapper gives a
+     predictable ~292 px tall tile at 520 px wide; smaller viewports get
+     proportionally smaller tiles automatically. */
+  aspect-ratio: 16 / 9;
+  background-color: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  display: block;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+  z-index: 2;
+  /* Slight corner softening on the TOP only — the bottom corners stay
+     square per the design (the hover select bar below carries the rounded
+     bottom silhouette). The `overflow: hidden` clip means the absolutely-
+     positioned `.jupiter-card-image` and the bottom-left title inherit
+     these corners automatically. */
+  border-radius: 4px 4px 0 0;
+}
+
+/* The artwork. Absolutely fills the card, cropped with object-fit: cover
+   so any of the three jup_quick / jup_browse / jup_host source
+   aspect ratios look right inside the 16:9 frame. */
+.jupiter-card-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 1;
+  /* Tasteful subtle zoom on hover/focus only — the border + brightness
+     change is the primary affordance, the scale is the secondary one. */
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.25s ease;
+  /* Slight darken when idle so the white title text reads cleanly even
+     before hover, while the artwork stays vivid. */
+  filter: brightness(0.78) saturate(0.95);
+}
+
+.jupiter-card-title {
+  position: absolute;
+  /* Bottom-left of the tile, in front of the image. The image's idle
+     `filter: brightness(0.78)` and the text-shadow below make the white
+     title legible without any solid backdrop blocker. */
+  left: 22px;
+  bottom: 18px;
+  z-index: 2;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.95),
+    0 0 32px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+/* Quick Play tile's badge: a large circular emblem anchored to the tile's
+   top-left corner that mostly floats ABOVE the tile. The icon asset has
+   ~64 px of transparent padding on its left edge (its visible circle is
+   off-center in the canvas), so the whole badge is shifted `left: -20px`
+   to bring the circle's visible left edge flush with the tile's edge — the
+   label travels with it. translateY(-75%) drops the bottom ~25% of the
+   icon into the tile (a bit lower than before). The label
+   sits beside it, vertically centered on the icon. Only the Quick Play
+   card renders this (cards without an `icon` keep the bottom-left
+   .jupiter-card-title instead). Anchored to the WRAPPER (not
+   .jupiter-card) so the card's overflow:hidden can't clip the part
+   sticking out above. */
+.jupiter-card-badge {
+  position: absolute;
+  top: 0;
+  left: -20px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(-75%);
+  pointer-events: none;
+}
+
+.jupiter-card-badge-icon {
+  /* ~3.2x the previous 56px emblem (a touch smaller than before). */
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 28px rgba(0, 0, 0, 0.75));
+}
+
+.jupiter-card-badge-text {
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.95),
+    0 0 32px rgba(0, 0, 0, 0.7);
+}
+
+/* Hover Effect: Sharp Blue border and gentle zoom on the artwork so the
+   tile feels picked up. The select bar slide-out below is unchanged. */
+.jupiter-card-wrapper:hover .jupiter-card,
+.jupiter-card-wrapper.controller-focused .jupiter-card {
+  border: 3px solid var(--jupiter-accent);
+}
+
+.jupiter-card-wrapper:hover .jupiter-card-image,
+.jupiter-card-wrapper.controller-focused .jupiter-card-image {
+  transform: scale(1.04);
+  filter: brightness(1) saturate(1);
+}
+
+.jupiter-card-select-bar-below {
+  /* Slimmer than before — the tile's bottom corners are square now, so the
+     bar reads as a thin accent strip beneath the card. */
+  height: 30px;
+  background-color: var(--jupiter-accent);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  transform: translateY(-100%);
+  opacity: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
+  z-index: 1;
+  /* Asymmetric corner rounding: the top corners stay flat (0 px) so the
+     bar's top edge sits flush against the card's straight bottom edge. The
+     bottom corners keep the 4 px radius so the bar's lower silhouette
+     matches the rounded card tops. */
+  border-radius: 0 0 4px 4px;
+}
+
+.jupiter-card-wrapper:hover .jupiter-card-select-bar-below {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Quick Play matchmaking state lives on the tile itself (the old
+   bottom-left status panel was removed): while the flow is active the
+   wrapper wears .is-quickplay-active and the card breathes a slow cyan
+   border + outer glow, so the search reads at a glance without any
+   chrome. The glow pulse continues through the short found-countdown
+   before the auto-join modal takes over. */
+.jupiter-card-wrapper.is-quickplay-active .jupiter-card {
+  border-color: var(--jupiter-accent);
+  animation: quickplayTilePulse 2s ease-in-out infinite;
+}
+
+@keyframes quickplayTilePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(2, 143, 204, 0);
+  }
+  50% {
+    box-shadow: 0 0 26px 3px rgba(2, 143, 204, 0.28);
+  }
+}
+
+/* Quick Play IMAGE morph + search pulse. The tile artwork (jup_quick.jpg)
+   and the searching decal (jup_searching.png) are STACKED layers inside
+   the card; while .is-quickplay-searching is set (phase === 'searching')
+   the artwork fades/scales out as the decal fades in — a smooth morph
+   instead of the old instant src swap — and the decal itself breathes
+   (quickplaySearchPulse) for the whole search. On found/cancel the class
+   drops and the layers crossfade back. */
+.jupiter-card-image-quick {
+  opacity: 1;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.25s ease;
+}
+
+.jupiter-card-image-searching {
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.jupiter-card.is-quickplay-searching .jupiter-card-image-quick {
+  opacity: 0;
+  transform: scale(1.06);
+}
+
+.jupiter-card.is-quickplay-searching .jupiter-card-image-searching {
+  opacity: 1;
+  animation: quickplaySearchPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes quickplaySearchPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(0.95);
+  }
+  50% {
+    transform: scale(1.03);
+    filter: brightness(1.05);
+  }
+}
+
+/* Found-phase countdown pill: overlaid center of the Quick Play card while
+   the 3s auto-join countdown runs (the tile keeps its is-quickplay-active
+   pulse beneath it). Sits INSIDE .jupiter-card so top/left 50% is the card
+   center — the wrapper is taller because it also holds the select bar. */
+.jupiter-card-quickplay-countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  background-color: rgba(4, 12, 18, 0.85);
+  border: 1px solid var(--jupiter-accent);
+  border-radius: 4px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.jupiter-card-quickplay-countdown span {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--jupiter-accent);
+  line-height: 1;
+}
+
+/* Quick Play no-match modal — mirrors the Jupiter error modal's overlay,
+   accent rail, and copy, with the quit modal's bottom-right two-button
+   action row (Search Again / Cancel). Portaled by JupiterQuickPlayModal. */
+.jupiter-quickplay-modal {
+  width: 680px;
+  min-height: 230px;
+  background-color: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+}
+
+.jupiter-quickplay-modal-accent-bar {
+  width: 32px;
+  flex: 0 0 32px;
+  background-color: var(--jupiter-accent);
+  border-radius: 4px 0 0 4px;
+}
+
+.jupiter-quickplay-modal-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 30px 38px;
+}
+
+.jupiter-quickplay-modal-copy {
+  min-width: 0;
+}
+
+.jupiter-quickplay-modal-kicker {
+  display: block;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.jupiter-quickplay-modal-copy h2 {
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 2.1rem;
+  line-height: 1.05;
+}
+
+.jupiter-quickplay-modal-copy p {
+  max-width: 390px;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+
+.jupiter-quickplay-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 0 0 190px;
+}
+
+.jupiter-quickplay-modal-btn {
+  padding: 13px 16px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.92rem;
+  font-weight: 800;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.jupiter-quickplay-modal-btn:hover,
+.jupiter-quickplay-modal-btn.controller-focused {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+.jupiter-quickplay-modal-btn.secondary {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Jupiter Quit Button (Top Left — back arrow) */
+.jupiter-quit-btn-wrapper {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 10;
+}
+
+.jupiter-quit-btn {
+  background-color: rgba(20, 22, 26, 0.85);
+  color: #ffffff;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.jupiter-quit-btn:hover,
+.jupiter-quit-btn.controller-focused {
+  background-color: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+  color: #ffffff;
+}
+
+
+/* ==========================================================================
+   SERVER BROWSER
+   ========================================================================== */
+.server-browser {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: #ffffff;
+}
+
+.server-browser-topline {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.server-browser-kicker {
+  display: block;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.server-browser-topline h1 {
+  margin-top: 4px;
+  font-size: 3.3rem;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.server-browser-topline p {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 0.95rem;
+  text-transform: none;
+}
+
+.server-browser-back,
+.server-browser-deploy {
+  padding: 11px 22px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.42);
+  font-size: 0.85rem;
+  font-weight: 800;
+  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.server-browser-back:hover,
+.server-browser-deploy:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.server-browser-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 220px auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.server-browser-search,
+.server-browser-region {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.server-browser-search > span,
+.server-browser-region > span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.server-browser-search input,
+.server-browser-region select {
+  width: 100%;
+  height: 42px;
+  padding: 0 13px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  outline: none;
+  background: rgba(0, 0, 0, 0.52);
+  font: inherit;
+  font-size: 0.9rem;
+  text-transform: none;
+}
+
+.server-browser-search input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.server-browser-region select option {
+  color: #ffffff;
+  background: #14171c;
+}
+
+.server-browser-search input:focus,
+.server-browser-region select:focus {
+  border-color: rgba(255, 255, 255, 0.76);
+}
+
+.server-browser-count {
+  min-width: 130px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.server-browser-count strong {
+  font-size: 1.3rem;
+}
+
+.server-browser-count span {
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.server-browser-content {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.server-browser-status-line {
+  min-height: 18px;
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 0.74rem;
+  text-transform: none;
+}
+
+.server-browser-list,
+.server-browser-list {
+  overflow: auto;
+}
+
+.server-browser-list-header,
+.server-browser-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(80px, 0.48fr) minmax(140px, 0.9fr) 82px auto;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+}
+
+.server-browser-list-header {
+  min-height: 38px;
+  padding: 0 15px;
+  color: rgba(255, 255, 255, 0.45);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.server-browser-row {
+  width: 100%;
+  min-height: 67px;
+  padding: 9px 15px;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.server-browser-row:last-child {
+  border-bottom: 0;
+}
+
+.server-browser-row:hover,
+.server-browser-row.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.server-browser-row.active {
+  box-shadow: inset 3px 0 0 #ffffff;
+}
+
+.server-browser-version {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.server-browser-row strong,
+.server-browser-row small {
+  pointer-events: none;
+  display: block;
+}
+
+.server-browser-row strong {
+  font-size: 0.93rem;
+  font-weight: 800;
+}
+
+.server-browser-row small {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.68rem;
+  text-transform: none;
+}
+
+.server-browser-players {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* Retained only for older cached markup; current rows intentionally do not
+   render a LAN badge beside the server name. */
+.server-browser-lan-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.server-browser-jupiter .server-browser-lan-badge {
+  border-color: var(--jupiter-accent);
+  color: var(--jupiter-accent-hover);
+}
+
+/* Developer Mode test server — amber "DEV" badge marks the local-only,
+   non-real row so nobody mistakes it for a live lobby. */
+.server-browser-dev-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid rgba(241, 196, 15, 0.65);
+  border-radius: 2px;
+  color: rgba(255, 210, 90, 0.95);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.server-browser-empty {
+  padding: 36px 20px;
+  color: rgba(255, 255, 255, 0.56);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+
+.server-browser-iw8 .server-browser-row:hover,
+.server-browser-iw8 .server-browser-row.active {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.62);
+}
+
+.server-browser-iw8 .server-browser-row.active {
+  box-shadow: inset 3px 0 0 #ffffff;
+}
+
+.server-browser-jupiter .server-browser-list-header,
+.server-browser-jupiter .server-browser-row {
+  grid-template-columns: minmax(210px, 1.4fr) minmax(140px, 0.85fr) 100px auto;
+}
+
+.server-browser-jupiter .server-browser-row:hover,
+.server-browser-jupiter .server-browser-row.active {
+  background: rgba(2, 143, 204, 0.13);
+  border-color: rgba(3, 166, 237, 0.65);
+}
+
+.server-browser-jupiter .server-browser-row.active {
+  box-shadow: inset 3px 0 0 var(--jupiter-accent);
+}
+
+.server-browser-delete {
+  justify-self: end;
+  padding: 6px 10px;
+  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 0.68rem;
+  font-weight: 800;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+
+.server-browser-delete:hover:not(:disabled),
+.server-browser-delete:focus-visible {
+  color: #ffffff;
+  border-color: #ffffff;
+  background: rgba(190, 40, 40, 0.85);
+}
+
+.server-browser-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.server-browser-jupiter .server-browser-deploy:hover,
+.server-browser-jupiter .server-browser-back:hover {
+  background: var(--jupiter-accent-hover);
+  border-color: var(--jupiter-accent-hover);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   HOST A MATCH
+   ========================================================================== */
+.host-match {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.host-match-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.host-match-kicker,
+.host-match-summary-label {
+  display: block;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+}
+
+.host-match-heading h1 {
+  margin-top: 4px;
+  font-size: 3.3rem;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.host-match-heading p {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.9rem;
+  text-transform: none;
+}
+
+.host-match-back,
+.host-match-deploy {
+  padding: 11px 22px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.42);
+  font-size: 0.85rem;
+  font-weight: 800;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.host-match-back:hover,
+.host-match-deploy:hover,
+.host-match-deploy.controller-focused {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.host-match-layout {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.75fr);
+  gap: 20px;
+}
+
+.host-match-form,
+.host-match-summary {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.host-match-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: start;
+  gap: 14px;
+  padding: 20px;
+  overflow: auto;
+}
+
+.host-match-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.host-match-field:first-child {
+  grid-column: 1 / -1;
+}
+
+.host-match-field span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.host-match-field input,
+.host-match-field select {
+  width: 100%;
+  height: 43px;
+  padding: 0 13px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 0.88rem;
+  text-transform: none;
+}
+
+.host-match-field input::placeholder {
+  color: rgba(255, 255, 255, 0.34);
+}
+
+.host-match-field select option {
+  color: #ffffff;
+  background: #14171c;
+}
+
+/* Controller focus on a host field — a clear highlight so the hovered row
+   reads instantly (a lone border-color swap was too subtle on a gamepad).
+   The label row tints + gets an outline, the label text brightens, and the
+   control inside wears a thicker white border with a soft glow. */
+.host-match-field.controller-focused {
+  background: rgba(255, 255, 255, 0.05);
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 3px;
+}
+
+.host-match-field.controller-focused > span {
+  color: #ffffff;
+}
+
+.host-match-field input:focus,
+.host-match-field select:focus,
+.host-match-field.controller-focused input,
+.host-match-field.controller-focused select,
+.host-match-field.controller-focused .custom-select-trigger {
+  border-color: #ffffff;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 0 18px rgba(255, 255, 255, 0.14);
+}
+
+.host-match-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+}
+
+.host-match-summary h2 {
+  font-size: 1.5rem;
+  line-height: 1.08;
+}
+
+.host-match-summary-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.host-match-summary-line span {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.72rem;
+}
+
+.host-match-summary-line strong {
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.host-match-deploy {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.host-match-deploy:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.host-match-status {
+  margin-top: auto;
+  padding-top: 14px;
+  color: rgba(255, 255, 255, 0.52);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-transform: none;
+}
+
+.host-match-jupiter .host-match-field.controller-focused {
+  background: rgba(2, 143, 204, 0.07);
+  outline-color: var(--jupiter-accent);
+}
+
+.host-match-jupiter .host-match-field.controller-focused input,
+.host-match-jupiter .host-match-field.controller-focused select,
+.host-match-jupiter .host-match-field.controller-focused .custom-select-trigger,
+.host-match-jupiter .host-match-deploy.controller-focused,
+.host-match-jupiter .host-match-field input:focus,
+.host-match-jupiter .host-match-field select:focus {
+  border-color: var(--jupiter-accent);
+  border-width: 2px;
+  box-shadow: 0 0 0 1px rgba(2, 143, 204, 0.35), 0 0 18px rgba(2, 143, 204, 0.28);
+}
+
+.host-match-jupiter .host-match-deploy:hover,
+.host-match-jupiter .host-match-deploy.controller-focused,
+.host-match-jupiter .host-match-back:hover {
+  background: var(--jupiter-accent-hover);
+  border-color: var(--jupiter-accent-hover);
+  color: #ffffff;
+}
+
+.host-match-jupiter .host-match-form,
+.host-match-jupiter .host-match-summary {
+  border: 0;
+}
+
+/* ==========================================================================
+   CUSTOM SELECT (controller-friendly dropdown — Host a Match, Options)
+   Native <select> elements fight the gamepad: up/down scrolls every option
+   and A keeps flipping them. This picker is driven by the parent's
+   useControllerNavigation hook (the option list becomes the nav target while
+   open) and stays mouse-friendly: click to open, click an option, click
+   outside to close.
+   ========================================================================== */
+.custom-select {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.custom-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  height: 43px;
+  padding: 0 13px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 0.88rem;
+  text-transform: none;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.custom-select-trigger:hover,
+.custom-select.is-open .custom-select-trigger {
+  border-color: #ffffff;
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.custom-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-select-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(10, 12, 16, 0.97);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.custom-select-option {
+  display: block;
+  width: 100%;
+  padding: 10px 13px;
+  color: rgba(255, 255, 255, 0.82);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  text-transform: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.custom-select-option:last-child {
+  border-bottom: 0;
+}
+
+.custom-select-option:hover,
+.custom-select-option.controller-focused {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.custom-select-option.selected {
+  color: var(--jupiter-accent);
+  font-weight: 800;
+}
+
+.iw8-theme .custom-select-option.selected {
+  color: var(--iw8-red-accent);
+}
+
+/* Host a Match — the trigger inherits the field select surface. */
+.host-match-jupiter .custom-select-trigger:hover,
+.host-match-jupiter .custom-select.is-open .custom-select-trigger,
+.host-match-jupiter .custom-select-trigger.controller-focused {
+  border-color: var(--jupiter-accent);
+}
+
+/* Hosting dashboard — shorter trigger to match its select styling. */
+.host-dashboard-mapmode .custom-select-trigger {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 3px;
+  font-size: 0.86rem;
+}
+
+.host-dashboard-mapmode .custom-select-trigger:hover,
+.host-dashboard-mapmode .custom-select.is-open .custom-select-trigger,
+.host-dashboard-mapmode .custom-select-trigger.controller-focused {
+  border-color: var(--jupiter-accent);
+}
+
+.host-match-iw8 .host-dashboard-mapmode .custom-select-trigger:hover,
+.host-match-iw8 .host-dashboard-mapmode .custom-select.is-open .custom-select-trigger,
+.host-match-iw8 .host-dashboard-mapmode .custom-select-trigger.controller-focused {
+  border-color: var(--iw8-red-accent);
+}
+
+/* The focused label (Map / Mode) gets the same accent treatment as the
+   form fields — visible row highlight for controller users. */
+.host-dashboard-mapmode label.controller-focused {
+  background: rgba(2, 143, 204, 0.07);
+  outline: 1px solid var(--jupiter-accent);
+  outline-offset: 3px;
+}
+
+.host-dashboard-mapmode label.controller-focused > span {
+  color: #ffffff;
+}
+
+.host-dashboard-mapmode label.controller-focused .custom-select-trigger {
+  border-color: var(--jupiter-accent);
+  border-width: 2px;
+  box-shadow: 0 0 0 1px rgba(2, 143, 204, 0.35), 0 0 18px rgba(2, 143, 204, 0.28);
+}
+
+.host-match-iw8 .host-dashboard-mapmode label.controller-focused {
+  background: rgba(217, 35, 35, 0.07);
+  outline-color: var(--iw8-red-accent);
+}
+
+.host-match-iw8 .host-dashboard-mapmode label.controller-focused .custom-select-trigger {
+  border-color: var(--iw8-red-accent);
+  box-shadow: 0 0 0 1px rgba(217, 35, 35, 0.35), 0 0 18px rgba(217, 35, 35, 0.28);
+}
+
+/* Options tab — fixed-width dropdowns like the old options-select. */
+.options-row .custom-select {
+  flex: 0 0 auto;
+  width: 220px;
+}
+
+.options-row .custom-select-trigger {
+  font-size: 0.92rem;
+}
+
+.options-row .custom-select-trigger:hover,
+.options-row .custom-select.is-open .custom-select-trigger,
+.options-row .custom-select-trigger.controller-focused {
+  border-color: var(--jupiter-accent);
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.iw8-theme .options-row .custom-select-trigger:hover,
+.iw8-theme .options-row .custom-select.is-open .custom-select-trigger,
+.iw8-theme .options-row .custom-select-trigger.controller-focused {
+  border-color: var(--iw8-red-accent);
+}
+
+/* ==========================================================================
+   TAB PANELS STYLING (FRIENDS, DISCORD, HELP)
+   ========================================================================== */
+.tab-content-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 900px;
+  /* Transparent surface — matches the server-browser / host-match
+     theming so the mod's background artwork shows through on every
+     non-Play tab. Individual cards inside keep their own subtle
+     translucent surfaces + theme accent borders for legibility. */
+  background: transparent;
+  border: none;
+  padding: 32px;
+}
+
+.tab-header-title h2 {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  /* Panels are transparent now — shadow keeps the title legible over the
+     mod's background artwork. */
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85), 0 0 28px rgba(0, 0, 0, 0.6);
+}
+
+.tab-header-title .tab-subtitle {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+}
+
+
+/* Friends Grid */
+.friends-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+}
+
+.friend-card {
+  background: rgba(25, 28, 36, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.friend-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.friend-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.friend-mode {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.friend-status {
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 2px;
+}
+
+.friend-status.online {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border: 1px solid #2ecc71;
+}
+
+.friend-status.in-menu {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+  border: 1px solid #3498db;
+}
+
+.friend-status.in-match {
+  background: rgba(241, 196, 15, 0.2);
+  color: #f1c40f;
+  border: 1px solid #f1c40f;
+}
+
+.friend-status.offline {
+  background: rgba(149, 165, 166, 0.2);
+  color: #95a5a6;
+  border: 1px solid #95a5a6;
+}
+
+/* Discords + Help (merged single Help tab) — cards are compact so the
+   mod's Discord servers AND the support cards all fit one screen. The
+   container scrolls if the viewport can't hold them. */
+.help-sections {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.help-section-kicker {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.55);
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.discord-card {
+  /* Translucent so the mod background shows through, matching the
+     account/social card surfaces on the now-transparent panels. */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.discord-card:hover,
+.discord-card.controller-focused {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.discord-card.highlight-card {
+  border-color: var(--jupiter-accent);
+  background: rgba(2, 143, 204, 0.08);
+}
+
+.discord-card.highlight-card:hover,
+.discord-card.highlight-card.controller-focused {
+  border-color: var(--jupiter-accent);
+  background: rgba(2, 143, 204, 0.16);
+}
+
+.discord-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.discord-card-top h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.discord-badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+
+.discord-note {
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: none;
+}
+
+.discord-link-btn {
+  align-self: flex-start;
+  background: #5865F2;
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
+}
+
+.discord-link-btn:hover {
+  background: #4752C4;
+  transform: translateY(-2px);
+}
+
+.help-card {
+  /* Translucent so the mod background shows through, matching the
+     account/social card surfaces on the now-transparent panels. */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-card h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.help-card p {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: none;
+}
+
+/* The launcher-help card (bottom of the merged Help tab) wears the accent
+   border so it reads as the key support card. */
+.help-card.highlight-card {
+  border-color: var(--jupiter-accent);
+  background: rgba(2, 143, 204, 0.08);
+}
+
+.help-tip-box {
+  background: rgba(241, 196, 15, 0.1);
+  border-left: 3px solid #f1c40f;
+  padding: 9px 14px;
+  font-size: 0.88rem;
+  color: #f1c40f;
+  text-transform: none;
+}
+
+.contact-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.contact-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.contact-tag {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--jupiter-accent);
+  letter-spacing: 0.05em;
+  user-select: text;
+}
+
+
+/* ==========================================================================
+   OPTIONS TAB (launcher settings)
+   ========================================================================== */
+.options-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.options-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.options-card h3 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+
+.options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.options-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.options-row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.options-row-label strong {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.options-row-label span {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.58);
+  text-transform: none;
+}
+
+/* Settings dropdowns — same tactical select surface as the host-match
+   fields, with a theme accent on hover/focus. */
+.options-select {
+  flex: 0 0 auto;
+  width: 220px;
+  height: 43px;
+  padding: 0 13px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 0.92rem;
+  text-transform: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.options-select:hover,
+.options-select:focus {
+  border-color: var(--jupiter-accent);
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.options-select option {
+  color: #ffffff;
+  background: #14171c;
+}
+
+/* IW8 theme dropdown hover/focus uses the red accent instead of cyan */
+.iw8-theme .options-select:hover,
+.iw8-theme .options-select:focus {
+  border-color: var(--iw8-red-accent);
+}
+
+.options-reset-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.options-reset-btn {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 13px 28px;
+  border-radius: 4px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.options-reset-btn:hover {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+  transform: translateY(-1px);
+}
+
+.iw8-theme .options-reset-btn:hover {
+  background: var(--iw8-red-accent);
+  border-color: var(--iw8-red-accent);
+}
+
+.options-reset-hint {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: none;
+}
+
+/* Developer Mode toggle switch (Options > Developer). */
+.options-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 32px;
+}
+
+.options-toggle input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.options-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 16px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  pointer-events: none;
+}
+
+.options-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.15s ease;
+}
+
+.options-toggle.on .options-toggle-track {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+.options-toggle.on .options-toggle-track::after {
+  transform: translateX(32px);
+}
+
+.iw8-theme .options-toggle.on .options-toggle-track {
+  background: var(--iw8-red-accent);
+  border-color: var(--iw8-red-accent);
+}
+
+/* Dev-server metadata inputs (Options > Developer, visible while dev mode
+   is on) — same tactical surface as the settings dropdowns. */
+.options-dev-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.options-text-input {
+  flex: 0 0 auto;
+  width: 260px;
+  height: 43px;
+  padding: 0 13px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 0.9rem;
+  text-transform: none;
+}
+
+.options-text-input::placeholder {
+  color: rgba(255, 255, 255, 0.34);
+}
+
+.options-text-input:focus {
+  border-color: var(--jupiter-accent);
+}
+
+.iw8-theme .options-text-input:focus {
+  border-color: var(--iw8-red-accent);
+}
+
+
+/* ==========================================================================
+   MODDING TAB (RTM automation — Jupiter only)
+   ========================================================================== */
+.modding-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* One row per modding tool: button + short description (and a Cancel
+   button while that tool is running). */
+.modding-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modding-tool {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.modding-tool-btn {
+  flex: 0 0 auto;
+  background: var(--jupiter-accent);
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  padding: 13px 26px;
+  border-radius: 4px;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.modding-tool-btn:hover:not(:disabled) {
+  background: var(--jupiter-accent-hover);
+  transform: translateY(-2px);
+}
+
+.modding-tool-btn.controller-focused {
+  background: #ffffff;
+  color: #000000;
+  transform: translateY(-2px);
+}
+
+.modding-tool-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.modding-tool-desc {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: none;
+}
+
+/* Small caution note shown under a tool (e.g. Switch to Zombies). Sits on
+   its own line below the tool row so a long note can't cramp the row. */
+.modding-tool-note {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: rgba(255, 210, 90, 0.85);
+  text-transform: none;
+  border-left: 3px solid rgba(241, 196, 15, 0.55);
+  padding: 2px 0 2px 10px;
+}
+
+/* Change Username input — matches the host-match field inputs so it reads
+   as part of the same tactical surface. */
+.modding-username-input {
+  flex: 0 0 auto;
+  width: 260px;
+  height: 43px;
+  padding: 0 13px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 0.9rem;
+  text-transform: none;
+}
+
+.modding-username-input::placeholder {
+  color: rgba(255, 255, 255, 0.34);
+}
+
+.modding-username-input:focus,
+.modding-username-input.controller-focused {
+  border-color: var(--jupiter-accent);
+}
+
+.modding-cancel-btn {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.modding-cancel-btn:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.modding-status {
+  min-height: 20px;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: none;
+}
+
+/* IW8 shell (Dynamic Interfaces = IW8 Mod with Jupiter content) wears the
+   red accent on the Modding tab controls instead of Jupiter cyan. */
+.iw8-theme .modding-tool-btn {
+  background: var(--iw8-red-accent);
+}
+
+.iw8-theme .modding-tool-btn:hover:not(:disabled) {
+  background: #e03131;
+}
+
+.iw8-theme .modding-username-input:focus {
+  border-color: var(--iw8-red-accent);
+}
+
+/* ── Developer Mode RTM tool panel (Modding tab) ──────────────────────── */
+.modding-dev-panel {
+  gap: 18px;
+  /* The dev surface is tall (command grid + argument rows + 44 toggles) —
+     the tab body doesn't scroll, so the panel scrolls internally. */
+  max-height: 760px;
+  overflow-y: auto;
+  padding-right: 12px;
+}
+
+.modding-dev-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modding-dev-header h3 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: rgba(255, 210, 90, 0.95);
+  letter-spacing: 0.06em;
+}
+
+.modding-dev-header span {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: none;
+}
+
+.modding-dev-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modding-dev-section h4 {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding-bottom: 6px;
+}
+
+.modding-dev-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modding-dev-btn {
+  font-size: 0.88rem;
+  padding: 9px 16px;
+}
+
+.modding-dev-text-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modding-dev-text-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modding-dev-text-btn {
+  flex: 0 0 auto;
+  min-width: 92px;
+}
+
+.modding-dev-input {
+  flex: 0 0 auto;
+  width: 280px;
+}
+
+.modding-dev-toggles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.modding-dev-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modding-dev-toggle:hover,
+.modding-dev-toggle.controller-focused {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.modding-dev-toggle.on {
+  border-color: var(--jupiter-accent);
+  color: #ffffff;
+}
+
+.modding-dev-toggle input {
+  flex: 0 0 auto;
+  accent-color: var(--jupiter-accent);
+}
+
+.iw8-theme .modding-dev-toggle.on {
+  border-color: var(--iw8-red-accent);
+}
+
+.iw8-theme .modding-dev-toggle input {
+  accent-color: var(--iw8-red-accent);
+}
+
+
+/* ==========================================================================
+   QUIT MODAL DIALOGS WITH OPENING ANIMATION
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: modalFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ==========================================================================
+   AUTO-UPDATE MODAL (startup GitHub-release check — theme-neutral, shown
+   over the launcher before a mod is chosen)
+   ========================================================================== */
+.update-modal {
+  width: 520px;
+  background-color: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 28px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.update-modal-kicker {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.update-modal h2 {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+}
+
+.update-modal p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+.update-modal p strong {
+  color: #ffffff;
+}
+
+.update-modal-error {
+  color: #ff6b6b !important;
+}
+
+.update-modal-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.update-modal-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.update-modal-progress-fill {
+  height: 100%;
+  background: #ffffff;
+  transition: width 0.2s ease;
+}
+
+.update-modal-progress span {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.8);
+  min-width: 38px;
+  text-align: right;
+}
+
+.update-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.update-modal-btn {
+  padding: 10px 22px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.update-modal-btn:hover,
+.update-modal-btn.controller-focused {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.update-modal-btn-primary {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.update-modal-btn-primary:hover,
+.update-modal-btn-primary.controller-focused {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.35);
+}
+
+/* --- IW8 Quit Modal (iw8 quit.png) --- */
+.iw8-quit-modal {
+  width: 580px;
+  background-color: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 0;
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+}
+
+.iw8-quit-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.iw8-quit-options {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.iw8-quit-option-btn {
+  width: 100%;
+  padding: 16px 0;
+  font-size: 1.6rem;
+  text-align: center;
+}
+
+.iw8-quit-option-btn.controller-focused {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+
+/* --- Interface Reload Modal (Options > Dynamic Interfaces) ---
+   Mirrors the Jupiter error modal's accent-rail layout. The IW8-theme
+   variant is restyled to the IW8 quit modal's look in the "IW8 MODAL
+   VARIANTS" section below. */
+.interface-reload-modal {
+  width: 660px;
+  min-height: 230px;
+  background-color: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+}
+
+.interface-reload-accent-bar {
+  width: 32px;
+  flex: 0 0 32px;
+  background-color: var(--jupiter-accent);
+  border-radius: 4px 0 0 4px;
+}
+
+.interface-reload-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 28px 34px;
+}
+
+.interface-reload-kicker {
+  display: block;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin-bottom: 8px;
+}
+
+.interface-reload-copy h2 {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.interface-reload-copy p {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+.interface-reload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.interface-reload-btn {
+  min-width: 150px;
+  padding: 12px 24px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.interface-reload-cancel {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.interface-reload-cancel:hover,
+.interface-reload-cancel.controller-focused {
+  background-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.interface-reload-confirm {
+  background-color: var(--jupiter-accent);
+  border: 1px solid var(--jupiter-accent);
+}
+
+.interface-reload-confirm:hover,
+.interface-reload-confirm.controller-focused {
+  background-color: var(--jupiter-accent-hover);
+  border-color: var(--jupiter-accent-hover);
+}
+
+
+/* --- Jupiter Quit Modal (jupiter quit.png - NO HOVER TRANSLATE SHIFT) --- */
+.jupiter-quit-modal {
+  width: 680px;
+  height: 260px;
+  background-color: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+}
+
+.jupiter-quit-accent-bar {
+  width: 32px;
+  background-color: var(--jupiter-accent);
+  height: 100%;
+  /* The accent bar sits at the modal's left edge. Its left corners need
+     to match the modal's rounded corners so the cyan strip doesn't
+     spike out into the rounded area of the modal as a sharp rectangle.
+     Right corners stay flat because the bar meets `.jupiter-quit-content`
+     in a straight vertical line at the bar's inner edge. */
+  border-radius: 4px 0 0 4px;
+}
+
+.jupiter-quit-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 30px 38px;
+}
+
+.jupiter-quit-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Buttons sit in a bottom-right horizontal row, mirroring the host-prompt
+   modal's action row (jupiter-join-actions) instead of the old vertical
+   stack on the right edge. */
+.jupiter-quit-buttons-stack {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+}
+
+.jupiter-quit-option-btn {
+  min-width: 150px;
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  padding: 12px 24px;
+  text-align: center;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.jupiter-quit-option-btn:hover {
+  background-color: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+/* Jupiter error acknowledgement modal — intentionally mirrors the quit
+   modal's overlay, accent rail, typography, and controller focus behavior. */
+.jupiter-error-modal,
+.iw8-error-modal {
+  width: 680px;
+  min-height: 230px;
+  background-color: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+}
+
+.jupiter-error-accent-bar {
+  width: 32px;
+  flex: 0 0 32px;
+  background-color: var(--jupiter-accent);
+  border-radius: 4px 0 0 4px;
+}
+
+.jupiter-error-content,
+.iw8-error-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 30px 38px;
+}
+
+.jupiter-error-copy,
+.iw8-error-copy {
+  min-width: 0;
+}
+
+.jupiter-error-kicker,
+.iw8-error-kicker {
+  display: block;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.jupiter-error-copy h2,
+.iw8-error-copy h2 {
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 2.1rem;
+  line-height: 1.05;
+}
+
+.jupiter-error-copy p,
+.iw8-error-copy p {
+  max-width: 390px;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+
+.jupiter-error-acknowledge,
+.iw8-error-acknowledge {
+  flex: 0 0 190px;
+  padding: 13px 16px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.92rem;
+  font-weight: 800;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.jupiter-error-acknowledge:hover,
+.jupiter-error-acknowledge.controller-focused {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+/* Jupiter staged local-play join modal. It intentionally mirrors the quit
+   modal's dark surface, cyan rail, and controller-focused actions while
+   allowing the instruction and manual-command states to grow vertically. */
+.jupiter-join-modal,
+.jupiter-host-prompt-modal {
+  width: 820px;
+  max-height: 680px;
+  overflow: auto;
+  display: flex;
+  background: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.jupiter-join-accent-bar {
+  width: 32px;
+  flex: 0 0 32px;
+  background: var(--jupiter-accent);
+  border-radius: 4px 0 0 4px;
+}
+
+.jupiter-join-content {
+  flex: 1;
+  padding: 30px 38px;
+}
+
+.jupiter-join-kicker {
+  display: block;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.jupiter-join-content h2 {
+  margin-top: 7px;
+  color: #ffffff;
+  font-size: 2.15rem;
+  line-height: 1.05;
+}
+
+.jupiter-join-intro {
+  max-width: 700px;
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.jupiter-join-steps {
+  display: grid;
+  gap: 9px;
+  margin: 20px 0 26px 22px;
+  color: #ffffff;
+  font-size: 0.95rem;
+  text-transform: none;
+}
+
+.jupiter-join-steps li::marker {
+  color: var(--jupiter-accent-hover);
+  font-weight: 800;
+}
+
+.jupiter-join-command-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.jupiter-join-command-list div {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.36);
+}
+
+.jupiter-join-command-list span {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.jupiter-join-command-list code {
+  color: #ffffff;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-transform: none;
+  user-select: text;
+}
+
+.jupiter-join-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.jupiter-join-button {
+  min-width: 150px;
+  padding: 13px 18px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  transition: all 0.15s ease;
+}
+
+.jupiter-join-button:hover,
+.jupiter-join-button.controller-focused {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+/* The secondary action (Retry in the join result) uses the SAME treatment
+   as every other button — neutral surface, cyan accent on hover/focus. No
+   red: a retry is not an error state. */
+.jupiter-join-button.secondary {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.jupiter-join-button.secondary:hover,
+.jupiter-join-button.secondary.controller-focused {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+.jupiter-join-sending {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.8rem;
+}
+
+/* The IW8 variants of these modals (accent bars, markers, button hovers)
+   no longer use red accents — the "IW8 MODAL VARIANTS" section below
+   restyles every theme="iw8" modal to the IW8 quit modal's look. */
+
+
+/* ==========================================================================
+   IW8 MODAL VARIANTS — ADOPT THE IW8 QUIT MODAL'S VISUAL LANGUAGE
+   Every modal rendered with theme="iw8" (the error dialog, the
+   interface-reload confirmation, and the Jupiter join / host-prompt modals
+   inside an IW8 shell) restyles to the IW8 quit modal's look: square dark
+   panel with no accent rail, centered title, and full-width stacked
+   buttons that flip white on hover/focus. The Jupiter variants keep their
+   accent-rail layout. Placed AFTER the Jupiter rules so these win the
+   specificity ties on the shared `.iw8-error-*` / `.iw8-styled` surfaces.
+   ========================================================================== */
+
+/* Panel: square, dark, 580px — mirrors .iw8-quit-modal. */
+.iw8-error-modal,
+.interface-reload-modal.iw8-theme,
+.jupiter-join-modal.iw8-styled,
+.jupiter-host-prompt-modal.iw8-styled {
+  width: 580px;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+}
+
+/* No accent rail — the quit modal doesn't have one. */
+.iw8-error-modal .iw8-error-accent-bar,
+.interface-reload-modal.iw8-theme .interface-reload-accent-bar,
+.jupiter-join-modal.iw8-styled .jupiter-join-accent-bar,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-accent-bar {
+  display: none;
+}
+
+/* Content: quit-modal padding on every variant. */
+.iw8-error-content,
+.interface-reload-modal.iw8-theme .interface-reload-content,
+.jupiter-join-modal.iw8-styled .jupiter-join-content,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-content {
+  padding: 32px;
+}
+
+/* Error + reload content are flex containers — center them as a column
+   (the join/host content is a plain block; its kicker/title are centered
+   via text-align and the actions stack via the actions rule below). */
+.iw8-error-content,
+.interface-reload-modal.iw8-theme .interface-reload-content {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.iw8-error-copy,
+.interface-reload-modal.iw8-theme .interface-reload-copy {
+  text-align: center;
+}
+
+.iw8-error-kicker,
+.interface-reload-modal.iw8-theme .interface-reload-kicker,
+.jupiter-join-modal.iw8-styled .jupiter-join-kicker,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-kicker {
+  text-align: center;
+}
+
+.iw8-error-copy h2,
+.interface-reload-modal.iw8-theme .interface-reload-copy h2,
+.jupiter-join-modal.iw8-styled .jupiter-join-content h2,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-content h2 {
+  font-size: 2.2rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Body copy / steps / command list stay left-aligned for readability. */
+.jupiter-join-modal.iw8-styled .jupiter-join-intro,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-intro {
+  max-width: none;
+}
+
+.jupiter-join-modal.iw8-styled .jupiter-join-steps,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-steps {
+  margin-left: 0;
+}
+
+.jupiter-join-modal.iw8-styled .jupiter-join-steps li::marker,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-steps li::marker {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.jupiter-join-modal.iw8-styled .jupiter-join-command-list {
+  text-align: left;
+}
+
+/* Action rows: full-width vertical stacks (mirror .iw8-quit-options). */
+.interface-reload-modal.iw8-theme .interface-reload-actions,
+.jupiter-join-modal.iw8-styled .jupiter-join-actions,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-actions {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  margin-top: 26px;
+}
+
+.jupiter-join-modal.iw8-styled .jupiter-join-sending {
+  width: 100%;
+  text-align: center;
+}
+
+/* Buttons: same surface + sizing as .iw8-quit-option-btn (neutral, square,
+   full-width, flips white on hover/focus). */
+.iw8-error-acknowledge,
+.interface-reload-modal.iw8-theme .interface-reload-btn,
+.jupiter-join-modal.iw8-styled .jupiter-join-button,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-button {
+  width: 100%;
+  min-width: 0;
+  flex: none;
+  padding: 16px 0;
+  font-size: 1.6rem;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.iw8-error-acknowledge:hover,
+.iw8-error-acknowledge.controller-focused,
+.interface-reload-modal.iw8-theme .interface-reload-btn:hover,
+.interface-reload-modal.iw8-theme .interface-reload-btn.controller-focused,
+.jupiter-join-modal.iw8-styled .jupiter-join-button:hover,
+.jupiter-join-modal.iw8-styled .jupiter-join-button.controller-focused,
+.jupiter-join-modal.iw8-styled .jupiter-join-button.secondary:hover,
+.jupiter-join-modal.iw8-styled .jupiter-join-button.secondary.controller-focused,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-button:hover,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-button.controller-focused,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-button.secondary:hover,
+.jupiter-host-prompt-modal.iw8-styled .jupiter-join-button.secondary.controller-focused {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+
+/* ==========================================================================
+   OPEN BETA WELCOME MODAL
+   Uses the same error-modal structure as the active interface: Jupiter keeps
+   its cyan accent rail, while IW8 inherits the square, stacked-button modal
+   treatment from the IW8 modal variants above.
+   ========================================================================== */
+.beta-welcome-modal {
+  width: 760px;
+  max-height: 680px;
+  overflow: auto;
+}
+
+.beta-welcome-content {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 34px 40px;
+}
+
+.beta-welcome-copy {
+  text-align: center;
+}
+
+.beta-welcome-copy h2 {
+  margin-top: 8px;
+  font-size: 2.35rem;
+  line-height: 1.08;
+}
+
+.beta-welcome-copy p {
+  max-width: none;
+  margin-top: 18px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.94rem;
+  line-height: 1.58;
+  text-align: left;
+  text-transform: none;
+}
+
+.beta-welcome-copy em {
+  color: #ffffff;
+  font-style: italic;
+}
+
+.beta-welcome-acknowledge {
+  width: 100%;
+  min-width: 0;
+  flex: none;
+  margin-top: 28px;
+}
+
+
+/* ==========================================================================
+   AUTH REQUIRED NOTICE (FRIENDS + PARTIES LOCKED TOAST)
+   Mounted inside both IW8Interface and JupiterInterface when the user is
+   not signed in. Position: fixed so it overlays the (animating) interface
+   without participating in its flex/transform budget. The slide-in
+   keyframe matches the project's standard cubic-bezier(0.16, 1, 0.3, 1)
+   curve so the toast lands as a continuation of the launcher→interface
+   cutover motion rather than introducing a new animation language.
+   ========================================================================== */
+
+@keyframes authRequiredNoticeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(72px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.auth-required-notice {
+  /* The two interface themes have very different header heights:
+     - IW8: the topographic header is ~198 px tall on a 720 px viewport
+       (logo clamp(120px, 15.75vh, 170px) + 14 padding + 10 gap + 2
+       divider + 10 gap + ~44 tab + 10 padding-bottom + 2 border).
+     - Jupiter: header is 80 px (`.jupiter-header { height: 80px }`).
+     A single shared `top` value can't clear both. The theme variants
+     below override `top` so the toast lands clear of either header
+     without leaving excess empty space under Jupiter's smaller one. */
+  position: fixed;
+  right: 32px;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  max-width: 460px;
+  width: max-content;
+  min-width: 360px;
+  padding: 14px 18px;
+  font-family: var(--font-family);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+  /* Theme variants below override the surface + accent + top; the
+     base just keeps the layout + animation that both share. */
+  animation: authRequiredNoticeSlideIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.iw8-auth-notice {
+  /* 218 px (IW8 header ≈198 px + a 20 px breathing gap so the toast
+     doesn't kiss the white header-bottom-border) */
+  top: 218px;
+  background-color: rgba(13, 15, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.jupiter-auth-notice {
+  /* 96 px (Jupiter header 80 px + 16 px breathing gap) */
+  top: 96px;
+  background-color: rgba(20, 22, 26, 0.94);
+  border: 1px solid rgba(2, 143, 204, 0.55);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.auth-required-notice-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+.iw8-auth-notice .auth-required-notice-icon {
+  background-color: rgba(217, 35, 35, 0.16);
+  color: #ff5a5a;
+}
+
+.jupiter-auth-notice .auth-required-notice-icon {
+  background-color: rgba(2, 143, 204, 0.18);
+  color: var(--jupiter-accent-hover);
+}
+
+.auth-required-notice-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Allow long copy (e.g. translations) to wrap inside the cell; cap line
+     length so the toast stays under ~460 px and never collides with the
+     dismiss × button on the right edge. */
+  min-width: 0;
+  max-width: 280px;
+}
+
+.auth-required-notice-title {
+  font-size: 0.96rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+}
+
+.auth-required-notice-message {
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.35;
+}
+
+.auth-required-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-required-notice-signin {
+  padding: 8px 18px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  border-radius: 2px;
+  /* The Sign In button mostly mirrors the rest of the project's primary
+     CTAs in shape — square corners for IW8 (matches the IW8 tab btn style),
+     2 px chamfer for Jupiter (visually consistent with the rest of the
+     Jupiter 4 px-rounded UI without competing with the larger radius). */
+  transition: background-color 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+
+.iw8-auth-notice .auth-required-notice-signin {
+  background-color: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+}
+
+.iw8-auth-notice .auth-required-notice-signin:hover {
+  background-color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.85);
+  transform: translateY(-1px);
+}
+
+.jupiter-auth-notice .auth-required-notice-signin {
+  background-color: var(--jupiter-accent);
+  color: #ffffff;
+  border: 1px solid var(--jupiter-accent);
+}
+
+.jupiter-auth-notice .auth-required-notice-signin:hover {
+  background-color: var(--jupiter-accent-hover);
+  border-color: var(--jupiter-accent-hover);
+  transform: translateY(-1px);
+}
+
+.auth-required-notice-dismiss {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 2px;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-required-notice-dismiss:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+/* On narrow viewports (≤480 px wide), the toast spans near the top of the
+   screen with side gutters so it doesn't bottom out against the Window's
+   resize handle. Override the per-theme `top` values above so the toast
+   doesn't sit 96 or 218 px below the top in a 480 px window — instead
+   it parks ~12 px below the top edge, which is more discoverable on a
+   cramped viewport. */
+
+/* ==========================================================================
+   AUTH-NOTICE: DON'T SHOW AGAIN BUTTON
+   Sits inside the `.auth-required-notice-actions` row, immediately to
+   the left of the dismiss × button. Renders as a quiet text-style chip
+   so it visually defers to the bright "Sign In" CTA but is still easy
+   to find for users who want to suppress the toast forever.
+   ========================================================================== */
+
+.auth-required-notice-suppress {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  padding: 8px 12px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-required-notice-suppress:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.jupiter-auth-notice .auth-required-notice-suppress:hover {
+  background-color: rgba(2, 143, 204, 0.18);
+  border-color: rgba(2, 143, 204, 0.55);
+}
+
+
+/* ==========================================================================
+   SOCIAL TAB (renamed from Friends) — LOCKED STATE
+   Rendered by SocialTab.jsx when there's no signed-in user. The CTA
+   button calls back into the parent interface to switch the active
+   header tab to "Account" so the user can complete sign-up inline.
+   ========================================================================== */
+
+.social-locked-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 28px 32px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.social-locked-state.jupiter-theme {
+  border-left: 4px solid var(--jupiter-accent);
+}
+
+.social-locked-state.iw8-theme {
+  border-left: 4px solid var(--iw8-red-accent);
+}
+
+.social-locked-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+}
+
+.social-locked-body {
+  font-size: 1rem;
+  font-weight: 500;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.45;
+}
+
+.social-locked-cta {
+  margin-top: 8px;
+  padding: 12px 26px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+
+.social-locked-cta.iw8-theme {
+  background-color: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+}
+
+.social-locked-cta.iw8-theme:hover {
+  background-color: rgba(255, 255, 255, 0.88);
+  border-color: rgba(255, 255, 255, 0.88);
+  transform: translateY(-1px);
+}
+
+.social-locked-cta.jupiter-theme {
+  background-color: var(--jupiter-accent);
+  color: #ffffff;
+  border: 1px solid var(--jupiter-accent);
+}
+
+.social-locked-cta.jupiter-theme:hover {
+  background-color: var(--jupiter-accent-hover);
+  border-color: var(--jupiter-accent-hover);
+  transform: translateY(-1px);
+}
+
+
+/* ==========================================================================
+   ACCOUNT TAB
+   Sign-in / sign-out hub. Three main render branches:
+     1. account-signed-in-card (when user is truthy)
+     2. account-not-configured-banner + account-signin-card (when !user and configured)
+     3. account-not-configured-banner alone (when !user and !configured)
+
+   Theme variants for the account tabs mirror the existing IW8 / Jupiter
+   aesthetic — sharp white-on-black for IW8, cyan-accented rounded
+   surfaces for Jupiter — without forking the React component.
+   ========================================================================== */
+
+.account-not-configured-banner {
+  padding: 18px 22px;
+  background: rgba(255, 218, 121, 0.08);
+  border: 1px dashed rgba(255, 218, 121, 0.55);
+  color: #ffda79;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+.account-not-configured-banner h4 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffda79;
+  margin-bottom: 6px;
+}
+
+.account-not-configured-banner code {
+  background: rgba(0, 0, 0, 0.45);
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  color: #ffda79;
+}
+
+/* ---- Signed-in panel ---- */
+
+.account-signed-in-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 24px;
+  padding: 28px 32px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.account-signed-in-card.jupiter-theme {
+  border-left: 4px solid var(--jupiter-accent);
+}
+
+.account-signed-in-card.iw8-theme {
+  border-left: 4px solid var(--iw8-red-accent);
+}
+
+.account-avatar {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #ffffff;
+  flex: 0 0 72px;
+}
+
+.account-avatar.jupiter-theme {
+  border-color: var(--jupiter-accent);
+  color: var(--jupiter-accent);
+}
+
+.account-avatar.iw8-theme {
+  border-color: var(--iw8-red-accent);
+  color: #ff5a5a;
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.account-display-name {
+  grid-column: 2 / 4;
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.account-meta {
+  grid-column: 2 / 4;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 18px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.account-meta li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.account-meta li span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.account-meta li strong {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+
+.account-signout-btn {
+  grid-column: 3 / 4;
+  grid-row: 1 / 2;
+  align-self: center;
+  padding: 10px 22px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.account-signout-btn.iw8-theme {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.account-signout-btn.iw8-theme:hover {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.account-signout-btn.jupiter-theme {
+  background-color: var(--jupiter-accent);
+  color: #ffffff;
+  border: 1px solid var(--jupiter-accent);
+}
+
+.account-signout-btn.jupiter-theme:hover {
+  background-color: var(--jupiter-accent-hover);
+  border-color: var(--jupiter-accent-hover);
+}
+
+/* ---- Sign-in panel ---- */
+
+.account-signin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 28px 32px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.account-signin-card.jupiter-theme {
+  border-left: 4px solid var(--jupiter-accent);
+}
+
+.account-signin-card.iw8-theme {
+  border-left: 4px solid var(--iw8-red-accent);
+}
+
+.account-signin-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---- Sign-in / Sign-up mode toggle ---- */
+
+.account-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.account-mode-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.account-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.account-mode-btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.account-mode-btn.iw8-theme.active {
+  background: rgba(217, 35, 35, 0.15);
+  color: #ff6b6b;
+  border-bottom: 2px solid var(--iw8-red-accent);
+}
+
+.account-mode-btn.jupiter-theme.active {
+  background: rgba(2, 143, 204, 0.15);
+  color: var(--jupiter-accent-hover);
+  border-bottom: 2px solid var(--jupiter-accent);
+}
+
+.account-mode-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-provider-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 22px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.account-provider-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-provider-btn:disabled:hover {
+  transform: none;
+}
+
+.account-provider-btn.iw8-theme {
+  background-color: rgba(13, 15, 18, 0.96);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.account-provider-btn.iw8-theme:hover {
+  background-color: rgba(38, 43, 51, 0.96);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.account-provider-btn.jupiter-theme {
+  background-color: rgba(20, 22, 26, 0.96);
+  color: #ffffff;
+  border: 1px solid rgba(2, 143, 204, 0.55);
+}
+
+.account-provider-btn.jupiter-theme:hover {
+  background-color: rgba(40, 44, 52, 0.96);
+  border-color: var(--jupiter-accent);
+  transform: translateY(-1px);
+}
+
+/* Controller-focused styles for provider buttons */
+.account-provider-btn.controller-focused {
+  transform: translateY(-2px);
+}
+
+.account-provider-btn.iw8-theme.controller-focused {
+  background-color: rgba(38, 43, 51, 0.96);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.account-provider-btn.jupiter-theme.controller-focused {
+  background-color: rgba(40, 44, 52, 0.96);
+  border-color: var(--jupiter-accent);
+  transform: translateY(-2px);
+}
+
+/* Controller-focused style for email submit button */
+.account-email-submit.controller-focused {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+/* Controller keyboard hint */
+.controller-keyboard-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.controller-keyboard-hint-icon {
+  font-size: 1rem;
+}
+
+/* Input active pulse animation */
+.input-active-pulse {
+  animation: inputPulse 0.3s ease-out;
+}
+
+@keyframes inputPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0);
+  }
+}
+
+
+
+.account-signin-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.account-signin-divider::before,
+.account-signin-divider::after {
+  content: '';
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.account-signin-divider span {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.58);
+  text-transform: uppercase;
+}
+
+.account-signin-email-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.account-email-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account-email-field span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+/* Inline validation / format hint rendered under each input. Quiet
+   help text by default (the "3-20 chars..." line under the username
+   field) and louder red when there's a validation error so the user
+   notices it. Mirrors `.account-signin-error` palette but uses smaller
+   weight so it doesn't compete with the field label above. */
+.account-field-hint {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: none;
+  padding: 2px 0 0 1px;
+}
+
+.account-field-hint-error {
+  color: #ff7d7d;
+}
+
+.jupiter-theme .account-field-hint-error {
+  color: var(--jupiter-accent);
+}
+
+/* The sign-in form grew from {email, submit} to {username, email,
+   submit}. The original 2-column grid auto-wraps the third child onto
+   the next row — visually wrong (submit button ends up alone on row
+   2). Force the username to span both columns of row 1, keeping the
+   email + submit pair exactly where they were before.
+
+   Uses explicit class names + adjacency combinators instead of
+   `:first-of-type` / `:last-of-type`. HTML structural selectors are
+   fragile (silently wrong if a sibling type ever appears between the
+   fields), while class names stay correct under any DOM reorganization. */
+.account-signin-email-form > .account-username-field {
+  grid-column: 1 / -1;
+}
+
+.account-signin-email-form > .account-username-field + .account-email-field {
+  grid-column: 1;
+}
+
+.account-signin-email-form > .account-email-submit {
+  grid-column: 2;
+}
+
+.account-email-field input {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  outline: none;
+  font: inherit;
+  font-size: 0.95rem;
+  text-transform: none;
+  transition: border-color 0.15s ease;
+}
+
+.account-email-field input:focus {
+  border-color: rgba(255, 255, 255, 0.62);
+}
+
+.account-email-field input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-email-field input::placeholder {
+  color: rgba(255, 255, 255, 0.36);
+}
+
+/* Jupiter's email field border intersects with the project's cyan
+   accent rule on focus, so reinforce instead of override. */
+.jupiter-theme .account-email-field input:focus {
+  border-color: var(--jupiter-accent);
+}
+
+.account-email-submit {
+  height: 46px;
+  padding: 0 22px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.account-email-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-email-submit:disabled:hover {
+  transform: none;
+}
+
+.account-email-submit.iw8-theme {
+  background-color: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+}
+
+.account-email-submit.iw8-theme:hover {
+  background-color: rgba(255, 255, 255, 0.88);
+  border-color: rgba(255, 255, 255, 0.88);
+  transform: translateY(-1px);
+}
+
+.account-email-submit.jupiter-theme {
+  background-color: var(--jupiter-accent);
+  color: #ffffff;
+  border: 1px solid var(--jupiter-accent);
+}
+
+.account-email-submit.jupiter-theme:hover {
+  background-color: var(--jupiter-accent-hover);
+  border-color: var(--jupiter-accent-hover);
+  transform: translateY(-1px);
+}
+
+.account-signin-error {
+  padding: 12px 16px;
+  background: rgba(217, 35, 35, 0.12);
+  border: 1px solid rgba(217, 35, 35, 0.45);
+  color: #ff7d7d;
+  font-size: 0.88rem;
+  text-transform: none;
+  border-radius: 2px;
+}
+
+.account-email-sent {
+  padding: 28px 32px;
+  background: rgba(46, 204, 113, 0.08);
+  border: 1px solid rgba(46, 204, 113, 0.45);
+}
+
+.account-email-sent.jupiter-theme {
+  border-left: 4px solid rgba(46, 204, 113, 0.7);
+}
+
+.account-email-sent.iw8-theme {
+  border-left: 4px solid rgba(46, 204, 113, 0.7);
+}
+
+.account-email-sent h3 {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #ffffff;
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+}
+
+.account-email-sent p {
+  font-size: 0.96rem;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+}
+
+.account-email-sent strong {
+  color: #ffffff;
+}
+
+
+/* ==========================================================================
+   LAUNCHER BOTTOM BAR
+   Small bar at the bottom of the launcher with the quit button
+   ========================================================================= */
+
+.launcher-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 16px;
+  z-index: 20;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+}
+
+.launcher-bottom-bar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.launcher-bottom-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.launcher-bottom-bar-btn.jupiter-theme:hover {
+  border-color: var(--jupiter-accent);
+  color: var(--jupiter-accent-hover);
+}
+
+.launcher-bottom-bar-btn.iw8-theme:hover {
+  border-color: var(--iw8-red-accent);
+  color: #ff6b6b;
+}
+
+
+/* ==========================================================================
+   JUPITER SESSION TOASTS
+   Fixed top-right stack rendered by JupiterSessionProvider: party invites
+   (with Accept/Decline) and info notices (map/mode updates, server closed).
+   ========================================================================= */
+
+.jupiter-session-toasts {
+  position: fixed;
+  top: 96px;
+  right: 24px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 380px;
+}
+
+.jupiter-session-toast {
+  position: relative;
+  padding: 14px 16px;
+  background: rgba(14, 16, 20, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 3px solid var(--jupiter-accent);
+  border-radius: 4px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.7);
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.jupiter-session-toast-party-invite {
+  border-left-color: #f0b429;
+}
+
+.jupiter-session-toast-title {
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: var(--jupiter-accent-hover);
+  margin-bottom: 4px;
+}
+
+.jupiter-session-toast-party-invite .jupiter-session-toast-title {
+  color: #f0b429;
+}
+
+.jupiter-session-toast-message {
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.35;
+  text-transform: none;
+  padding-right: 22px;
+}
+
+.jupiter-session-toast-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  transition: color 0.15s ease;
+}
+
+.jupiter-session-toast-dismiss:hover {
+  color: #ffffff;
+}
+
+.jupiter-session-toast-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.jupiter-session-toast-actions button {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  background: var(--jupiter-accent);
+  border-radius: 3px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.jupiter-session-toast-actions button:hover {
+  background: var(--jupiter-accent-hover);
+  transform: translateY(-1px);
+}
+
+.jupiter-session-toast-actions button.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.jupiter-session-toast-actions button.secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Session toasts in an IW8 shell wear the red accent; party-invite toasts
+   keep their amber highlight (re-asserted after the red rules). */
+.jupiter-session-toasts.iw8-styled .jupiter-session-toast {
+  border-left-color: var(--iw8-red-accent);
+}
+
+.jupiter-session-toasts.iw8-styled .jupiter-session-toast-party-invite {
+  border-left-color: #f0b429;
+}
+
+.jupiter-session-toasts.iw8-styled .jupiter-session-toast-title {
+  color: var(--iw8-red-accent);
+}
+
+.jupiter-session-toasts.iw8-styled .jupiter-session-toast-party-invite .jupiter-session-toast-title {
+  color: #f0b429;
+}
+
+.jupiter-session-toasts.iw8-styled .jupiter-session-toast-actions button {
+  background: var(--iw8-red-accent);
+}
+
+.jupiter-session-toasts.iw8-styled .jupiter-session-toast-actions button:hover {
+  background: #e03131;
+}
+
+/* ==========================================================================
+   CURRENT MAP BADGE (Jupiter lobbies)
+   Bottom-right HUD showing the map artwork + name + mode while the user is
+   connected to a Jupiter lobby (rendered by JupiterSessionProvider once the
+   join reaches the 'result' stage) or hosting one (HostMatch's LOBBY CONTROL
+   dashboard). Jupiter content only — maps without artwork (IW8) render
+   nothing. Sits above modal overlays (z 1000) and below session toasts
+   (z 1200); pointer-events: none so it never blocks interaction.
+   ========================================================================== */
+.jupiter-map-badge {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 14px 10px 18px;
+  background: rgba(10, 12, 16, 0.92);
+  border: 1px solid rgba(2, 143, 204, 0.4);
+  border-left: 3px solid var(--jupiter-accent);
+  border-radius: 4px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.75);
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+.jupiter-map-badge-img {
+  width: 160px;
+  height: 90px;
+  object-fit: cover;
+  object-position: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+}
+
+.jupiter-map-badge-label {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: var(--jupiter-accent-hover);
+  margin-bottom: 4px;
+}
+
+.jupiter-map-badge-text strong {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.05;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.jupiter-map-badge-text em {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+/* IW8 shell (Jupiter content under Dynamic Interfaces): red accent + square
+   corners, and lifted clear of the IW8 shell's bottom-right Quit button. */
+.jupiter-map-badge.iw8-styled {
+  bottom: 76px;
+  border: 1px solid rgba(217, 35, 35, 0.4);
+  border-left: 3px solid var(--iw8-red-accent);
+  border-radius: 0;
+}
+
+.jupiter-map-badge.iw8-styled .jupiter-map-badge-label {
+  color: var(--iw8-red-accent);
+}
+
+/* Host dashboard variant: the badge is the bottom section of the right
+   column, pinned under the player list — it stretches to the column width
+   with the text left and the artwork right, and the map/mode selects above
+   drive it live. The .iw8-styled bottom lift is inert here (position
+   static wins). */
+.host-dashboard-right .jupiter-map-badge {
+  position: static;
+  align-self: stretch;
+  animation: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  gap: 22px;
+  padding: 14px 22px 14px 24px;
+}
+
+.host-dashboard-right .jupiter-map-badge-img {
+  width: 232px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
+.host-dashboard-right .jupiter-map-badge-label {
+  font-size: 0.74rem;
+}
+
+.host-dashboard-right .jupiter-map-badge-text strong {
+  font-size: 1.6rem;
+}
+
+.host-dashboard-right .jupiter-map-badge-text em {
+  font-size: 0.92rem;
+}
+
+/* Jupiter host-entry prompt (HostMatch): prepping state spinner + layout. */
+.jupiter-host-prompt-prepping {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.jupiter-host-prompt-spinner {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(2, 143, 204, 0.25);
+  border-top-color: var(--jupiter-accent);
+  border-radius: 50%;
+  animation: jupiterSpin 0.9s linear infinite;
+}
+
+@keyframes jupiterSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   HOSTING DASHBOARD (Jupiter LOBBY CONTROL view)
+   ========================================================================= */
+
+.host-dashboard {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.host-dashboard-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  /* Right column (In the Game + CURRENT MAP) is thinner so the big map
+     badge fits without crowding the player list — 0.8fr still leaves the
+     longest map name ("Fortune's Keep") + 192px artwork room to breathe. */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 20px;
+}
+
+/* Right column of the dashboard grid: the player list scrolls above the
+   CURRENT MAP badge, so the badge never overlaps it. */
+.host-dashboard-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.host-dashboard-lobby,
+.host-dashboard-players {
+  background: rgba(10, 12, 16, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.host-dashboard-kicker {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: var(--jupiter-accent-hover);
+}
+
+.host-dashboard-lobby h2 {
+  font-size: 1.9rem;
+  line-height: 1.05;
+  margin-bottom: 4px;
+}
+
+.host-dashboard-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.86rem;
+}
+
+.host-dashboard-line span {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+}
+
+.host-dashboard-session {
+  color: var(--jupiter-accent-hover);
+  letter-spacing: 0.08em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.host-dashboard-live {
+  color: #2ecc71;
+  animation: dashboardPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes dashboardPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.host-dashboard-mapmode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 0;
+}
+
+.host-dashboard-mapmode label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.host-dashboard-mapmode label span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.host-dashboard-mapmode select {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.host-dashboard-mapmode select:hover,
+.host-dashboard-mapmode select:focus {
+  border-color: var(--jupiter-accent);
+}
+
+.host-dashboard-mapmode select option {
+  color: #ffffff;
+  background: #14171c;
+}
+
+.host-dashboard-hint {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: none;
+  line-height: 1.4;
+}
+
+.host-dashboard-players {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.host-dashboard-players-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.host-dashboard-players-header strong {
+  font-size: 1.6rem;
+  color: var(--jupiter-accent-hover);
+}
+
+.host-dashboard-players-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.host-dashboard-players-empty {
+  font-size: 0.84rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: none;
+  line-height: 1.45;
+  padding: 12px 0;
+}
+
+.host-dashboard-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.host-dashboard-player.guest {
+  border-color: rgba(240, 180, 41, 0.35);
+}
+
+.host-dashboard-player-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 50%;
+  background: var(--jupiter-accent);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.host-dashboard-player.guest .host-dashboard-player-avatar {
+  background: rgba(240, 180, 41, 0.9);
+}
+
+.host-dashboard-player-name {
+  flex: 1;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-dashboard-player-tag {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: rgba(240, 180, 41, 0.95);
+}
+
+.host-dashboard-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.host-dashboard-close {
+  padding: 11px 30px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  background: rgba(217, 35, 35, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.host-dashboard-close:hover:not(:disabled) {
+  background: #d92323;
+  transform: translateY(-1px);
+}
+
+.host-dashboard-close.controller-focused {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.host-dashboard-close:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Dashboard map/mode focus ring lands on the label, so drive the trigger
+   border from there (the trigger's own controller-focused class only shows
+   when the dropdown is open). */
+.host-dashboard-mapmode label.controller-focused .custom-select-trigger {
+  border-color: var(--jupiter-accent);
+}
+
+.host-match-iw8 .host-dashboard-mapmode label.controller-focused .custom-select-trigger {
+  border-color: var(--iw8-red-accent);
+}
+
+/* Hosting dashboard in an IW8 shell wears the red accent. */
+.host-match-iw8 .host-dashboard-mapmode select:hover,
+.host-match-iw8 .host-dashboard-mapmode select:focus {
+  border-color: var(--iw8-red-accent);
+}
+
+.host-match-iw8 .host-dashboard-session {
+  color: var(--iw8-red-accent);
+}
+
+/* ==========================================================================
+   SOCIAL TAB — friends + party panels
+   ========================================================================= */
+
+.social-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  padding-bottom: 8px;
+}
+
+.social-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 20px 18px;
+  background: linear-gradient(180deg, rgba(16, 18, 24, 0.86), rgba(9, 11, 15, 0.82));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.social-panel.jupiter-theme {
+  border-top-color: var(--jupiter-accent);
+}
+
+.social-panel.iw8-theme {
+  border-top-color: var(--iw8-red-accent);
+}
+
+.social-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.social-panel-kicker {
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.social-panel.jupiter-theme .social-panel-kicker {
+  color: var(--jupiter-accent-hover);
+}
+
+.social-panel.iw8-theme .social-panel-kicker {
+  color: #ff6b6b;
+}
+
+.social-panel-count {
+  min-width: 26px;
+  padding: 3px 8px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+.social-panel.jupiter-theme .social-panel-count {
+  color: var(--jupiter-accent-hover);
+  border-color: rgba(3, 166, 237, 0.45);
+}
+
+.social-panel.iw8-theme .social-panel-count {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.45);
+}
+
+.social-notice {
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.social-notice-success {
+  border-color: rgba(46, 204, 113, 0.5);
+  color: #7ce3a9;
+}
+
+.social-notice-error {
+  border-color: rgba(217, 35, 35, 0.55);
+  color: #ff8b8b;
+}
+
+.social-add-friend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.social-add-search {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.social-add-search span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.social-add-search input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 0.86rem;
+  text-transform: none;
+}
+
+.social-add-search input:focus {
+  border-color: var(--jupiter-accent);
+  box-shadow: 0 0 0 3px rgba(2, 143, 204, 0.18);
+}
+
+.social-panel.iw8-theme .social-add-search input:focus {
+  border-color: var(--iw8-red-accent);
+  box-shadow: 0 0 0 3px rgba(217, 35, 35, 0.18);
+}
+
+.social-search-status {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: none;
+}
+
+.social-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.social-avatar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2b3140, #171b24);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+}
+
+.social-panel.jupiter-theme .social-avatar {
+  background: linear-gradient(135deg, #0e6a96, #03344d);
+  border-color: rgba(3, 166, 237, 0.5);
+}
+
+.social-panel.iw8-theme .social-avatar {
+  background: linear-gradient(135deg, #7c1d1d, #2b0b0b);
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+.social-avatar-incoming {
+  animation: social-avatar-pulse 2s ease-in-out infinite;
+}
+
+.social-avatar-muted {
+  opacity: 0.45;
+}
+
+.social-avatar-leader {
+  border-color: rgba(240, 180, 41, 0.75);
+}
+
+@keyframes social-avatar-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.35); }
+  50% { box-shadow: 0 0 0 4px rgba(46, 204, 113, 0); }
+}
+
+.social-result-row,
+.social-friend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.social-result-row:hover,
+.social-friend-row:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.social-friend-row-muted {
+  opacity: 0.8;
+}
+
+.social-result-name,
+.social-friend-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.social-result-row button,
+.social-friend-actions button,
+.social-invite {
+  padding: 6px 14px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  border-radius: 3px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.social-add-btn {
+  flex: 0 0 auto;
+  background: var(--jupiter-accent);
+}
+
+.social-add-btn:hover:not(:disabled) {
+  background: var(--jupiter-accent-hover);
+  transform: translateY(-1px);
+}
+
+.social-add-btn.iw8-theme {
+  background: var(--iw8-red-accent);
+}
+
+.social-add-btn.iw8-theme:hover:not(:disabled) {
+  background: #f03434;
+}
+
+.social-accept {
+  background: rgba(46, 204, 113, 0.75);
+}
+
+.social-accept:hover:not(:disabled) {
+  background: #2ecc71;
+  transform: translateY(-1px);
+}
+
+.social-decline {
+  background: rgba(217, 35, 35, 0.7);
+}
+
+.social-decline:hover:not(:disabled) {
+  background: #d92323;
+  transform: translateY(-1px);
+}
+
+.social-friend-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.social-invite {
+  background: rgba(240, 180, 41, 0.75);
+}
+
+.social-invite:hover:not(:disabled) {
+  background: #f0b429;
+  transform: translateY(-1px);
+}
+
+.social-pending-tag {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.social-friend-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.social-friend-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.social-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.5);
+  padding-top: 4px;
+}
+
+.social-group-title::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  background: var(--jupiter-accent);
+  border-radius: 1px;
+  flex: 0 0 auto;
+}
+
+.social-panel.iw8-theme .social-group-title::before {
+  background: var(--iw8-red-accent);
+}
+
+.social-empty {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.42);
+  text-transform: none;
+  line-height: 1.4;
+  padding: 6px 0;
+}
+
+.social-party-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+}
+
+.social-party-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.social-party-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.social-party-leader-name {
+  font-size: 1.02rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.social-party-role {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: #f0b429;
+  background: rgba(240, 180, 41, 0.12);
+  border: 1px solid rgba(240, 180, 41, 0.45);
+  border-radius: 999px;
+}
+
+.social-party-code-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.social-party-code-label {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.social-party-code-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(240, 180, 41, 0.55);
+  border-radius: 5px;
+}
+
+.social-party-code-chip code {
+  flex: 1;
+  font-size: 1.3rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  color: #f0b429;
+}
+
+.social-party-copy {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--jupiter-accent-hover);
+  background: transparent;
+  border: 1px solid rgba(3, 166, 237, 0.5);
+  border-radius: 3px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.social-party-copy:hover:not(:disabled) {
+  background: rgba(3, 166, 237, 0.15);
+}
+
+.social-party-copy.iw8-theme {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+.social-party-copy.iw8-theme:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.15);
+}
+
+.social-party-members {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 148px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.social-party-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.social-party-member.leader {
+  border-color: rgba(240, 180, 41, 0.5);
+  background: rgba(240, 180, 41, 0.06);
+}
+
+.social-party-member-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.social-party-you {
+  flex: 0 0 auto;
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.social-party-crown {
+  color: #f0b429;
+  font-size: 0.8rem;
+}
+
+.social-party-status {
+  font-size: 0.76rem;
+  color: #7ce3a9;
+  text-transform: none;
+  line-height: 1.4;
+}
+
+.social-party-leave {
+  margin-top: 4px;
+  padding: 9px 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  background: rgba(217, 35, 35, 0.75);
+  border-radius: 3px;
+  transition: background-color 0.15s ease;
+}
+
+.social-party-leave:hover:not(:disabled) {
+  background: #d92323;
+}
+
+.social-party-join {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.social-party-create {
+  padding: 13px 0;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  background: var(--jupiter-accent);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(2, 143, 204, 0.35);
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.social-party-create:hover:not(:disabled) {
+  background: var(--jupiter-accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(3, 166, 237, 0.45);
+}
+
+.social-party-create.iw8-theme {
+  background: var(--iw8-red-accent);
+  box-shadow: 0 4px 14px rgba(217, 35, 35, 0.35);
+}
+
+.social-party-create.iw8-theme:hover:not(:disabled) {
+  background: #f03434;
+  box-shadow: 0 6px 18px rgba(240, 52, 52, 0.45);
+}
+
+.social-party-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.social-party-or::before,
+.social-party-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.social-party-code-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.social-party-code-field span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.social-party-code-field input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  outline: none;
+  background: rgba(0, 0, 0, 0.62);
+  font: inherit;
+  font-size: 1rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.social-party-code-field input:focus {
+  border-color: var(--jupiter-accent);
+  box-shadow: 0 0 0 3px rgba(2, 143, 204, 0.18);
+}
+
+.social-panel.iw8-theme .social-party-code-field input:focus {
+  border-color: var(--iw8-red-accent);
+  box-shadow: 0 0 0 3px rgba(217, 35, 35, 0.18);
+}
+
+.social-party-joinbtn {
+  padding: 11px 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.social-party-joinbtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.social-party-joinbtn.jupiter-theme:not(:disabled) {
+  border-color: rgba(3, 166, 237, 0.55);
+  color: var(--jupiter-accent-hover);
+}
+
+.social-party-joinbtn.iw8-theme:not(:disabled) {
+  border-color: rgba(255, 107, 107, 0.55);
+  color: #ff6b6b;
+}
+
+.social-party-joinbtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.social-party-hint {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: none;
+  line-height: 1.45;
+  margin-top: auto;
+}
+
+.social-locked-state.iw8-theme .social-locked-cta,
+.social-locked-state.jupiter-theme .social-locked-cta {
+  border-radius: 3px;
+}
+
+/* Controller-focus highlights for the Social tab's primary controls. */
+.social-add-search-input.controller-focused,
+.social-party-code-field input.controller-focused {
+  border-color: var(--jupiter-accent);
+  box-shadow: 0 0 0 3px rgba(2, 143, 204, 0.18);
+}
+
+.social-panel.iw8-theme .social-add-search-input.controller-focused,
+.social-panel.iw8-theme .social-party-code-field input.controller-focused {
+  border-color: var(--iw8-red-accent);
+  box-shadow: 0 0 0 3px rgba(217, 35, 35, 0.18);
+}
+
+.social-add-btn.controller-focused,
+.social-accept.controller-focused,
+.social-decline.controller-focused,
+.social-invite.controller-focused,
+.social-party-create.controller-focused,
+.social-party-joinbtn.controller-focused,
+.social-party-copy.controller-focused,
+.social-party-leave.controller-focused {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* ── Right-side player roster HUD ────────────────────────────────────────
+   Who is in your lobby (all server members once joined) or your party
+   squad — a vertical stack of player cards pinned below the header's user
+   chip on the right edge (position: fixed so it persists across tabs;
+   pointer-events: none like the CURRENT MAP HUD). Rendered by
+   PlayerRoster; party members get a PARTY tag, the signed-in user gets
+   YOU. Absent for IW8 content (no session provider). */
+/* Connected-state panel (Play menu): replaces the Quick Play / Server
+   Browser / Host a Match cards while the player is in a server. Shows the
+   lobby name + current map/mode and a Leave Server button (runs
+   RTM.exe -disconnect + MainMenuOffline via the session provider). */
+.connected-server-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 42px 48px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.connected-server-kicker {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.connected-server-panel.jupiter-theme .connected-server-kicker {
+  color: var(--jupiter-accent);
+}
+
+.connected-server-panel.iw8-theme .connected-server-kicker {
+  color: var(--iw8-red-accent);
+}
+
+.connected-server-name {
+  margin: 0;
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+}
+
+.connected-server-map {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.06em;
+}
+
+.connected-server-hint {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: none;
+}
+
+.connected-server-leave-btn {
+  margin-top: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 14px 40px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.connected-server-panel.jupiter-theme .connected-server-leave-btn:hover {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+.connected-server-panel.iw8-theme .connected-server-leave-btn:hover {
+  background: var(--iw8-red-accent);
+  border-color: var(--iw8-red-accent);
+}
+
+/* Leave Server button under the roster list while connected. The roster
+   HUD itself is pointer-events:none (it never blocks the UI below), so the
+   button opts back in to receive clicks. */
+.player-roster-leave-btn {
+  pointer-events: auto;
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px 0;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.player-roster.jupiter-theme .player-roster-leave-btn:hover {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+.player-roster.iw8-theme .player-roster-leave-btn:hover {
+  background: var(--iw8-red-accent);
+  border-color: var(--iw8-red-accent);
+}
+
+.player-roster {
+  position: fixed;
+  z-index: 30;
+  right: 48px;
+  top: 92px; /* just below the 80px Jupiter header / user chip */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 264px;
+  pointer-events: none; /* HUD — never blocks clicks on the UI below */
+}
+
+.player-roster.iw8-theme {
+  right: 32px;
+  top: 122px; /* the IW8 header is taller than Jupiter's 80px bar */
+}
+
+.player-roster-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+
+.player-roster-count {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.player-roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 344px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  font-size: 1.02rem; /* bigger than before — longer + larger cards */
+  background: rgba(10, 12, 16, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 3px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+}
+
+.player-card.is-me {
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
+.player-roster.jupiter-theme .player-card.is-me {
+  border-color: var(--jupiter-accent);
+  box-shadow: 0 0 0 1px rgba(3, 166, 237, 0.45), 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.player-roster.iw8-theme .player-card.is-me {
+  border-color: var(--iw8-red-accent);
+  box-shadow: 0 0 0 1px rgba(217, 35, 35, 0.5), 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* Party members stand out in the lobby roster with an accent left rail. */
+.player-roster.jupiter-theme .player-card.is-party {
+  border-left-color: var(--jupiter-accent);
+}
+
+.player-roster.iw8-theme .player-card.is-party {
+  border-left-color: var(--iw8-red-accent);
+}
+
+.player-card-flag {
+  height: 1.4em; /* a little taller than the username text */
+  width: auto;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.player-card-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 1em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-card-tag {
+  flex: 0 0 auto;
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.player-card-tag-party {
+  color: #ffd75e;
+  background: rgba(255, 215, 94, 0.12);
+  border: 1px solid rgba(255, 215, 94, 0.55);
+}
+
+.player-card-tag-me {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.player-roster.jupiter-theme .player-card-tag-me {
+  color: var(--jupiter-accent-hover);
+  border-color: rgba(3, 166, 237, 0.5);
+}
+
+.player-roster.iw8-theme .player-card-tag-me {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+/* ── Friend context menu (right-click / ⋯ button) ───────────────────────
+   Right-clicking a friend row (or clicking its ⋯ button) opens a portaled
+   context menu: Invite to Party, Set/Edit/Clear Nickname, Remove Friend
+   (with an in-menu confirm). Themed via the same jupiter-theme / iw8-theme
+   classes the social panels use. */
+.social-row-menu-btn {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.social-row-menu-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.social-context-menu {
+  position: fixed;
+  z-index: 1200;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: rgba(13, 15, 19, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  animation: social-menu-in 0.12s ease-out;
+}
+
+@keyframes social-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.social-context-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 4px;
+}
+
+.social-context-header .social-avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 0.72rem;
+}
+
+.social-context-name {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.social-context-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.88);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  transition: background-color 0.12s ease;
+}
+
+.social-context-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.social-context-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.social-context-item.social-context-danger {
+  color: #ff7b7b;
+}
+
+.social-context-item.social-context-danger:hover:not(:disabled) {
+  background: rgba(217, 35, 35, 0.18);
+}
+
+/* The menu is portaled to <body>, so the theme class rides on the menu
+   itself (not inside .social-panel). */
+.social-context-menu.jupiter-theme .social-context-item:not(:disabled):hover {
+  background: rgba(3, 166, 237, 0.2);
+}
+
+.social-context-menu.iw8-theme .social-context-item:not(:disabled):hover {
+  background: rgba(217, 35, 35, 0.16);
+}
+
+.social-context-hint {
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0 10px 6px;
+  line-height: 1.35;
+}
+
+.social-context-confirm {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 2px 10px 8px;
+  line-height: 1.4;
+}
+
+/* Inline nickname editor inside the friend row */
+.social-nick-editor {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.social-nick-editor input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  outline: none;
+}
+
+.social-panel.jupiter-theme .social-nick-editor input:focus {
+  border-color: var(--jupiter-accent);
+}
+
+.social-panel.iw8-theme .social-nick-editor input:focus {
+  border-color: var(--iw8-red-accent);
+}
+
+.social-nick-save,
+.social-nick-cancel {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  border-radius: 3px;
+  transition: background-color 0.15s ease;
+}
+
+.social-nick-save {
+  background: rgba(46, 204, 113, 0.7);
+}
+
+.social-nick-save:hover:not(:disabled) {
+  background: #2ecc71;
+}
+
+.social-nick-cancel {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.social-nick-cancel:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+
+/* ==========================================================================
+   OPEN-BETA ACCOUNT SETUP + ADVANCED SECURITY GATE
+   ========================================================================== */
+.security-gate {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #ffffff;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.security-gate-iw8 {
+  background-image:
+    linear-gradient(180deg, rgba(5, 6, 8, 0.78), rgba(5, 6, 8, 0.94)),
+    url('./assets/iw8_bg.jpg');
+}
+
+.security-gate-jupiter {
+  background-image:
+    linear-gradient(180deg, rgba(5, 5, 5, 0.68), rgba(5, 5, 5, 0.94)),
+    url('./assets/jup_bg.jpg');
+}
+
+.security-gate-header {
+  flex: 0 0 auto;
+  padding: 40px 56px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 10, 13, 0.72);
+}
+
+.security-gate-kicker {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.security-gate-header h1,
+.security-gate-panel h1 {
+  font-size: 3.3rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.security-gate-header p,
+.security-gate-panel p {
+  max-width: 760px;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+.security-gate-iw8 .security-gate-kicker {
+  color: #ff6b6b;
+}
+
+.security-gate-jupiter .security-gate-kicker {
+  color: var(--jupiter-accent-hover);
+}
+
+.security-gate-account {
+  width: 920px;
+  flex: 1;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 28px 0 56px;
+  overflow: auto;
+}
+
+.security-gate-account .tab-content-panel {
+  min-height: 0;
+  padding: 0;
+}
+
+.security-gate-account .tab-header-title {
+  display: none;
+}
+
+.security-gate-account .account-signin-card,
+.security-gate-account .account-signed-in-card {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.security-gate-quit {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  z-index: 3;
+  padding: 9px 20px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.64);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.security-gate-iw8 .security-gate-quit:hover,
+.security-gate-iw8 .security-gate-action:hover {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.security-gate-jupiter .security-gate-quit,
+.security-gate-jupiter .security-gate-action {
+  border-color: rgba(3, 166, 237, 0.55);
+}
+
+.security-gate-jupiter .security-gate-quit:hover,
+.security-gate-jupiter .security-gate-action:hover {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+.security-gate-blocked {
+  align-items: center;
+  justify-content: center;
+}
+
+.security-gate-panel {
+  width: 680px;
+  padding: 38px 42px;
+  background: rgba(12, 14, 18, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.86);
+}
+
+.security-gate-iw8 .security-gate-panel {
+  border-radius: 0;
+  border-left: 4px solid var(--iw8-red-accent);
+}
+
+.security-gate-jupiter .security-gate-panel {
+  border-radius: 4px;
+  border-left: 4px solid var(--jupiter-accent);
+}
+
+.security-gate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.security-gate-action {
+  min-width: 150px;
+  padding: 13px 22px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.security-gate-iw8 .security-gate-action:last-child {
+  background: rgba(217, 35, 35, 0.72);
+  border-color: rgba(217, 35, 35, 0.86);
+}
+
+.security-gate-jupiter .security-gate-action:first-child {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+.account-email-verification-notice {
+  margin-bottom: 18px;
+}
+
+/* ---- Beta signup form refresh ------------------------------------------ */
+.account-signin-email-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px 18px;
+}
+
+.account-signin-email-form > .account-mode-toggle,
+.account-signin-email-form > .account-beta-signup-notice,
+.account-signin-email-form > .account-email-submit {
+  grid-column: 1 / -1;
+}
+
+.account-signin-email-form > .account-email-field,
+.account-signin-email-form > .account-discord-field,
+.account-signin-email-form > .account-username-field {
+  grid-column: auto;
+}
+
+.account-discord-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account-discord-field > span:first-child {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.account-discord-field > span:first-child em {
+  margin-left: 7px;
+  color: #ffda79;
+  font-size: 0.62rem;
+  font-style: normal;
+  letter-spacing: 0.1em;
+}
+
+.account-discord-field input {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  outline: none;
+  font: inherit;
+  font-size: 0.95rem;
+  text-transform: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.account-discord-field input:focus {
+  border-color: var(--jupiter-accent);
+  box-shadow: 0 0 0 3px rgba(2, 143, 204, 0.16);
+}
+
+.account-signin-card.iw8-theme .account-discord-field input:focus {
+  border-color: var(--iw8-red-accent);
+  box-shadow: 0 0 0 3px rgba(217, 35, 35, 0.16);
+}
+
+.account-beta-signup-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  color: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 218, 121, 0.07);
+  border: 1px solid rgba(255, 218, 121, 0.34);
+  border-left: 3px solid #ffda79;
+  text-transform: none;
+}
+
+.account-beta-signup-notice strong {
+  color: #ffda79;
+  font-size: 0.76rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-beta-signup-notice span {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.account-signin-email-form > .account-email-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.account-meta {
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  grid-column: 1 / -1;
+}
+
+.account-region-field {
+  grid-column: 1 / -1;
+}
+
+
+/* ==========================================================================
+   WINDOWED MODE CONTROLS
+   The app remains frameless in both modes. These controls appear only when
+   Settings > Display Mode is Windowed; they are intentionally small and
+   translucent so they read as part of the command-center chrome rather than
+   as a replacement OS title bar.
+   ========================================================================== */
+.window-controls {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(7, 9, 12, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
+}
+
+.window-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 26px;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.window-control-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.window-control-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.window-control-close:hover {
+  color: #ffffff;
+  background: rgba(217, 35, 35, 0.78);
+  border-color: rgba(255, 107, 107, 0.82);
+}
+
+/* Reserve the small upper-right control cluster so it never covers the
+   signed-in chip in either shell while Windowed mode is active. */
+.iw8-user-chip {
+  right: 112px;
+}
+
+.jupiter-user-chip {
+  right: 116px;
+}
+
+/* ==========================================================================
+   ACCOUNT + SOCIAL TAB ENLARGEMENT
+   The Account and Social tabs render wide, spacious panels — the default
+   900px cap clips long emails and makes the forms feel cramped. Both get a
+   wider canvas plus larger inputs / rows / cards, and the Social panels are
+   made transparent like the other tabs (Discord / Options) — the inner
+   rows and cards keep their own subtle translucent surfaces.
+   ========================================================================== */
+
+.tab-content-panel.account-tab-panel,
+.tab-content-panel.social-tab-panel {
+  max-width: 1500px;
+}
+
+/* ---- Account: bigger panels, inputs, and meta cells ---- */
+
+.account-tab-panel .account-signed-in-card,
+.account-tab-panel .account-signin-card {
+  padding: 40px 44px;
+  gap: 28px;
+}
+
+.account-tab-panel .account-avatar {
+  width: 96px;
+  height: 96px;
+  flex-basis: 96px;
+  font-size: 2.4rem;
+}
+
+.account-tab-panel .account-display-name {
+  font-size: 2rem;
+}
+
+/* Two-by-two meta grid so long emails / Discord tags get real room and
+   wrap instead of clipping (the default 4-across squeezes each cell). */
+.account-tab-panel .account-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.account-tab-panel .account-meta li {
+  padding: 14px 18px;
+  gap: 6px;
+}
+
+.account-tab-panel .account-meta li span {
+  font-size: 0.78rem;
+}
+
+.account-tab-panel .account-meta li strong {
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.account-tab-panel .account-signout-btn {
+  padding: 14px 28px;
+  font-size: 0.95rem;
+}
+
+.account-tab-panel .account-mode-btn {
+  padding: 14px 22px;
+  font-size: 1.05rem;
+}
+
+.account-tab-panel .account-email-field,
+.account-tab-panel .account-discord-field {
+  gap: 8px;
+}
+
+.account-tab-panel .account-email-field > span:first-child,
+.account-tab-panel .account-discord-field > span:first-child {
+  font-size: 0.78rem;
+}
+
+.account-tab-panel .account-email-field input,
+.account-tab-panel .account-discord-field input {
+  height: 58px;
+  padding: 0 16px;
+  font-size: 1.05rem;
+}
+
+.account-tab-panel .account-email-submit {
+  height: 58px;
+  padding: 0 30px;
+  font-size: 1rem;
+}
+
+.account-tab-panel .account-field-hint {
+  font-size: 0.78rem;
+}
+
+.account-tab-panel .account-beta-signup-notice {
+  padding: 14px 16px;
+  gap: 5px;
+}
+
+.account-tab-panel .account-beta-signup-notice strong {
+  font-size: 0.82rem;
+}
+
+.account-tab-panel .account-beta-signup-notice span {
+  font-size: 0.85rem;
+}
+
+/* ---- Social: transparent panels + bigger rows/cards ---- */
+
+.social-tab-panel .social-layout {
+  gap: 28px;
+}
+
+/* Transparent like the other tabs — the inner rows / cards / inputs keep
+   their own subtle translucent surfaces for legibility. */
+.social-tab-panel .social-panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 24px 28px;
+}
+
+.social-tab-panel .social-panel-kicker {
+  font-size: 0.9rem;
+}
+
+.social-tab-panel .social-panel-count {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+}
+
+.social-tab-panel .social-add-search span,
+.social-tab-panel .social-party-code-field span {
+  font-size: 0.8rem;
+}
+
+.social-tab-panel .social-add-search input {
+  height: 52px;
+  padding: 0 14px;
+  font-size: 1rem;
+}
+
+.social-tab-panel .social-result-row,
+.social-tab-panel .social-friend-row {
+  padding: 12px 16px;
+}
+
+.social-tab-panel .social-result-name,
+.social-tab-panel .social-friend-name {
+  font-size: 1.02rem;
+}
+
+.social-tab-panel .social-avatar {
+  width: 38px;
+  height: 38px;
+  font-size: 0.95rem;
+}
+
+.social-tab-panel .social-result-row button,
+.social-tab-panel .social-friend-actions button,
+.social-tab-panel .social-invite {
+  padding: 8px 18px;
+  font-size: 0.8rem;
+}
+
+.social-tab-panel .social-group-title {
+  font-size: 0.72rem;
+}
+
+.social-tab-panel .social-party-card {
+  padding: 20px;
+  gap: 16px;
+}
+
+.social-tab-panel .social-party-leader-name {
+  font-size: 1.15rem;
+}
+
+.social-tab-panel .social-party-code-chip code {
+  font-size: 1.5rem;
+}
+
+.social-tab-panel .social-party-code-field input {
+  height: 54px;
+  font-size: 1.15rem;
+}
+
+.social-tab-panel .social-party-members {
+  max-height: 200px;
+}
+
+.social-tab-panel .social-party-member {
+  padding: 9px 12px;
+  font-size: 0.92rem;
+}
+
+.social-tab-panel .social-party-create {
+  padding: 16px 0;
+  font-size: 1rem;
+}
+
+.social-tab-panel .social-party-joinbtn {
+  padding: 14px 0;
+  font-size: 0.95rem;
+}
+
+.social-tab-panel .social-party-leave {
+  padding: 12px 0;
+  font-size: 0.85rem;
+}
+
+.social-tab-panel .social-party-hint {
+  font-size: 0.82rem;
+}
