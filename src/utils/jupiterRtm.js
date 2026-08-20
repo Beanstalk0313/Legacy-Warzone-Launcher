@@ -2,10 +2,17 @@ import { invoke } from '@tauri-apps/api/core'
 
 export const isTauriRuntime = () => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
 
-function validateCommand(command, label = 'RTM command') {
+function validateCommand(command, label = 'RTM command', options = {}) {
   const value = command?.trim()
   if (!value) throw new Error(`${label} is empty.`)
-  if (value.length > 4096 || [...value].some((character) => /\p{Cc}/u.test(character))) {
+  // cbuf commands legitimately carry multiple statements — the WZ3 config
+  // format puts secondary dvars (e.g. Plunder's cash-to-win) on their own
+  // LINE (see wz commands.txt). Only `-cbuf` is allowed newlines; every
+  // other command stays control-character-free.
+  const hasInvalidControl = [...value].some(
+    (character) => /\p{Cc}/u.test(character) && !(options.allowNewlines && character === '\n')
+  )
+  if (value.length > 4096 || hasInvalidControl) {
     throw new Error(`${label} contains invalid characters or is too long.`)
   }
   return value
@@ -20,13 +27,15 @@ function ensureDesktopRuntime() {
 /**
  * Run the bundled RTM.exe with the given arguments (e.g. ["-lua", "MainMenuOffline"]).
  * RTM.exe writes its trigger files into the game's RTM folder and exits.
+ * Pass `allowNewlines: true` (only the -cbuf command path does) so the
+ * multi-line WZ3 config format reaches the tool.
  */
-export async function runRtm(args) {
+export async function runRtm(args, options = {}) {
   ensureDesktopRuntime()
   if (!Array.isArray(args) || args.length === 0) {
     throw new Error('No RTM arguments provided.')
   }
-  const safeArgs = args.map((argument) => validateCommand(String(argument)))
+  const safeArgs = args.map((argument) => validateCommand(String(argument), undefined, options))
   return invoke('run_rtm', { args: safeArgs })
 }
 
@@ -41,9 +50,13 @@ export async function writeJupiterLuaCommand(command) {
   return runRtm(['-lua', validateCommand(command, 'Lua command')])
 }
 
-/** Run a game cbuf command: RTM.exe -cbuf "<command>". */
+/**
+ * Run a game cbuf command: RTM.exe -cbuf "<command>". cbuf payloads may
+ * contain newlines (the WZ3 config format puts secondary dvars on their own
+ * line), so the validation for this path allows them.
+ */
 export async function writeJupiterCbufCommand(command) {
-  return runRtm(['-cbuf', validateCommand(command)])
+  return runRtm(['-cbuf', validateCommand(command, undefined, { allowNewlines: true })], { allowNewlines: true })
 }
 
 /**

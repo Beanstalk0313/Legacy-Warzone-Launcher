@@ -8,8 +8,12 @@
 // config hash so every selectable combination still produces a command.
 
 const MAP_IDS = {
-  'Hellspawn': 'mp_jup_escape5_hell',
+  // Rebirth Island first: it's the file's canonical, most-tested config and
+  // therefore the default the Host a Match form (and dev-server select)
+  // land on. Newer maps (e.g. Hellspawn) stay available but aren't the
+  // silent default.
   'Rebirth Island': 'mp_jup_escape5',
+  'Hellspawn': 'mp_jup_escape5_hell',
   "Fortune's Keep": 'mp_jup_sm_island_2',
   Vondel: 'mp_jup_delta',
   Urzikstan: 'mp_jup_bigmap_wz2',
@@ -153,11 +157,15 @@ export function getJupiterConfigCommand({ map, mode, plunderCash }) {
 
   let command = parts.join(';')
 
-  // The file appends the map override right after the mode dvar, then the
-  // Plunder cash dvar, then any extra dvars (Purgatory's score).
+  // The file appends the map override right after the mode dvar, then any
+  // extra dvars (Purgatory's score) inline. The PLUNDER cash-to-win dvar is
+  // the exception: it sits on its OWN LINE after the main command, but it
+  // still needs the `seta` keyword — a BARE `#x3a07d25d87bb595de` token on
+  // its own line is treated as an unknown command by the game and crashes it.
+  // (The file's bare line is a trap: `seta` is required.)
   if (combo.mapId) command += `;#x3ef237da69bb64ef6 ${combo.mapId}`
   if (mode === 'Plunder') {
-    command += `;seta ${PLUNDER_CASH_DVAR} ${normalizePlunderCash(plunderCash)}`
+    command += `\nseta ${PLUNDER_CASH_DVAR} ${normalizePlunderCash(plunderCash)}`
   }
   if (combo.extra) command += `;${combo.extra.join(';')}`
 

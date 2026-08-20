@@ -410,12 +410,19 @@ fn resolve_rtm_exe(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     )
 }
 
-fn validate_arg(value: &str) -> Result<String, String> {
+fn validate_arg(value: &str, allow_newlines: bool) -> Result<String, String> {
     let value = value.trim();
     if value.is_empty() {
         return Err("RTM argument is empty.".to_string());
     }
-    if value.len() > MAX_ARG_LENGTH || value.chars().any(|character| character.is_control()) {
+    // cbuf payloads carry the multi-line WZ3 config format (secondary dvars
+    // like Plunder's cash-to-win sit on their own line — see wz commands.txt),
+    // so `-cbuf` args are allowed newlines; everything else stays
+    // control-character-free.
+    let has_invalid_control = value.chars().any(|character| {
+        character.is_control() && !(allow_newlines && character == '\n')
+    });
+    if value.len() > MAX_ARG_LENGTH || has_invalid_control {
         return Err("RTM argument contains invalid characters or is too long.".to_string());
     }
     Ok(value.to_string())
@@ -425,7 +432,7 @@ fn validate_arg(value: &str) -> Result<String, String> {
 /// must be a plain file name (no separators / traversal) without control
 /// characters.
 fn validate_rtm_file_name(value: &str) -> Result<String, String> {
-    let value = validate_arg(value)?;
+    let value = validate_arg(value, false)?;
     if value.contains('/') || value.contains('\\') || value.contains("..") {
         return Err("RTM file name is invalid.".to_string());
     }
@@ -536,8 +543,15 @@ pub fn run_rtm_command(app: tauri::AppHandle, args: Vec<String>) -> Result<Strin
 
     let exe = resolve_rtm_exe(&app)?;
 
-    let safe_args: Result<Vec<String>, String> =
-        args.iter().map(|argument| validate_arg(argument)).collect();
+    // Only `-cbuf` payloads may contain newlines (multi-line WZ3 configs).
+    let allow_newlines = args
+        .first()
+        .map(|first| first.trim() == "-cbuf")
+        .unwrap_or(false);
+    let safe_args: Result<Vec<String>, String> = args
+        .iter()
+        .map(|argument| validate_arg(argument, allow_newlines))
+        .collect();
     let safe_args = safe_args?;
 
     let output = Command::new(&exe)
