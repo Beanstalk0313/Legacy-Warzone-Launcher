@@ -1,0 +1,32 @@
+Black Hawk License, Version 1.0 (June 2026)
+
+1: Definitions
+"License": The terms and conditions for the use, inspection, modification, and distribution of this Source Code.
+"Owner": The creator and copyright holder of the Source Code.
+"Source Code": The code repository and all files to which this license is attached.
+"Personal Use": Use of the Source Code by an individual strictly for private, non-commercial purposes.
+"Commercial Use": Use of the Source Code for economic gain, commercial advantage, self-promotion, or as part of a business entity.
+"Contributor": Any person who submits a modification, addition, or deletion to the Source Code repository.
+
+2: Use and Restrictions
+- The Source Code may be downloaded and viewed strictly for inspection, verification, or educational purposes without prior consent of the Owner.
+- The Source Code may be downloaded and modified for Personal Use on personal devices. Public distribution of the Source Code, or any compiled binaries derived from it, is strictly prohibited. The Source Code and its derivatives must not leave the user's private, personal network under any circumstances (including but not limited to port forwarding or hosting via third-party services).
+- Commercial Use of the Source Code, or any part of it, is strictly prohibited without explicit, written permission from the Owner. 
+- Unauthorized public distribution or commercial use constitutes copyright infringement and a breach of this License.
+
+3: Contributions
+Any files, modifications, or changes contributed to this repository are subject to the following terms:
+  (a) The Owner retains the absolute right to modify, merge, or delete any contributed works at any time without notice.
+  (b) Contributors grant the Owner a perpetual, irrevocable, worldwide, royalty-free license to use, modify, and distribute their contributions. Contributors may not revoke this permission.
+  (c) Contributors shall not be held liable for any undesired side-effects or bugs caused by their contributed code, provided the contribution was made in good faith and does not violate U.S. law.
+
+4: Warranty and Liability Disclaimer
+This Source Code is provided "AS-IS", without warranty of any kind, express or implied. In no event shall the Owner be liable for any claim, damages, or other liability arising from the use of, or inability to use, this software. By using this software, you accept all risks.
+If you have been sent this document with a reference to Section 4, Clause 1, it is recommended to cease and desist: You accepted liability and clearly didn't read the license, or simply don't care.
+
+5: Ownership
+All files in this repository, unless otherwise specified, are the sole property of the Owner. All rights reserved.
+
+©[YEAR] [PLACE YOUR NAME HERE] - No unauthorized distribution or use.
+
+For questions, permissions, or licensing inquiries, visit https://github.com/beanstalk0313 for current contact information.
