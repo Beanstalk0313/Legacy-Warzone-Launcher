@@ -48,6 +48,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Supabase creds are inlined into the frontend bundle at build time
+          # (src/lib/supabase.js reads import.meta.env.VITE_*). The local .env
+          # is gitignored, so without these the GitHub build ships with
+          # SUPABASE_CONFIGURED=false and the startup security check fails
+          # closed into the "SECURITY CHECK UNAVAILABLE" screen. Values come
+          # from repo secrets (Settings → Secrets and variables → Actions),
+          # never from committed files. The anon key is a public client key by
+          # design (RLS policies are the real gate), so shipping it in the
+          # bundle is safe.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         with:
           tagName: v__VERSION__
           releaseName: 'Legacy Warzone Launcher v__VERSION__'

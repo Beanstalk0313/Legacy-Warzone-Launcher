@@ -185,7 +185,9 @@ WZ3 Commands.txt                Reference: every mode/map cbuf config (source of
    - **ModdingTab.jsx** (Jupiter only) — "Save Data" / "Load Data" run `RTM.exe -savedata` /
      `-loaddata` (snapshot / restore classes, operator, settings, loadouts); "Switch to
      Warzone Mode" runs the same `runJupiterPrepSequence()` the join/host flows use
-     (`MainMenuOffline` → 1.5 s → `WarzonePrivateMatchLobby` → 1.5 s → `MainMenuOffline`);
+     (`MainMenuOffline` → 1.5 s → `WarzonePrivateMatchLobby` → 1.5 s → `MainMenuOffline`)
+     — each arrow is a 1.5 s gap, so the whole prep is ~3 s of waiting plus RTM.exe spawn
+     overhead; the same per-step 1.5 s gap applies to the join/host sequences below;
      "Switch to Zombies" runs `RTM.exe -setzombies` (note: be in the Local Game server
      browser menu); "Change Username" runs `RTM.exe -rename "<name>"` — all with cancel +
      themed error modal. The two `kind: 'flow'` tools are guided multi-step flows driven
@@ -281,6 +283,7 @@ npm run tauri:build:jupiter  # desktop installer with the Jupiter-only launcher
 ## Environment & secrets
 
 - Supabase creds live in `.env` (gitignored) as `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. Vite inlines them at build time — restart/rebuild after editing.
+- **GitHub Actions builds need the same creds as repo secrets** (`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, same values as `.env`) or the release ships with `SUPABASE_CONFIGURED=false` and the startup security check fails closed into the "SECURITY CHECK UNAVAILABLE" screen. The workflow (`release.yml`) reads them from `secrets.*` and passes them to the build; they're never committed to the repo. The anon key is a public client key by design (RLS is the real gate), so it's safe to inline into the bundle.
 - `info.txt` contains real dev credentials (anon key, Discord/Google OAuth secrets). **Never hardcode these into source**; they're meant for manual setup, not the bundle.
 - `SUPABASE_SETUP.md` has the full walkthrough for applying the SQL migrations.
 
