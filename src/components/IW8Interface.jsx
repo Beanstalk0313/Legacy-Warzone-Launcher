@@ -9,6 +9,7 @@ import ModdingTab from './ModdingTab'
 import ServerBrowser from './ServerBrowser'
 import HostMatch from './HostMatch'
 import ConnectedServerPanel from './ConnectedServerPanel'
+import LeaveServerConfirmModal from './LeaveServerConfirmModal'
 import AuthRequiredNotice from './AuthRequiredNotice'
 import BetaWelcomeModal, { hasBetaWelcomeAcknowledged } from './BetaWelcomeModal'
 import { useAuth } from './AuthProvider'
@@ -43,12 +44,12 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
   const isJupiterContent = mod === 'jupiter'
   const { user } = useAuth()
   const displayName = user ? getDisplayName(user) : ''
-  // Six tabs when Jupiter content (PHA Client tab is Jupiter-specific UI),
-  // five without. Discord merged into Help (one "Help" tab now lists the
-  // mod's community servers + support cards):
-  // Play | PHA Client | Account | Social | Help | Options
+  // Six tabs when Jupiter content (RTM tab is Jupiter-specific UI), five
+  // without. Discord merged into Help (one "Help" tab now lists the mod's
+  // community servers + support cards):
+  // Play | RTM | Account | Social | Help | Options
   const tabs = isJupiterContent
-    ? ['Play', 'PHA Client', 'Account', 'Social', 'Help', 'Options']
+    ? ['Play', 'RTM', 'Account', 'Social', 'Help', 'Options']
     : ['Play', 'Account', 'Social', 'Help', 'Options']
   const playItems = ['Quick Play', 'Server Browser', 'Host a Match']
 
@@ -65,6 +66,10 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
 
   const [activeHeaderTab, setActiveHeaderTab] = useState('Play')
   const [isQuitModalOpen, setIsQuitModalOpen] = useState(false)
+  // Leave-server confirmation: Esc on the in-game screen or the Leave
+  // Server button opens it — leaving disconnects and returns to the menu,
+  // so it's worth an explicit confirm (same quiet-down gating).
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [suppressedMenuItem, setSuppressedMenuItem] = useState(null)
   const [inputMode, setInputMode] = useState('mouse')
   const [playView, setPlayView] = useState('menu')
@@ -101,11 +106,20 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
     setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
   }
 
+  // Leaving is destructive (disconnect + membership cleanup), so it always
+  // goes through a themed confirmation — Esc or the Leave Server button
+  // both open it.
+  const handleRequestLeaveServer = () => {
+    playSound('iw8Select')
+    setLeaveConfirmOpen(true)
+  }
+
   // Leave the server we're connected to: the provider runs RTM.exe
   // -disconnect + -lua MainMenuOffline and clears every session artifact
-  // (roster, map badge, membership row). We return to the Play main menu.
+  // (roster, membership row). We return to the Play main menu.
   const handleLeaveServer = async () => {
     if (!session) return
+    setLeaveConfirmOpen(false)
     await session.leaveServer()
     setActiveHeaderTab('Play')
     setPlayView('menu')
@@ -124,6 +138,10 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
     if (activeHeaderTab !== 'Play') {
       setPlayView('menu')
       handleTabClick('Play')
+    } else if (inServer) {
+      // On the Play tab while connected, Esc / controller-Back asks whether
+      // to leave the server instead of quitting the app.
+      handleRequestLeaveServer()
     } else {
       handleOpenQuitModal()
     }
@@ -146,16 +164,17 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
       if (direction === 'down') return Math.min(quitIdx, currentIndex + 1)
       return currentIndex
     },
-    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !betaWelcomeOpen,
+    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !betaWelcomeOpen,
     bumpersOnly: isInSubView,
     onConfirm: (index, source) => {
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
       if (index < tabs.length) {
         handleTabClick(tabs[index])
       } else if (activeHeaderTab === 'Play' && index <= lastMenuIdx) {
-        // While connected the single menu slot is the Leave Server button.
+        // While connected the single menu slot is the Leave Server button
+        // (through the confirmation).
         if (inServer) {
-          void handleLeaveServer()
+          handleRequestLeaveServer()
           return
         }
         handleMenuItemClick(playItems[index - firstMenuIdx], source)
@@ -262,7 +281,13 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
           {activeHeaderTab === 'Play' && playView === 'menu' && (
             <>
               {inServer ? (
-                <ConnectedServerPanel theme="iw8" lobby={currentLobby} onLeaveServer={() => void handleLeaveServer()} />
+                <ConnectedServerPanel
+                  theme="iw8"
+                  lobby={currentLobby}
+                  players={session?.lobbyMembers || []}
+                  partyMembers={session?.partyMembers || []}
+                  onLeaveServer={handleRequestLeaveServer}
+                />
               ) : (
                 <div className="iw8-menu-vertical">
                   {playItems.map((item, itemIndex) => {
@@ -287,7 +312,7 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
             </>
           )}
 
-          {activeHeaderTab === 'PHA Client' && isJupiterContent && <ModdingTab theme="iw8" onModalChange={setModdingErrorOpen} />}
+          {activeHeaderTab === 'RTM' && isJupiterContent && <ModdingTab theme="iw8" onModalChange={setModdingErrorOpen} />}
           {activeHeaderTab === 'Account' && <AccountTab theme="iw8" />}
           {activeHeaderTab === 'Social' && (
             <SocialTab
@@ -305,7 +330,7 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
           lobby, with a LEAVE SERVER button while connected. Pinned below
           the header's user chip; persists across tabs. Renders nothing
           for IW8 content (no session provider). */}
-      <PlayerRoster theme="iw8" onLeaveServer={() => void handleLeaveServer()} />
+      <PlayerRoster theme="iw8" />
 
       {/* Bottom Right Toolbar (Quit) */}
       <div className="iw8-quit-btn-wrapper">
@@ -323,6 +348,13 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
         onClose={() => setIsQuitModalOpen(false)}
         onGoLauncher={onGoLauncher}
         onQuitDesktop={handleQuitDesktop}
+      />
+
+      <LeaveServerConfirmModal
+        theme="iw8"
+        isOpen={leaveConfirmOpen}
+        onConfirm={() => void handleLeaveServer()}
+        onCancel={() => setLeaveConfirmOpen(false)}
       />
 
       <BetaWelcomeModal

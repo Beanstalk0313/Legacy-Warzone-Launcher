@@ -59,6 +59,17 @@ jobs:
           # bundle is safe.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Device identity path — baked into the binary at compile time
+          # (src-tauri/src/commands.rs reads env!("LWZ_IDENTITY_DIR") /
+          # env!("LWZ_IDENTITY_FILE")). The build FAILS without them, so add
+          # two repo secrets (Settings → Secrets and variables → Actions):
+          #   LWZ_IDENTITY_DIR   the folder the identity file lives in
+          #   LWZ_IDENTITY_FILE  the identity file's name — used verbatim,
+          #                      no .json (or any extension) is appended
+          # Pick values you can keep stable across releases (or rotate now
+          # and then); they never appear in this repository.
+          LWZ_IDENTITY_DIR: ${{ secrets.LWZ_IDENTITY_DIR }}
+          LWZ_IDENTITY_FILE: ${{ secrets.LWZ_IDENTITY_FILE }}
         with:
           tagName: v__VERSION__
           releaseName: 'Legacy Warzone Launcher v__VERSION__'

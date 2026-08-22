@@ -4,7 +4,8 @@ import { useControllerNavigation } from '../utils/controller'
 import { focusTextInput } from '../utils/keyboard'
 import { useAuth } from './AuthProvider'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
-import { isTauriRuntime, runJupiterPrepSequence, writeJupiterCbufCommand } from '../utils/jupiterRtm'
+import { isTauriRuntime, runJupiterPrepSequence, runRtm, writeJupiterCbufCommand } from '../utils/jupiterRtm'
+import { useJupiterSession } from '../utils/jupiterSession'
 import { getJupiterConfigCommand, JUPITER_MAPS, JUPITER_MODES, PLUNDER_DEFAULT_CASH } from '../utils/jupiterCommands'
 import JupiterErrorModal from './JupiterErrorModal'
 import JupiterHostPromptModal from './JupiterHostPromptModal'
@@ -43,6 +44,9 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   const hoverSound = isJupiterStyle ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiterStyle ? 'jupSelect' : 'iw8Select'
   const { user } = useAuth()
+  // Jupiter content only: the session provider owns the party system (party
+  // auto-join broadcast). IW8 content renders without a provider → null.
+  const session = useJupiterSession()
   const [inputMode, setInputMode] = useState(initialInputMode)
   const [status, setStatus] = useState('Configure your lobby, then deploy it.')
   const [submitting, setSubmitting] = useState(false)
@@ -70,7 +74,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   const [hosted, setHosted] = useState(null)
   const [players, setPlayers] = useState([])
   // Jupiter host-entry prompt: "Prep PHA Client?" Yes runs the -lua prep
-  // sequence then shows the PHA-client instructions modal (OK → the form);
+  // sequence then shows the PHA Client instructions modal (OK → the form);
   // No skips the prep (already in the lobby) and goes straight to the form.
   // The LAN session is NEVER collected here — the host pastes it in the form
   // below.
@@ -80,6 +84,16 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // Re-attach is checked on mount before the prompt decides — a live lobby
   // found here goes straight to the dashboard instead of asking the question.
   const [recheckDone, setRecheckDone] = useState(false)
+  // Party-host gate: only the party leader may host while in a party. Set on
+  // mount when the user is a non-leader member (and re-checked at deploy).
+  const [partyBlock, setPartyBlock] = useState(false)
+  // "Return PHA Client Lobby" (dashboard) busy state — runs RTM.exe -disconnect.
+  const [returning, setReturning] = useState(false)
+  // Known dashboard members (per lobby) so a NEW player joining while the
+  // host watches plays the player-join cue. Seeds on the first poll for a
+  // lobby; later polls chime once per new arrival and drop absent keys, so
+  // a leave + rejoin chimes again.
+  const knownDashboardMembersRef = useRef(null)
 
   const availableMaps = isJupiterContent ? JUPITER_MAPS : IW8_MAPS[form.version]
   const availableModes = isJupiterContent ? JUPITER_MODES : IW8_MODES[form.version]
@@ -116,16 +130,66 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     }
   }, [isJupiterContent, user?.id])
 
+  // ── Party-host gate: only the party leader may host ────────────────────
+  // Hosting while a non-leader member would fight the leader's auto-join
+  // broadcast, so Host a Match is blocked until the user is the leader (or
+  // leaves the party in the Social tab). Checked on mount and re-checked
+  // when Create Lobby is pressed. Applies to both mods (parties are global).
+  const fetchMyParty = async () => {
+    if (!user?.id || !SUPABASE_CONFIGURED || !supabase) return null
+    try {
+      const { data: memberships } = await supabase
+        .from('party_members')
+        .select('party_id')
+        .eq('user_id', user.id)
+        .limit(1)
+      const partyId = memberships?.[0]?.party_id
+      if (!partyId) return null
+      const { data: party } = await supabase
+        .from('parties')
+        .select('leader_user_id')
+        .eq('id', partyId)
+        .single()
+      return party || null
+    } catch (error) {
+      console.warn('[host] party check failed', error)
+      return null
+    }
+  }
+
+  // Returns true when hosting is allowed. Blocks with a themed notice when
+  // the user sits in a party they don't lead.
+  const ensureCanHost = async () => {
+    const party = await fetchMyParty()
+    if (party && party.leader_user_id !== user?.id) {
+      setPartyBlock(true)
+      setStatus("Only the party leader can host a match while you're in a party.")
+      playSound(selectSound)
+      return false
+    }
+    return true
+  }
+
+  useEffect(() => {
+    if (!user?.id || !SUPABASE_CONFIGURED || !supabase) return undefined
+    let mounted = true
+    void (async () => {
+      const party = await fetchMyParty()
+      if (mounted && party && party.leader_user_id !== user.id) setPartyBlock(true)
+    })()
+    return () => { mounted = false }
+  }, [user?.id])
+
   // ── Jupiter host-entry prompt (once per mount, after re-attach settles) ─
   useEffect(() => {
-    if (!isJupiterContent || promptStartedRef.current || hosted || !recheckDone) return
+    if (!isJupiterContent || promptStartedRef.current || hosted || !recheckDone || partyBlock) return
     if (!isTauriRuntime()) return // browser dev mode has no RTM.exe
     promptStartedRef.current = true
     setHostPrompt('ask')
-  }, [isJupiterContent, hosted, recheckDone])
+  }, [isJupiterContent, hosted, recheckDone, partyBlock])
 
   // "Prep PHA Client?" → Yes: run the -lua prep sequence, then show the
-  // PHA-client instructions.
+  // PHA Client instructions.
   const handlePromptYes = async () => {
     playSound(selectSound)
     setHostPrompt('prepping')
@@ -166,7 +230,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     setStatus('Prep cancelled — configure your lobby below, or create the local game manually.')
   }
 
-  // PHA instructions modal → OK: arrive at the Host a Match form.
+  // RTM instructions modal → OK: arrive at the Host a Match form.
   const handleInstructionsOk = () => {
     playSound(selectSound)
     setHostPrompt(null)
@@ -194,6 +258,21 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           .eq('server_id', hosted.id)
           .order('created_at', { ascending: true })
         if (!disposed && data) {
+          // Player-join cue while hosting: seed the known set on the first
+          // poll for this lobby, then chime once per new arrival (absent
+          // keys drop so a leave + rejoin chimes again).
+          const currentKeys = new Set(data.map((member) => member.user_id || member.player_code))
+          const knownMembers = knownDashboardMembersRef.current
+          if (!knownMembers || knownMembers.serverId !== hosted.id) {
+            knownDashboardMembersRef.current = { serverId: hosted.id, keys: currentKeys }
+          } else {
+            let someoneJoined = false
+            for (const key of currentKeys) {
+              if (!knownMembers.keys.has(key)) { someoneJoined = true; break }
+            }
+            if (someoneJoined) playSound('playerJoin')
+            knownMembers.keys = currentKeys
+          }
           setPlayers(data.map((member) => ({
             id: member.id,
             name: member.display_name || member.player_code || 'Player',
@@ -370,6 +449,17 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
         }).select('*').single()
         if (error) throw error
         registerOwnedServer(createdServer?.id, user.id)
+        // If we lead a party, broadcast the new lobby so every member's
+        // client auto-runs the join flow (the party watcher in
+        // JupiterSessionProvider picks up leader_server_id). IW8 content has
+        // no provider — skip.
+        if (createdServer?.id) {
+          try {
+            await session?.broadcastLeaderServer?.(createdServer.id)
+          } catch (broadcastError) {
+            console.warn('[host] leader broadcast failed', broadcastError)
+          }
+        }
         setStatus(`Lobby live: ${lobbyName} · ${form.map} · ${form.mode} — now listed in the server browser.`)
         return createdServer
       } catch (err) {
@@ -392,6 +482,9 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // never started). Pushes the config cbuf, then publishes.
   const handleDeploy = async (source = 'mouse') => {
     if (submitting || hosted) return // one publish at a time — prevents duplicate rows
+    // Party-host gate re-checked at deploy time — membership may have
+    // changed while the form was open.
+    if (!(await ensureCanHost())) return
     if (form.publicity === 'Private' && !form.password.trim()) {
       setStatus('Add a password before creating a private lobby.')
       playSound(selectSound)
@@ -447,6 +540,13 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
         .eq('host_user_id', user?.id)
       if (error) throw error
       unregisterOwnedServer(hosted.id)
+      // Clear the party auto-join broadcast so members don't keep pointing
+      // at a deleted lobby.
+      try {
+        await session?.clearLeaderServer?.(hosted.id)
+      } catch (clearError) {
+        console.warn('[host] leader broadcast clear failed', clearError)
+      }
       setHosted(null)
       setPlayers([])
       setStatus('Lobby closed and removed from the server browser.')
@@ -457,6 +557,63 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Dashboard text fields (Server Name / LAN Session) update local state
+  // per keystroke and persist to the servers row on blur/Enter — so the
+  // host can change the title or roll the LAN session after a match without
+  // closing and re-hosting the lobby.
+  const handleDashboardTextChange = (field, value) => {
+    setHosted((current) => (current ? { ...current, [field]: value } : current))
+  }
+
+  const commitDashboardTextField = async (field) => {
+    if (!hosted || !user?.id || !SUPABASE_CONFIGURED || !supabase) return
+    const value = (hosted[field] || '').trim()
+    const next = { ...hosted, [field]: value }
+    setHosted(next)
+    playSound(selectSound)
+    try {
+      const { error } = await supabase
+        .from('servers')
+        .update({ [field]: value })
+        .eq('id', hosted.id)
+        .eq('host_user_id', user.id)
+      if (error) throw error
+      const label = field === 'name' ? 'title' : 'LAN session'
+      setStatus(`Lobby ${label} updated to "${value || (field === 'name' ? 'Unnamed Lobby' : '—')}".`)
+    } catch (err) {
+      setHosted(hosted) // revert on failure
+      setErrorModal({
+        title: `COULDN'T UPDATE ${hosted.name}`,
+        message: err?.message || String(err) || 'Lobby update failed.',
+      })
+    }
+  }
+
+  // "Return PHA Client Lobby" (dashboard): runs RTM.exe -disconnect so the
+  // host's game client drops the finished match back into the PHA Client
+  // lobby — the lobby row stays live, so the host can roll a new LAN
+  // session and keep hosting instead of closing and re-hosting.
+  const handleReturnToLobby = async () => {
+    if (!hosted || returning) return
+    if (!isTauriRuntime()) {
+      setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+      return
+    }
+    setReturning(true)
+    playSound(selectSound)
+    try {
+      await runRtm(['-disconnect'])
+      setStatus('Disconnected — the game client is back in the PHA Client lobby. Roll a new LAN session and keep hosting.')
+    } catch (err) {
+      setErrorModal({
+        title: "COULDN'T DISCONNECT",
+        message: err?.message || String(err) || 'RTM.exe failed to disconnect.',
+      })
+    } finally {
+      setReturning(false)
     }
   }
 
@@ -533,39 +690,55 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       focusTextInput(`[data-host-field="${field}"]`, setInputMode)
       setStatus(`Editing ${label}. Use on-screen keyboard to type.`)
     },
-    enabled: !errorModal && !hosted && !hostPrompt && !openSelect,
+    enabled: !errorModal && !hosted && !hostPrompt && !openSelect && !partyBlock,
     onBack: handleBrowserBack,
   })
 
   const isFocused = (field) => inputMode === 'controller' && fields[focusedIndex] === field
 
-  // ── Controller navigation: hosting dashboard (map / mode / close) ───────
-  const dashboardItems = ['map', 'mode', 'close']
+  // ── Controller navigation: hosting dashboard ────────────────────────────
+  // Map + Mode sit side by side (row 1), then the editable Server Name /
+  // LAN Session rows, then the Return PHA Client Lobby + Close Server
+  // buttons side by side at the bottom. Left/right hop between the pairs;
+  // up/down walk the column.
+  const dashboardItems = ['map', 'mode', 'name', 'lanSession', 'return', 'close']
   const dashboardFocusedIndex = useControllerNavigation({
     itemCount: hosted && isJupiterContent ? dashboardItems.length : 0,
     allowedDirections: ['up', 'down', 'left', 'right'],
-    // Map and Mode sit side by side in the LOBBY CONTROL dashboard — left /
-    // right hop between the two selects (Close Server lives below them).
     onNavigate: (direction, currentIndex) => {
       if (direction === 'left' || direction === 'right') {
-        return direction === 'left' ? 0 : 1
+        if (currentIndex === 0 || currentIndex === 1) return direction === 'left' ? 0 : 1
+        if (currentIndex === 4 || currentIndex === 5) return direction === 'left' ? 4 : 5
+        return currentIndex // name / lanSession have no horizontal neighbor
       }
-      return direction === 'up' ? Math.max(0, currentIndex - 1) : Math.min(2, currentIndex + 1)
+      return Math.max(0, Math.min(dashboardItems.length - 1, currentIndex + (direction === 'up' ? -1 : 1)))
     },
     onControllerActivity: () => setInputMode('controller'),
     onMove: (index) => {
       setInputMode('controller')
       playSound(hoverSound)
       const item = dashboardItems[index]
-      setStatus(item === 'close'
-        ? 'Close Server — removes the lobby from the server browser.'
-        : `Change the ${item} — every joined player's client updates automatically.`)
+      if (item === 'close') setStatus('Close Server — removes the lobby from the server browser.')
+      else if (item === 'return') setStatus('Return PHA Client Lobby — runs RTM.exe -disconnect; the lobby stays live.')
+      else if (item === 'name') setStatus('Edit the lobby title — saved when you press select or leave the field.')
+      else if (item === 'lanSession') setStatus('Edit the LAN Session — roll a new code after a match; members reconnect with it.')
+      else setStatus(`Change the ${item} — every joined player's client updates automatically.`)
     },
     onConfirm: (index, source) => {
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
       const item = dashboardItems[index]
       if (item === 'close') {
         handleCloseServer()
+        return
+      }
+      if (item === 'return') {
+        void handleReturnToLobby()
+        return
+      }
+      if (item === 'name' || item === 'lanSession') {
+        playSound(selectSound)
+        focusTextInput(`[data-host-dashboard-field="${item}"]`, setInputMode)
+        setStatus(`Editing the ${item === 'name' ? 'lobby title' : 'LAN session'}. Use the on-screen keyboard to type.`)
         return
       }
       playSound(selectSound)
@@ -631,10 +804,41 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           <div className="host-dashboard-main">
             <div className="host-dashboard-lobby">
               <span className="host-dashboard-kicker">LIVE LOBBY</span>
-              <h2>{hosted.name}</h2>
+              <input
+                type="text"
+                className={`host-dashboard-name-input ${dashboardIsFocused('name') ? 'controller-focused' : ''}`}
+                data-host-dashboard-field="name"
+                value={hosted.name || ''}
+                onChange={(event) => handleDashboardTextChange('name', event.target.value)}
+                onBlur={() => void commitDashboardTextField('name')}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') commitDashboardTextField('name')
+                  else if (event.key === 'Escape') handleBrowserBack('keyboard')
+                }}
+                onMouseEnter={handleHostHover}
+                placeholder="Lobby title"
+                maxLength={64}
+                spellCheck={false}
+              />
               <div className="host-dashboard-line"><span>Region</span><strong>{hosted.region || '—'}</strong></div>
-              <div className="host-dashboard-line"><span>LAN Session</span><strong className="host-dashboard-session">{hosted.lan_session || '—'}</strong></div>
-              <div className="host-dashboard-line"><span>Status</span><strong className="host-dashboard-live">LIVE</strong></div>
+              <label className={`host-dashboard-field ${dashboardIsFocused('lanSession') ? 'controller-focused' : ''}`} onMouseEnter={handleHostHover}>
+                <span>LAN Session</span>
+                <input
+                  type="text"
+                  className="host-dashboard-session-input"
+                  data-host-dashboard-field="lanSession"
+                  value={hosted.lan_session || ''}
+                  onChange={(event) => handleDashboardTextChange('lan_session', event.target.value)}
+                  onBlur={() => void commitDashboardTextField('lan_session')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') commitDashboardTextField('lan_session')
+                    else if (event.key === 'Escape') handleBrowserBack('keyboard')
+                  }}
+                  placeholder="—"
+                  maxLength={64}
+                  spellCheck={false}
+                />
+              </label>
               <div className="host-dashboard-mapmode">
                 <label className={dashboardIsFocused('map') ? 'controller-focused' : ''} onMouseEnter={handleHostHover}>
                   <span>Map</span>
@@ -703,6 +907,15 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             >
               {submitting ? 'Closing…' : 'Close Server'}
             </button>
+            <button
+              type="button"
+              className={`host-dashboard-return ${dashboardIsFocused('return') ? 'controller-focused' : ''}`}
+              onMouseEnter={handleHostHover}
+              onClick={() => void handleReturnToLobby()}
+              disabled={returning || submitting}
+            >
+              {returning ? 'Disconnecting…' : 'Return PHA Client Lobby'}
+            </button>
           </div>
           <div className="host-match-status">{status}</div>
         </div>
@@ -737,6 +950,21 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
         )}
       </div>
 
+      {partyBlock ? (
+        <div className="host-party-block">
+          <span className="host-match-kicker">PLAY / CREATE</span>
+          <h2>PARTY LEADER REQUIRED</h2>
+          <p>You're in a party — only the party leader can host a match while the party is together. Leave your party in the Social tab, or wait for the leader to start hosting (members auto-join when the lobby goes up).</p>
+          <button
+            type="button"
+            className="host-match-back host-party-block-back"
+            onMouseEnter={handleHostHover}
+            onClick={() => handleBrowserBack('mouse')}
+          >
+            Back to Play Menu
+          </button>
+        </div>
+      ) : (
       <div className="host-match-layout">
         <div className="host-match-form">
           <label className={`host-match-field ${isFocused('serverName') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
@@ -893,6 +1121,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           <div className="host-match-status">{status}</div>
         </aside>
       </div>
+      )}
 
       {/* Host entry prompt (Jupiter content): "Prep PHA Client?" → prep + instructions */}
       {isJupiterContent && (

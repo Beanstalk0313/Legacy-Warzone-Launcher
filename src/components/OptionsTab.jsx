@@ -93,7 +93,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
   }
 
   const valueOf = (key) => settings?.[key]
-  const devModeOn = Boolean(valueOf('developer_mode'))
+  const testingServerOn = Boolean(valueOf('testing_server'))
+  const rtmModeOn = Boolean(valueOf('rtm_mode'))
 
   // ── Controller navigation items (the tab's rows, top to bottom) ────────
   const navItems = useMemo(() => {
@@ -102,17 +103,18 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
       { kind: 'toggle', key: 'auto_load_savedata', label: 'Auto-Load Save Data' },
       { kind: 'select', key: 'dynamic_sounds', label: 'Dynamic Sound Effects' },
       { kind: 'select', key: 'dynamic_interfaces', label: 'Dynamic Interfaces' },
-      { kind: 'toggle', key: 'developer_mode', label: 'Developer Mode' },
-      ...(devModeOn ? [
-        { kind: 'text', key: 'dev_server_name', label: 'Dev Server Name' },
-        { kind: 'select', key: 'dev_server_map', label: 'Dev Server Map' },
-        { kind: 'select', key: 'dev_server_mode', label: 'Dev Server Mode' },
-        { kind: 'text', key: 'dev_server_lan_session', label: 'Dev Server LAN Session' },
+      { kind: 'toggle', key: 'testing_server', label: 'Testing Server' },
+      ...(testingServerOn ? [
+        { kind: 'text', key: 'dev_server_name', label: 'Test Server Name' },
+        { kind: 'select', key: 'dev_server_map', label: 'Test Server Map' },
+        { kind: 'select', key: 'dev_server_mode', label: 'Test Server Mode' },
+        { kind: 'text', key: 'dev_server_lan_session', label: 'Test Server LAN Session' },
       ] : []),
+      { kind: 'toggle', key: 'rtm_mode', label: 'Advanced RTM Mode' },
       { kind: 'reset', label: 'Reset to Defaults' },
     ]
     return items
-  }, [devModeOn])
+  }, [testingServerOn, rtmModeOn])
 
   // Select field plumbing: options are display strings for the picker; the
   // stored value for {value,label} lists is the `value` half.
@@ -288,38 +290,40 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
         </div>
 
-        {/* Developer Mode — unlocks the raw RTM tool panel on the PHA
-            Client tab and a LOCAL-ONLY test server in the Server Browser.
-            The test server never touches Supabase and no other client can
-            see it; everything below is persisted to settings.json. */}
+        {/* Testing Server — a LOCAL-ONLY test server row in the Server
+            Browser / Quick Play (never touches Supabase, invisible to other
+            clients) — and Advanced RTM Mode, which shows the raw RTM DEV TOOL
+            panel on the RTM tab. Split into two independent toggles; the
+            test-server metadata fields appear under the Testing Server
+            toggle. All persisted to settings.json. */}
         <div className="options-card">
-          <h3>DEVELOPER</h3>
+          <h3>TESTING &amp; RTM</h3>
 
-          <label className={`options-row ${isRowFocused('developer_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
+          <label className={`options-row ${isRowFocused('testing_server') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
             <div className="options-row-label">
-              <strong>Developer Mode</strong>
-              <span>Unlocks the full RTM tool panel on the PHA Client tab and lists a local test server in the Server Browser — not a real lobby, invisible to other clients.</span>
+              <strong>Testing Server</strong>
+              <span>Lists a local-only test server in the Server Browser and Quick Play — not a real lobby, invisible to other clients.</span>
             </div>
-            <span className={`options-toggle ${valueOf('developer_mode') ? 'on' : ''}`}>
+            <span className={`options-toggle ${valueOf('testing_server') ? 'on' : ''}`}>
               <input
                 type="checkbox"
-                checked={Boolean(valueOf('developer_mode'))}
+                checked={Boolean(valueOf('testing_server'))}
                 onChange={(event) => {
                   playSound(selectSound)
-                  setSetting('developer_mode', event.target.checked)
+                  setSetting('testing_server', event.target.checked)
                 }}
                 onMouseEnter={handleHover}
-                aria-label="Developer Mode"
+                aria-label="Testing Server"
               />
               <span className="options-toggle-track" aria-hidden="true" />
             </span>
           </label>
 
-          {devModeOn && (
+          {testingServerOn && (
             <div className="options-dev-fields">
               <label className={`options-row ${isRowFocused('dev_server_name') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Dev Server Name</strong>
+                  <strong>Test Server Name</strong>
                   <span>The name shown for the local test server in the Server Browser.</span>
                 </div>
                 <input
@@ -336,7 +340,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
               <label className={`options-row ${isRowFocused('dev_server_map') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Dev Server Map</strong>
+                  <strong>Test Server Map</strong>
                   <span>The map the test server reports — drives the join config command.</span>
                 </div>
                 <CustomSelect
@@ -348,13 +352,13 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
                   onClose={() => setOpenSelect(null)}
                   focusIndex={openSelect === 'dev_server_map' ? optionFocusedIndex : null}
                   theme={theme}
-                  ariaLabel="Dev Server Map"
+                  ariaLabel="Test Server Map"
                 />
               </label>
 
               <label className={`options-row ${isRowFocused('dev_server_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Dev Server Mode</strong>
+                  <strong>Test Server Mode</strong>
                   <span>The mode the test server reports — drives the join config command.</span>
                 </div>
                 <CustomSelect
@@ -366,13 +370,13 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
                   onClose={() => setOpenSelect(null)}
                   focusIndex={openSelect === 'dev_server_mode' ? optionFocusedIndex : null}
                   theme={theme}
-                  ariaLabel="Dev Server Mode"
+                  ariaLabel="Test Server Mode"
                 />
               </label>
 
               <label className={`options-row ${isRowFocused('dev_server_lan_session') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Dev Server LAN Session</strong>
+                  <strong>Test Server LAN Session</strong>
                   <span>Optional — paste a LAN session code to make the test server joinable. Leave blank for a listing-only row.</span>
                 </div>
                 <input
@@ -389,6 +393,26 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
               </label>
             </div>
           )}
+
+          <label className={`options-row ${isRowFocused('rtm_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
+            <div className="options-row-label">
+              <strong>Advanced RTM Mode</strong>
+              <span>Shows the raw RTM DEV TOOL panel on the RTM tab — every flag from RTM.exe -h. The guided RTM tools stay available either way.</span>
+            </div>
+            <span className={`options-toggle ${valueOf('rtm_mode') ? 'on' : ''}`}>
+              <input
+                type="checkbox"
+                checked={Boolean(valueOf('rtm_mode'))}
+                onChange={(event) => {
+                  playSound(selectSound)
+                  setSetting('rtm_mode', event.target.checked)
+                }}
+                onMouseEnter={handleHover}
+                aria-label="Advanced RTM Mode"
+              />
+              <span className="options-toggle-track" aria-hidden="true" />
+            </span>
+          </label>
         </div>
 
         <div className="options-reset-row">

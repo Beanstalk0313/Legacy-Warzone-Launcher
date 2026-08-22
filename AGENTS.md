@@ -238,7 +238,7 @@ CSS variants are modifier classes (`jupiter-theme`, `server-browser-jupiter`, et
 
 ### Audio
 `src/utils/audio.js` maps sound names → imported mp3s. Cue names are **theme-prefixed**: `iw8*` for Warzone 1, `jup*` for Jupiter, plus shared `mainSlide` (launcher side-slide / hovers).
-- Current cues: `iw8Hover`, `iw8Select`, `iw8Quit`, `jupHover`, `jupSelect`, `jupQuit`, `mainSlide`.
+- Current cues: `iw8Hover`, `iw8Select`, `iw8Quit`, `jupHover`, `jupSelect`, `jupQuit`, `mainSlide`, `playerJoin` (played when someone new joins a lobby you're in or hosting — the roster polls in `jupiterSession.jsx` / `HostMatch.jsx` detect new `server_members` rows and chime once per arrival).
 - Play with `playSound('cueName', volume = 0.5)`.
 - **Adding a new SFX**: drop the mp3 in `src/assets/`, import it, add to `audioMap`, and give it a `duplicateGuardMs` entry (hovers ~60ms, selects/quits ~160ms) so repeat events can't stack the cue.
 - The quit modals play `iw8Quit` / `jupQuit` **when opened** (in each interface's `handleOpenQuitModal`); button hovers inside the modals use the theme hover cue.
@@ -279,6 +279,15 @@ npm run build:jupiter        # frontend build (dist/) with the Jupiter-only laun
 npm run tauri:dev:jupiter    # Tauri dev window with the Jupiter-only launcher
 npm run tauri:build:jupiter  # desktop installer with the Jupiter-only launcher
 ```
+
+> **Desktop builds require two build-time env vars**: `LWZ_IDENTITY_DIR`
+> (folder) and `LWZ_IDENTITY_FILE` (identity file name, used verbatim — no
+> `.json` is ever appended). They're baked into the binary via `env!()` in
+> `src-tauri/src/commands.rs` (`resolve_user_identity_path`), and the build
+> **fails** if either is unset — there is no fallback location in the source.
+> GitHub Actions reads them from repo secrets (see `release.yml`); for local
+> `tauri:dev` / `tauri:build`, export them first. See README "Device identity
+> file".
 
 ## Environment & secrets
 

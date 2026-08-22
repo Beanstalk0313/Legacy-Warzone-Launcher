@@ -10,6 +10,7 @@ import ModdingTab from './ModdingTab'
 import ServerBrowser from './ServerBrowser'
 import HostMatch from './HostMatch'
 import ConnectedServerPanel from './ConnectedServerPanel'
+import LeaveServerConfirmModal from './LeaveServerConfirmModal'
 import AuthRequiredNotice from './AuthRequiredNotice'
 import BetaWelcomeModal, { hasBetaWelcomeAcknowledged } from './BetaWelcomeModal'
 import { useAuth } from './AuthProvider'
@@ -26,6 +27,7 @@ import iw8Logo from '../assets/iw8_logo.png'
 import jupQuickImg from '../assets/jup_quick.jpg'
 import jupQuickIcon from '../assets/jup_quick_icon.png'
 import jupSearchingImg from '../assets/jup_searching.png'
+import jupFoundImg from '../assets/quick_play_found.jpg'
 import jupBrowseImg from '../assets/jup_browse.jpg'
 import jupHostImg from '../assets/jup_host.jpg'
 
@@ -77,12 +79,12 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   const session = useJupiterSession() // null without a provider (IW8 content)
   const isJupiterContent = mod === 'jupiter'
   const displayName = user ? getDisplayName(user) : ''
-  // Six tabs with Jupiter content (PHA Client tab is Jupiter-specific UI);
-  // five without (IW8 content). Discord merged into Help (one "Help" tab
-  // lists the mod's community servers + support cards):
-  // Play | PHA Client | Account | Social | Help | Options
+  // Six tabs with Jupiter content (RTM tab is Jupiter-specific UI); five
+  // without (IW8 content). Discord merged into Help (one "Help" tab lists
+  // the mod's community servers + support cards):
+  // Play | RTM | Account | Social | Help | Options
   const tabs = isJupiterContent
-    ? ['Play', 'PHA Client', 'Account', 'Social', 'Help', 'Options']
+    ? ['Play', 'RTM', 'Account', 'Social', 'Help', 'Options']
     : ['Play', 'Account', 'Social', 'Help', 'Options']
 
   // While connected to a server (join result / still in-game after the
@@ -108,6 +110,10 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   // True while the Options tab's interface-reload confirmation is open —
   // same quiet-down reasoning as moddingErrorOpen.
   const [interfaceModalOpen, setInterfaceModalOpen] = useState(false)
+  // Leave-server confirmation: Esc on the in-game screen or the Leave
+  // Server button opens it — leaving disconnects and returns to the menu,
+  // so it's worth an explicit confirm (same quiet-down gating).
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [betaWelcomeOpen, setBetaWelcomeOpen] = useState(() => !hasBetaWelcomeAcknowledged())
   // Quick Play auto-matchmaking: finds a Jupiter lobby, runs a 3s
   // countdown, then auto-joins via the session provider. The Quick Play
@@ -372,11 +378,20 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
     setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
   }
 
+  // Leaving is destructive (disconnect + membership cleanup), so it always
+  // goes through a themed confirmation — Esc, the back arrow, or the Leave
+  // Server button all open it.
+  const handleRequestLeaveServer = () => {
+    playSound('jupSelect')
+    setLeaveConfirmOpen(true)
+  }
+
   // Leave the server we're connected to: the provider runs RTM.exe
   // -disconnect + -lua MainMenuOffline and clears every session artifact
-  // (roster, map badge, membership row). We return to the Play main menu.
+  // (roster, membership row). We return to the Play main menu.
   const handleLeaveServer = async () => {
     if (!session) return
+    setLeaveConfirmOpen(false)
     await session.leaveServer()
     setActiveHeaderTab('Play')
     setPlayView('menu')
@@ -397,6 +412,12 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
     if (activeHeaderTab !== 'Play') {
       setPlayView('menu')
       handleTabClick('Play')
+      return
+    }
+    // On the Play tab while connected, Esc / controller-Back asks whether
+    // to leave the server instead of quitting the app.
+    if (inServer) {
+      handleRequestLeaveServer()
       return
     }
     // On the Play tab, Esc / controller-Back while matchmaking cancels the
@@ -421,6 +442,10 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       // a running Quick Play search keeps running.
       setPlayView('menu')
       handleTabClick('Play')
+    } else if (inServer) {
+      // While connected the back arrow asks whether to leave the server
+      // (return to the menu), not quit to desktop.
+      handleRequestLeaveServer()
     } else if (quickPlay) {
       // On the Play tab the back arrow means quit — cancel the search
       // instead of opening the quit modal mid-search.
@@ -457,7 +482,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       if (direction === 'right') return Math.min(quitIdx, currentIndex + 1)
       return currentIndex
     },
-    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !betaWelcomeOpen && !noMatchModal,
+    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !betaWelcomeOpen && !noMatchModal,
     bumpersOnly: isInSubView,
     onConfirm: (index, source) => {
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
@@ -467,9 +492,9 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
         // While matchmaking only the Quick Play card renders — map any
         // stale card-slot index to it so Enter can never fire a hidden
         // subview's handler mid-search. While connected the single slot is
-        // the Leave Server button.
+        // the Leave Server button (through the confirmation).
         if (inServer) {
-          void handleLeaveServer()
+          handleRequestLeaveServer()
           return
         }
         const cardName = quickPlay ? 'Quick Play' : cardKeys[index - firstCardIdx]
@@ -575,22 +600,24 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
 
           {activeHeaderTab === 'Play' && playView === 'menu' && (
             <>
-              <div className="jupiter-active-headline-lowered">
-                {inServer ? (
-                  <>
-                    <h1>IN GAME</h1>
-                    <p>You're connected — browse the other tabs or leave the server from here or the player roster.</p>
-                  </>
-                ) : (
-                  <>
-                    <h1>{activeInfo.title}</h1>
-                    <p>{activeInfo.subtitle}</p>
-                  </>
-                )}
-              </div>
+              {/* While connected the in-game panel renders its OWN topline
+                  (like the Server Browser) — the headline only shows for
+                  the card menu. */}
+              {!inServer && (
+                <div className="jupiter-active-headline-lowered">
+                  <h1>{activeInfo.title}</h1>
+                  <p>{activeInfo.subtitle}</p>
+                </div>
+              )}
 
               {inServer ? (
-                <ConnectedServerPanel theme="jupiter" lobby={currentLobby} onLeaveServer={() => void handleLeaveServer()} />
+                <ConnectedServerPanel
+                  theme="jupiter"
+                  lobby={currentLobby}
+                  players={session?.lobbyMembers || []}
+                  partyMembers={session?.partyMembers || []}
+                  onLeaveServer={handleRequestLeaveServer}
+                />
               ) : (
                 <div className="jupiter-cards-row">
                 {cardKeys.map((cardName, cardIndex) => {
@@ -614,13 +641,13 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                       onMouseEnter={() => handleCardMouseEnter(cardName)}
                       onClick={() => handleCardClick(cardName)}
                     >
-                      <div className={`jupiter-card ${isSearching ? 'is-quickplay-searching' : ''}`}>
+                      <div className={`jupiter-card ${isSearching ? 'is-quickplay-searching' : ''} ${quickPlay?.phase === 'found' ? 'is-quickplay-found' : ''}`}>
                         <img
                           src={card.image}
                           alt={card.imageAlt}
                           className="jupiter-card-image jupiter-card-image-quick"
                           draggable="false"
-                          aria-hidden={isSearching}
+                          aria-hidden={isSearching || quickPlay?.phase === 'found'}
                         />
                         {/* Searching decal — a second stacked layer that
                             morphs (crossfades) in over the quick artwork
@@ -633,6 +660,21 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                             className="jupiter-card-image jupiter-card-image-searching"
                             draggable="false"
                             aria-hidden={!isSearching}
+                          />
+                        )}
+                        {/* Found decal — a third stacked layer that morphs
+                            (crossfades) in over the quick artwork the
+                            moment a lobby is found, staying up through the
+                            3s auto-join countdown (quick_play_found.jpg),
+                            then fades back out when the join flow takes
+                            over or the countdown is cancelled. */}
+                        {cardName === 'Quick Play' && (
+                          <img
+                            src={jupFoundImg}
+                            alt="Quick Play — match found"
+                            className="jupiter-card-image jupiter-card-image-found"
+                            draggable="false"
+                            aria-hidden={quickPlay?.phase !== 'found'}
                           />
                         )}
                         {/* Found-phase countdown: a pill overlaid on the
@@ -677,7 +719,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
               onSwitchToAccount={() => handleTabClick('Account')}
             />
           )}
-          {activeHeaderTab === 'PHA Client' && isJupiterContent && <ModdingTab theme="jupiter" onModalChange={setModdingErrorOpen} />}
+          {activeHeaderTab === 'RTM' && isJupiterContent && <ModdingTab theme="jupiter" onModalChange={setModdingErrorOpen} />}
           {activeHeaderTab === 'Help' && <HelpTab theme="jupiter" mod={mod} />}
           {activeHeaderTab === 'Options' && <OptionsTab theme="jupiter" onModalChange={setInterfaceModalOpen} />}
         </div>
@@ -688,7 +730,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
           lobby, with a LEAVE SERVER button while connected. Pinned below
           the header's user chip; persists across tabs. Renders nothing
           for IW8 content (no session provider). */}
-      <PlayerRoster theme="jupiter" onLeaveServer={() => void handleLeaveServer()} />
+      <PlayerRoster theme="jupiter" />
 
       {/* Top Left Quit Trigger (back arrow) */}
       <div className="jupiter-quit-btn-wrapper">
@@ -709,6 +751,13 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
         onClose={() => setIsQuitModalOpen(false)}
         onGoLauncher={onGoLauncher}
         onQuitDesktop={handleQuitDesktop}
+      />
+
+      <LeaveServerConfirmModal
+        theme="jupiter"
+        isOpen={leaveConfirmOpen}
+        onConfirm={() => void handleLeaveServer()}
+        onCancel={() => setLeaveConfirmOpen(false)}
       />
 
       <JupiterQuickPlayModal

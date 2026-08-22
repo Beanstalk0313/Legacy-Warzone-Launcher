@@ -1512,6 +1512,25 @@ button, a {
   }
 }
 
+/* Quick Play FOUND morph. A third stacked layer (quick_play_found.jpg)
+   sits above the quick artwork; while .is-quickplay-found is set
+   (phase === 'found' — the 3s auto-join countdown) the artwork fades/scales
+   out and the found decal crossfades in, the same motion as the searching
+   morph. On join/cancel the class drops and the layers crossfade back. */
+.jupiter-card-image-found {
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.jupiter-card.is-quickplay-found .jupiter-card-image-quick {
+  opacity: 0;
+  transform: scale(1.06);
+}
+
+.jupiter-card.is-quickplay-found .jupiter-card-image-found {
+  opacity: 1;
+}
+
 /* Found-phase countdown pill: overlaid center of the Quick Play card while
    the 3s auto-join countdown runs (the tile keeps its is-quickplay-active
    pulse beneath it). Sits INSIDE .jupiter-card so top/left 50% is the card
@@ -2895,6 +2914,36 @@ button, a {
   gap: 16px;
 }
 
+/* The RTM tab needs more room than the other tabs — the guided tools sit
+   in a left column with the raw RTM DEV TOOL panel beside them. */
+.tab-content-panel.modding-tab-panel {
+  max-width: 1280px;
+}
+
+.modding-layout {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The guided-tools column keeps ONE width whether or not the dev panel is
+   shown: it caps at 636px (1280 panel − 2×32 padding − 560 dev rail − 20
+   gap), so toggling Advanced RTM Mode never reflows the main card. It can
+   still shrink in a narrower window; the dev rail keeps its width. */
+.modding-main {
+  flex: 1 1 636px;
+  max-width: 636px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.modding-main .modding-card {
+  flex: 1;
+}
+
 /* One row per modding tool: button + short description (and a Cancel
    button while that tool is running). */
 .modding-tools {
@@ -3020,14 +3069,34 @@ button, a {
   border-color: var(--iw8-red-accent);
 }
 
-/* ── Developer Mode RTM tool panel (Modding tab) ──────────────────────── */
+/* ── Advanced RTM Mode tool panel (RTM tab, right column) ─────────────── */
 .modding-dev-panel {
-  gap: 18px;
-  /* The dev surface is tall (command grid + argument rows + 44 toggles) —
-     the tab body doesn't scroll, so the panel scrolls internally. */
+  gap: 14px;
+  /* Fixed right rail beside the guided tools — the dev surface is tall
+     (command grid + argument rows + 44 toggles), so the tab body doesn't
+     scroll; the panel scrolls internally on a slim scrollbar. */
+  flex: 0 0 560px;
+  width: 560px;
   max-height: 760px;
   overflow-y: auto;
-  padding-right: 12px;
+  padding: 22px 18px 22px 22px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.modding-dev-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modding-dev-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+}
+
+/* The toggles are dense — two columns read better in the narrower right
+   rail than the full-width four. */
+.modding-dev-panel .modding-dev-toggles {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .modding-dev-header {
@@ -3052,7 +3121,7 @@ button, a {
 .modding-dev-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .modding-dev-section h4 {
@@ -3067,24 +3136,24 @@ button, a {
 .modding-dev-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .modding-dev-btn {
-  font-size: 0.88rem;
-  padding: 9px 16px;
+  font-size: 0.84rem;
+  padding: 8px 14px;
 }
 
 .modding-dev-text-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .modding-dev-text-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .modding-dev-text-btn {
@@ -3094,23 +3163,24 @@ button, a {
 
 .modding-dev-input {
   flex: 0 0 auto;
-  width: 280px;
+  width: 260px;
+  height: 36px;
 }
 
 .modding-dev-toggles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  gap: 4px;
 }
 
 .modding-dev-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 4px 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.25);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: rgba(255, 255, 255, 0.7);
   text-transform: none;
   cursor: pointer;
@@ -5022,12 +5092,13 @@ button, a {
   color: var(--iw8-red-accent);
 }
 
-/* Host dashboard variant: the badge is the bottom section of the right
-   column, pinned under the player list — it stretches to the column width
-   with the text left and the artwork right, and the map/mode selects above
-   drive it live. The .iw8-styled bottom lift is inert here (position
-   static wins). */
-.host-dashboard-right .jupiter-map-badge {
+/* Host dashboard + in-game panel variant: the badge is the bottom section
+   of the right column, pinned under the player list — it stretches to the
+   column width with the text left and the artwork right, and the map/mode
+   selects above drive it live. The .iw8-styled bottom lift is inert here
+   (position static wins). */
+.host-dashboard-right .jupiter-map-badge,
+.connected-server-layout .jupiter-map-badge {
   position: static;
   align-self: stretch;
   animation: none;
@@ -5036,21 +5107,25 @@ button, a {
   padding: 14px 22px 14px 24px;
 }
 
-.host-dashboard-right .jupiter-map-badge-img {
+.host-dashboard-right .jupiter-map-badge-img,
+.connected-server-layout .jupiter-map-badge-img {
   width: 232px;
   height: auto;
   aspect-ratio: 16 / 9;
 }
 
-.host-dashboard-right .jupiter-map-badge-label {
+.host-dashboard-right .jupiter-map-badge-label,
+.connected-server-layout .jupiter-map-badge-label {
   font-size: 0.74rem;
 }
 
-.host-dashboard-right .jupiter-map-badge-text strong {
+.host-dashboard-right .jupiter-map-badge-text strong,
+.connected-server-layout .jupiter-map-badge-text strong {
   font-size: 1.6rem;
 }
 
-.host-dashboard-right .jupiter-map-badge-text em {
+.host-dashboard-right .jupiter-map-badge-text em,
+.connected-server-layout .jupiter-map-badge-text em {
   font-size: 0.92rem;
 }
 
@@ -5156,6 +5231,114 @@ button, a {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 60%;
+}
+
+/* Editable Server Name (LOBBY CONTROL dashboard) — reads as the lobby
+   title until focused. */
+.host-dashboard-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #ffffff;
+  font: inherit;
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1.05;
+  padding: 2px 6px;
+  margin-left: -6px;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.host-dashboard-name-input:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.host-dashboard-name-input:focus,
+.host-dashboard-name-input.controller-focused {
+  border-color: var(--jupiter-accent);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.host-match-iw8 .host-dashboard-name-input:focus,
+.host-match-iw8 .host-dashboard-name-input.controller-focused {
+  border-color: var(--iw8-red-accent);
+}
+
+/* Editable LAN Session row (LOBBY CONTROL dashboard). */
+.host-dashboard-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.86rem;
+}
+
+.host-dashboard-field > span {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+}
+
+.host-dashboard-session-input {
+  flex: 1;
+  max-width: 60%;
+  height: 32px;
+  padding: 0 10px;
+  color: var(--jupiter-accent-hover);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.84rem;
+  letter-spacing: 0.06em;
+  outline: none;
+  text-align: right;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.host-dashboard-session-input:focus,
+.host-dashboard-field.controller-focused .host-dashboard-session-input {
+  border-color: var(--jupiter-accent);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.host-match-iw8 .host-dashboard-session-input:focus,
+.host-match-iw8 .host-dashboard-field.controller-focused .host-dashboard-session-input {
+  border-color: var(--iw8-red-accent);
+}
+
+/* Return PHA Client Lobby button — sits right of Close Server in the
+   dashboard actions row. */
+.host-dashboard-return {
+  padding: 11px 30px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  background: rgba(2, 143, 204, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.host-dashboard-return:hover:not(:disabled) {
+  background: var(--jupiter-accent-hover);
+  transform: translateY(-1px);
+}
+
+.host-dashboard-return.controller-focused {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.host-dashboard-return:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .host-dashboard-live {
@@ -5305,6 +5488,41 @@ button, a {
 .host-dashboard-actions {
   display: flex;
   justify-content: flex-start;
+  gap: 12px;
+}
+
+/* Party-leader-only hosting gate (Host a Match): shown in place of the
+   form when the user is a non-leader party member. */
+.host-party-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px;
+  text-align: center;
+  background: rgba(10, 12, 16, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+.host-party-block h2 {
+  font-size: 1.8rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.host-party-block p {
+  max-width: 560px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.host-party-block-back {
+  margin-top: 10px;
 }
 
 .host-dashboard-close {
@@ -6049,84 +6267,133 @@ button, a {
    PlayerRoster; party members get a PARTY tag, the signed-in user gets
    YOU. Absent for IW8 content (no session provider). */
 /* Connected-state panel (Play menu): replaces the Quick Play / Server
-   Browser / Host a Match cards while the player is in a server. Shows the
-   lobby name + current map/mode and a Leave Server button (runs
-   RTM.exe -disconnect + MainMenuOffline via the session provider). */
+   Browser / Host a Match cards while the player is in a server. Uses the
+   SAME section design as the Server Browser (topline + list rows): the
+   CURRENT LOBBY as a highlighted row with a Leave Server button, the live
+   player roster (everyone in the lobby) as browser-style rows, and the
+   CURRENT MAP badge pinned beneath the roster. The right-side PlayerRoster
+   HUD hides while connected — the roster lives here now. */
 .connected-server-panel {
+  /* Reuses the .server-browser section surface (full-height flex column,
+     topline, theme accents) via className — no extra section styles. */
+}
+
+/* Single full-width column: the IN THE GAME roster covers the whole panel
+   with the CURRENT MAP badge pinned beneath it. */
+.connected-server-layout {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 18px;
+}
+
+.connected-lobby-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 15px;
+  color: rgba(255, 255, 255, 0.45);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.connected-roster-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.connected-roster-count {
+  color: var(--jupiter-accent-hover);
+  font-size: 1rem;
+}
+
+.connected-roster-empty {
+  padding: 16px 15px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.84rem;
+  text-align: left;
+}
+
+.connected-player-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: default;
+  transition: background 0.14s ease;
+}
+
+.connected-player-row:last-child {
+  border-bottom: 0;
+}
+
+.connected-player-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.connected-player-avatar {
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 42px 48px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  text-align: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 50%;
+  background: var(--jupiter-accent);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 900;
 }
 
-.connected-server-kicker {
-  font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: 0.24em;
-  color: rgba(255, 255, 255, 0.55);
+.connected-player-row.guest .connected-player-avatar {
+  background: rgba(240, 180, 41, 0.9);
 }
 
-.connected-server-panel.jupiter-theme .connected-server-kicker {
-  color: var(--jupiter-accent);
+.server-browser-iw8.connected-server-panel .connected-player-avatar {
+  background: var(--iw8-red-accent);
 }
 
-.connected-server-panel.iw8-theme .connected-server-kicker {
+.server-browser-iw8.connected-server-panel .connected-roster-count {
   color: var(--iw8-red-accent);
 }
 
-.connected-server-name {
-  margin: 0;
-  font-size: 2.6rem;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 0.03em;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
-}
-
-.connected-server-map {
-  margin: 0;
-  font-size: 1.25rem;
+.connected-player-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
-  letter-spacing: 0.06em;
-}
-
-.connected-server-hint {
-  margin: 6px 0 0;
-  font-size: 0.92rem;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: none;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .connected-server-leave-btn {
-  margin-top: 18px;
+  flex: 0 0 auto;
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  padding: 14px 40px;
-  font-size: 1rem;
+  padding: 11px 22px;
+  font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.connected-server-panel.jupiter-theme .connected-server-leave-btn:hover {
+.server-browser-jupiter.connected-server-panel .connected-server-leave-btn:hover {
   background: var(--jupiter-accent);
   border-color: var(--jupiter-accent);
 }
 
-.connected-server-panel.iw8-theme .connected-server-leave-btn:hover {
+.server-browser-iw8.connected-server-panel .connected-server-leave-btn:hover {
   background: var(--iw8-red-accent);
   border-color: var(--iw8-red-accent);
 }

@@ -8,8 +8,8 @@ import { useControllerNavigation } from '../utils/controller'
 //
 //   prompt === 'ask'          → "Prep PHA Client?"  Yes / No
 //   prompt === 'prepping'     → prep sequence running (spinner + Cancel)
-//   prompt === 'instructions' → PHA Client steps (Local Play → Create Local
-//                               Game) with an OK button.
+//   prompt === 'instructions' → PHA Client steps (Local Play → Create
+//                               Local Game) with an OK button.
 //
 // No LAN session is collected here — the host pastes it in the Host a Match
 // form itself.

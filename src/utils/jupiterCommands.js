@@ -147,27 +147,36 @@ export function getJupiterConfigCommand({ map, mode, plunderCash }) {
   const execHash = combo.exec || STANDARD_MAP_CONFIGS[map] || STANDARD_MAP_CONFIGS['Rebirth Island']
   const effectiveGameType = combo.gameType || gameType
 
-  const parts = [
+  // Every command is semicolon-joined on one line, but the SECOND (and any
+  // subsequent) `seta` dvar goes on its own newline so the RTM tool receives
+  // them as separate statements — matching the wz commands.txt format.
+  const nonSetaParts = [
     `ui_gametype ${effectiveGameType}`,
     `exec ${execHash}`,
     'set enable_automation_bot 1',
+  ]
+  const setaParts = [
     'seta #x3116700c9b39c1eba 40',
     `seta #x3E65E9A96EB2FF62B ${dvarValue}`,
   ]
 
-  let command = parts.join(';')
+  let command = [...nonSetaParts, setaParts[0]].join(';')
+  for (let i = 1; i < setaParts.length; i += 1) {
+    command += `\n${setaParts[i]}`
+  }
 
   // The file appends the map override right after the mode dvar, then any
-  // extra dvars (Purgatory's score) inline. The PLUNDER cash-to-win dvar is
-  // the exception: it sits on its OWN LINE after the main command, but it
-  // still needs the `seta` keyword — a BARE `#x3a07d25d87bb595de` token on
-  // its own line is treated as an unknown command by the game and crashes it.
-  // (The file's bare line is a trap: `seta` is required.)
+  // extra dvars (Purgatory's score, Plunder's cash-to-win) on their own
+  // newline — each one is a `seta` statement that must start its own line.
   if (combo.mapId) command += `;#x3ef237da69bb64ef6 ${combo.mapId}`
   if (mode === 'Plunder') {
     command += `\nseta ${PLUNDER_CASH_DVAR} ${normalizePlunderCash(plunderCash)}`
   }
-  if (combo.extra) command += `;${combo.extra.join(';')}`
+  if (combo.extra) {
+    for (const extra of combo.extra) {
+      command += `\n${extra}`
+    }
+  }
 
   return command
 }

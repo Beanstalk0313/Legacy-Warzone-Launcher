@@ -11,7 +11,7 @@ import { useControllerNavigation } from '../utils/controller'
 //   stage 'ask'          → "ARE YOU IN A WARZONE LOBBY?" Yes / No (Yes =
 //                          already in a lobby → skip the prep sequence)
 //   stage 'working'      → spinner + Cancel while an RTM step runs
-//   stage 'guided'       → PHA Client steps (Local Play → Create Local
+//   stage 'guided'       → RTM steps (Local Play → Create Local
 //                          Game) with a Continue button
 //   stage 'instruction'  → flow-specific instructions + Finish/Continue
 //

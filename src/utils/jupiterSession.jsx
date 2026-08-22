@@ -17,7 +17,6 @@ import {
 import { getJupiterConfigCommand } from './jupiterCommands'
 import JupiterJoinModal from '../components/JupiterJoinModal'
 import JupiterErrorModal from '../components/JupiterErrorModal'
-import JupiterMapBadge from '../components/JupiterMapBadge'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // JupiterSessionProvider
@@ -110,6 +109,12 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
   // Our own membership in that lobby (memberId / memberCode) so the roster
   // can keep showing us after `finishJoin` deletes our server_members row.
   const lastMemberRef = useRef(null)
+  // Known lobby members (per lobby) so a NEW arrival while we're in the
+  // server plays the player-join cue. Seeds on the first poll for a lobby
+  // (players already present when we arrive don't all fire at once); later
+  // polls chime once per new arrival and drop absent keys, so a leave +
+  // rejoin chimes again.
+  const knownLobbyMembersRef = useRef(null)
   const knownInviteIdsRef = useRef(new Set())
   // Guards against the party watcher re-triggering the join flow for the
   // same leader server after the member finishes/leaves — a fresh join is
@@ -586,6 +591,27 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
           .eq('server_id', serverId)
         const list = rows || []
 
+        // Player-join cue: detect NEW members arriving while we're in the
+        // lobby (same self-skip logic as the roster build below).
+        const me = lastMemberRef.current
+        const currentKeys = new Set()
+        for (const row of list) {
+          if (user?.id && row.user_id === user.id) continue
+          if (!user?.id && me && row.player_code === me.memberCode) continue
+          currentKeys.add(row.user_id || row.player_code)
+        }
+        const knownMembers = knownLobbyMembersRef.current
+        if (!knownMembers || knownMembers.serverId !== serverId) {
+          knownLobbyMembersRef.current = { serverId, keys: currentKeys }
+        } else {
+          let someoneJoined = false
+          for (const key of currentKeys) {
+            if (!knownMembers.keys.has(key)) { someoneJoined = true; break }
+          }
+          if (someoneJoined) playSound('playerJoin')
+          knownMembers.keys = currentKeys
+        }
+
         // Resolve display names + regions for signed-in members.
         const signedInIds = list.filter((row) => row.user_id).map((row) => row.user_id)
         const profileMap = {}
@@ -600,7 +626,6 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
         const roster = []
         // Our own card first — even if our server_members row was deleted
         // by finishJoin, we are still in the game.
-        const me = lastMemberRef.current
         if (me && me.serverId === serverId) {
           let meRegion = ''
           if (user?.id) {
@@ -793,6 +818,11 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
         showError,
         partyMembers,
         lobbyMembers,
+        // Host-a-Match integration: the party leader's host flow broadcasts
+        // the new lobby (members auto-join via the party watcher) and clears
+        // it when the lobby closes.
+        broadcastLeaderServer: setLeaderServer,
+        clearLeaderServer,
       }}
     >
       {children}
@@ -812,20 +842,11 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
         message={errorModal?.message}
         onClose={() => setErrorModal(null)}
       />
-      {/* Bottom-right CURRENT MAP HUD while connected to a lobby: shown from
-          the moment the join succeeds (stage 'result') and kept after the
-          user dismisses the result modal (lastLobby — they are still in
-          the game) until a new join flow starts, the host closes the
-          server, or the interface unmounts. While the session is live the
-          badge follows the host's map/mode updates via `join`; after
-          finish it shows the last connected lobby. */}
-      {(join?.stage === 'result' || lastLobby) && (
-        <JupiterMapBadge
-          map={join?.stage === 'result' ? join.map : lastLobby?.map}
-          mode={join?.stage === 'result' ? join.mode : lastLobby?.mode}
-          theme={theme}
-        />
-      )}
+      {/* No floating CURRENT MAP HUD here anymore: while connected the
+          in-game panel (ConnectedServerPanel) renders the current-map
+          section in its roster column — the old bottom-right floating
+          badge was redundant and got removed. The map/mode still updates
+          live via `join` / `lastLobby`. */}
 
       {toasts.length > 0 && (
         <div className={`jupiter-session-toasts ${isJupiter ? '' : 'iw8-styled'}`} role="status" aria-live="polite">

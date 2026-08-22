@@ -13,7 +13,7 @@ import JupiterErrorModal from './JupiterErrorModal'
 import ModdingFlowModal from './ModdingFlowModal'
 
 /**
- * PHA Client tab (Jupiter only — RTM.exe drives the Warzone III game).
+ * RTM tab (Jupiter only — RTM.exe drives the Warzone III game).
  *
  * Each entry in MODDING_TOOLS is one action: a button plus a short
  * description of what it does. More tools will land here as the tab grows.
@@ -152,7 +152,10 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
   const { settings } = useSettings()
-  const devMode = Boolean(settings?.developer_mode)
+  // Advanced RTM Mode (Options > TESTING & RTM): shows the raw RTM DEV
+  // TOOL panel on the right side of this tab. The guided tools above are
+  // always available.
+  const devMode = Boolean(settings?.rtm_mode)
   // Status line is hidden while empty — no default "Ready." text.
   const [status, setStatus] = useState('')
   // Index of the tool currently running (null when idle) so each row's
@@ -506,12 +509,14 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   }
 
   return (
-    <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+    <div className={`tab-content-panel modding-tab-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="tab-header-title">
-        <h2>PHA CLIENT</h2>
+        <h2>RTM</h2>
         <span className="tab-subtitle">RTM automation for the Warzone III client</span>
       </div>
 
+      <div className="modding-layout">
+      <div className="modding-main">
       <div className="modding-card">
         <div className="modding-tools">
           {MODDING_TOOLS.map((tool, index) => {
@@ -566,8 +571,10 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
 
         {status && <div className="modding-status">{status}</div>}
       </div>
+      </div>
 
-      {/* ── Developer Mode: the full RTM tool surface (RTM.exe -h) ── */}
+      {/* ── Advanced RTM Mode: the full RTM tool surface (RTM.exe -h) —
+          rendered to the RIGHT of the main tools column. ── */}
       {devMode && (
         <div className="modding-card modding-dev-panel">
           <div className="modding-dev-header">
@@ -651,6 +658,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
           </div>
         </div>
       )}
+      </div>
 
       <ModdingFlowModal
         theme={theme}

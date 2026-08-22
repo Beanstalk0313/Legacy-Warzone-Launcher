@@ -5,6 +5,7 @@ import jupHoverSfx from '../assets/jup_hover.mp3'
 import jupSelectSfx from '../assets/jup_select.mp3'
 import jupQuitSfx from '../assets/jup_quit.mp3'
 import mainSlideSfx from '../assets/main_slide.mp3'
+import playerJoinSfx from '../assets/player_join.mp3'
 
 const audioMap = {
   iw8Hover: iw8HoverSfx,
@@ -14,6 +15,7 @@ const audioMap = {
   jupSelect: jupSelectSfx,
   jupQuit: jupQuitSfx,
   mainSlide: mainSlideSfx,
+  playerJoin: playerJoinSfx,
 }
 
 const lastPlayedAt = new Map()
@@ -28,6 +30,11 @@ const duplicateGuardMs = {
   // at ~60ms so the cue still feels responsive without overlapping itself.
   iw8Hover: 60,
   jupHover: 60,
+  // Player-join cue: fires on a genuinely new server_members row (the
+  // known-set detection in the roster polls already dedupes arrivals), so
+  // the guard is just belt-and-suspenders against a double-fire. Short
+  // enough that two people joining in the same poll tick both chime.
+  playerJoin: 500,
 }
 
 // Dynamic Sound Effects (Options > Dynamic Sounds): remaps every theme cue

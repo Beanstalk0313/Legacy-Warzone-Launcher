@@ -88,22 +88,26 @@ AGENTS.md             Full project guide — read it before making changes
 The launcher stores a **device identity file** (the signed-in account's Discord
 username, gamertag, and email) that the pre-sign-in ban check reads. Its exact
 file name and location are intentionally **not published** in this repository
-— the path is assembled at runtime from non-literal fragments so the source
-can't be used to locate or remove the file (see `ADVANCED_BANNING.md` for the
-ban system itself).
+— they are baked into the binary at **build time** from two environment
+variables, so the source can't be used to locate or remove the file (see
+`ADVANCED_BANNING.md` for the ban system itself).
 
-For local development, you can configure the file name and path for each file
-the launcher needs to locate by setting these environment variables on your
-machine (Windows: System Properties → Environment Variables, or `export` them
-in the terminal before `npm run tauri:dev`):
+Every build **requires** both variables — the build fails if either is unset,
+so a binary never ships with a guessable default location:
 
 ```
 LWZ_IDENTITY_DIR   # the folder the identity file lives in
-LWZ_IDENTITY_FILE  # the identity file's name
+LWZ_IDENTITY_FILE  # the identity file's name — used VERBATIM, no
+                   # extension (e.g. .json) is ever appended
 ```
 
-Leave them unset to use the built-in location. These values are per-machine
-configuration — never commit them.
+Set them wherever you build the desktop app. In the GitHub Actions release
+workflow (`release.yml`) they are read from the `LWZ_IDENTITY_DIR` and
+`LWZ_IDENTITY_FILE` repo secrets — add those two secrets with the values you
+want each release to use (keep them stable across releases, or rotate them now
+and then). For local builds, `export` them in the terminal before any
+`npm run tauri:*` command. These values are per-build configuration — never
+commit them.
 
 ## Notes
 

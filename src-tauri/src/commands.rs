@@ -25,7 +25,7 @@ fn default_display_mode() -> String {
 }
 
 fn default_dev_server_name() -> String {
-    "Test Server - NOT REAL".to_string()
+    "Local Test Server".to_string()
 }
 
 fn default_dev_server_map() -> String {
@@ -47,18 +47,29 @@ pub struct AppSettings {
     pub dynamic_interfaces: String,
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
-    /// Developer Mode: unlocks the full RTM tool panel on the Modding tab
-    /// and a local-only "test server" row in the Server Browser (never
-    /// touched by Supabase, invisible to other clients).
+    /// Testing Server: lists a LOCAL-ONLY synthetic test server in the
+    /// Server Browser / Quick Play (never touched by Supabase, invisible to
+    /// other clients). Metadata comes from the dev_server_* fields below.
     #[serde(default)]
-    pub developer_mode: bool,
+    pub testing_server: bool,
+    /// Advanced RTM Mode: shows the raw RTM DEV TOOL panel (every flag from
+    /// RTM.exe -h) on the RTM tab. The guided RTM tools are always
+    /// available regardless.
+    #[serde(default)]
+    pub rtm_mode: bool,
+    /// One-time migration field: settings.json files written before the
+    /// split only carried a single `developer_mode` flag (which enabled
+    /// BOTH the test server and the raw RTM tool). It is read here, folded
+    /// into the two new toggles below, and never re-serialized.
+    #[serde(default, rename = "developer_mode", skip_serializing)]
+    pub legacy_developer_mode: Option<bool>,
     #[serde(default = "default_dev_server_name")]
     pub dev_server_name: String,
     #[serde(default = "default_dev_server_map")]
     pub dev_server_map: String,
     #[serde(default = "default_dev_server_mode")]
     pub dev_server_mode: String,
-    /// Optional LAN session for the dev server — blank means the test
+    /// Optional LAN session for the test server — blank means the test
     /// server is a listing only (not joinable).
     #[serde(default = "default_dev_server_lan_session")]
     pub dev_server_lan_session: String,
@@ -74,7 +85,9 @@ impl Default for AppSettings {
             dynamic_sounds: "enabled".to_string(),
             dynamic_interfaces: "enabled".to_string(),
             display_mode: default_display_mode(),
-            developer_mode: false,
+            testing_server: false,
+            rtm_mode: false,
+            legacy_developer_mode: None,
             dev_server_name: default_dev_server_name(),
             dev_server_map: default_dev_server_map(),
             dev_server_mode: default_dev_server_mode(),
@@ -101,6 +114,9 @@ fn normalize_setting_text(value: &str, default: &str, max_len: usize) -> String 
 }
 
 fn normalize_settings(settings: AppSettings) -> AppSettings {
+    // Fold the retired single `developer_mode` flag into the two new
+    // toggles (old files only had that one switch controlling both).
+    let migrated_developer_mode = settings.legacy_developer_mode.unwrap_or(false);
     let defaults = AppSettings::default();
     // The dev server LAN session is OPTIONAL — blank is a valid state
     // (listing-only test server), so the empty string is preserved but
@@ -130,9 +146,20 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         } else {
             defaults.display_mode
         },
-        developer_mode: settings.developer_mode,
+        testing_server: settings.testing_server || migrated_developer_mode,
+        rtm_mode: settings.rtm_mode || migrated_developer_mode,
+        legacy_developer_mode: None,
         auto_load_savedata: settings.auto_load_savedata,
-        dev_server_name: normalize_setting_text(&settings.dev_server_name, &defaults.dev_server_name, 64),
+        // The old default test-server name was retired — anyone still on it
+        // gets the new default.
+        dev_server_name: {
+            let name = normalize_setting_text(&settings.dev_server_name, &defaults.dev_server_name, 64);
+            if name == "Test Server - NOT REAL" {
+                defaults.dev_server_name
+            } else {
+                name
+            }
+        },
         dev_server_map: normalize_setting_text(&settings.dev_server_map, &defaults.dev_server_map, 64),
         dev_server_mode: normalize_setting_text(&settings.dev_server_mode, &defaults.dev_server_mode, 64),
         dev_server_lan_session: lan_session,
@@ -219,9 +246,10 @@ pub fn save_settings_command(app: tauri::AppHandle, settings: AppSettings) -> Re
 
 /// The one active account's identity snapshot — the DEVICE identity behind
 /// the pre-sign-in ban check. It is deliberately stored outside the app's
-/// own folders, at a location assembled at runtime (never written as a
-/// literal path in this source), so the public repo can't be used to find
-/// or remove the file. See `resolve_user_identity_path`.
+/// own folders, at a location baked into the binary at build time from
+/// environment variables (never written as a literal path in this source),
+/// so the public repo can't be used to find or remove the file. See
+/// `resolve_user_identity_path`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct UserIdentity {
@@ -230,43 +258,33 @@ pub struct UserIdentity {
     pub email: String,
 }
 
-/// Decode a hex-encoded byte string at runtime. The device identity file's
-/// name and folder are stored as hex fragments below so the exact path
-/// never appears as a plain string in the committed source tree.
-fn decode_hex(hex: &str) -> String {
-    let mut bytes = Vec::with_capacity(hex.len() / 2);
-    let mut nibbles = hex.bytes().filter_map(|byte| (byte as char).to_digit(16));
-    while let Some(hi) = nibbles.next() {
-        let lo = nibbles.next().unwrap_or(0);
-        bytes.push((hi * 16 + lo) as u8);
-    }
-    String::from_utf8_lossy(&bytes).into_owned()
-}
-
-/// Resolve the device identity file's path. The default name and folder are
-/// decoded from hex fragments so they never appear as literals; a developer
-/// can relocate the file on their own machine by setting the
-/// `LWZ_IDENTITY_DIR` (folder) and `LWZ_IDENTITY_FILE` (file name)
-/// environment variables — see README "Device identity file". Those values
-/// are local-only and must never be committed.
+/// Resolve the device identity file's path. The folder and file name are
+/// baked into the binary at BUILD time from the `LWZ_IDENTITY_DIR` and
+/// `LWZ_IDENTITY_FILE` environment variables — set them in the build (e.g.
+/// the GitHub Actions release workflow, fed from repo secrets) so every
+/// build of a release stores the identity file at one fixed, obfuscated
+/// path that never appears in this source tree. The build FAILS if either
+/// is unset, so a binary can never ship with a guessable default location.
+///
+/// The file name is used VERBATIM — no extension (`.json` or otherwise) is
+/// ever appended — so the builder can pick any name, with or without one.
 fn resolve_user_identity_path() -> Result<PathBuf, String> {
-    let app_data = std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .ok_or_else(|| "Could not locate the Windows roaming AppData folder.".to_string())?;
-
-    let folder = match std::env::var_os("LWZ_IDENTITY_DIR") {
-        Some(dir) => PathBuf::from(dir),
-        None => app_data
-            .join(decode_hex("4d6963726f736f6674"))
-            .join(decode_hex("57696e646f7773")),
-    };
-    let file_name = std::env::var_os("LWZ_IDENTITY_FILE")
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| decode_hex("757365722e6a736f6e"));
-
-    fs::create_dir_all(&folder)
+    let folder = env!("LWZ_IDENTITY_DIR").trim();
+    let file_name = env!("LWZ_IDENTITY_FILE").trim();
+    if folder.is_empty()
+        || file_name.is_empty()
+        || folder.chars().any(|character| character.is_control())
+        || file_name.chars().any(|character| character.is_control())
+    {
+        return Err(
+            "The device identity folder/file were set to empty or invalid values at build time."
+                .to_string(),
+        );
+    }
+    let folder_path = PathBuf::from(folder);
+    fs::create_dir_all(&folder_path)
         .map_err(|error| format!("Could not create the identity folder: {error}"))?;
-    Ok(folder.join(file_name))
+    Ok(folder_path.join(file_name))
 }
 
 fn validate_identity_value(value: &str, field: &str) -> Result<String, String> {

@@ -2,9 +2,10 @@
 
 The open-beta launcher stores the currently signed-in account identity in a
 **device identity file** — the exact file name and location are intentionally
-not published here (they are assembled at runtime; see the README's "Device
-identity file" section). On a dev machine the author overrides the name and
-path via local environment variables that are never committed.
+not published here (they are baked into the binary at build time from
+environment variables; see the README's "Device identity file" section). The
+build fails if those variables are unset, so a released binary never carries
+a guessable default location, and the values are never committed.
 
 The file contains the current account's Discord username, gamertag, and email.
 It is refreshed after sign-up and sign-in and deliberately retained across
