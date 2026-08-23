@@ -7,6 +7,7 @@ import { JUPITER_MAPS, JUPITER_MODES } from '../utils/jupiterCommands'
 import { listMonitors } from '../utils/displayMode'
 import InterfaceReloadModal from './InterfaceReloadModal'
 import CustomSelect from './CustomSelect'
+import { version as APP_VERSION } from '../../package.json'
 
 const DYNAMIC_OPTIONS = [
   { value: 'enabled', label: 'Enabled' },
@@ -657,7 +658,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
             <h3>APPLICATION</h3>
 
             <div className="options-about-header">
-              <h2>Legacy Warzone Launcher v1.8.0</h2>
+              <h2>Legacy Warzone Launcher v{APP_VERSION}</h2>
             </div>
 
             <div className="options-about-section">
