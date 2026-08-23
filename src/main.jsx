@@ -174,7 +174,8 @@ function App() {
   }, [securityState.kind])
 
   // Auto-update: the Update object from the startup GitHub-release check
-  // (null = none available). See AUTO_UPDATE.md for the release/signing setup.
+  // (null = none available). See the README's "Auto-update" section for
+  // the release/signing setup.
   const [updateInfo, setUpdateInfo] = useState(null)
 
   const [currentView, setCurrentView] = useState('launcher') // 'launcher' | 'iw8' | 'jupiter'
@@ -220,9 +221,10 @@ function App() {
 
   const timersRef = useRef([])
 
-  // Username syncing: once the session is known on launch, run the bundled
-  // RTM.exe with `-rename "<gamertag>"` so the game knows what username to
-  // set for the player. Desktop only — plain-browser dev has no RTM folder.
+  // Username syncing: once the session is known on launch, write the
+  // `rename` trigger file with the gamertag so the game knows what username
+  // to set for the player. Desktop only — plain-browser dev has no RTM
+  // trigger folder.
   useEffect(() => {
     if (!user?.id || !isTauriRuntime()) return undefined
     const gamertag = typeof user.user_metadata?.gamertag === 'string'

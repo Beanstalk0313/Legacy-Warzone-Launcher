@@ -87,7 +87,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // Party-host gate: only the party leader may host while in a party. Set on
   // mount when the user is a non-leader member (and re-checked at deploy).
   const [partyBlock, setPartyBlock] = useState(false)
-  // "Return PHA Client Lobby" (dashboard) busy state — runs RTM.exe -disconnect.
+  // "Return PHA Client Lobby" (dashboard) busy state — runs the disconnect trigger.
   const [returning, setReturning] = useState(false)
   // Known dashboard members (per lobby) so a NEW player joining while the
   // host watches plays the player-join cue. Seeds on the first poll for a
@@ -183,7 +183,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // ── Jupiter host-entry prompt (once per mount, after re-attach settles) ─
   useEffect(() => {
     if (!isJupiterContent || promptStartedRef.current || hosted || !recheckDone || partyBlock) return
-    if (!isTauriRuntime()) return // browser dev mode has no RTM.exe
+    if (!isTauriRuntime()) return // browser dev mode has no RTM trigger folder
     promptStartedRef.current = true
     setHostPrompt('ask')
   }, [isJupiterContent, hosted, recheckDone, partyBlock])
@@ -206,7 +206,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       setHostPrompt(null)
       setErrorModal({
         title: "COULDN'T PREPARE LOCAL GAME",
-        message: error?.message || String(error) || 'RTM.exe failed.',
+        message: error?.message || String(error) || 'RTM trigger write failed.',
       })
     } finally {
       prepAbortRef.current = null
@@ -592,14 +592,14 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     }
   }
 
-  // "Return PHA Client Lobby" (dashboard): runs RTM.exe -disconnect so the
-  // host's game client drops the finished match back into the PHA Client
+  // "Return PHA Client Lobby" (dashboard): writes the disconnect trigger so
+  // the host's game client drops the finished match back into the PHA Client
   // lobby — the lobby row stays live, so the host can roll a new LAN
   // session and keep hosting instead of closing and re-hosting.
   const handleReturnToLobby = async () => {
     if (!hosted || returning) return
     if (!isTauriRuntime()) {
-      setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
       return
     }
     setReturning(true)
@@ -610,7 +610,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     } catch (err) {
       setErrorModal({
         title: "COULDN'T DISCONNECT",
-        message: err?.message || String(err) || 'RTM.exe failed to disconnect.',
+        message: err?.message || String(err) || 'RTM disconnect trigger failed.',
       })
     } finally {
       setReturning(false)
@@ -719,7 +719,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       playSound(hoverSound)
       const item = dashboardItems[index]
       if (item === 'close') setStatus('Close Server — removes the lobby from the server browser.')
-      else if (item === 'return') setStatus('Return PHA Client Lobby — runs RTM.exe -disconnect; the lobby stays live.')
+      else if (item === 'return') setStatus('Return PHA Client Lobby — writes the disconnect trigger; the lobby stays live.')
       else if (item === 'name') setStatus('Edit the lobby title — saved when you press select or leave the field.')
       else if (item === 'lanSession') setStatus('Edit the LAN Session — roll a new code after a match; members reconnect with it.')
       else setStatus(`Change the ${item} — every joined player's client updates automatically.`)
@@ -835,7 +835,6 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                     else if (event.key === 'Escape') handleBrowserBack('keyboard')
                   }}
                   placeholder="—"
-                  maxLength={64}
                   spellCheck={false}
                 />
               </label>

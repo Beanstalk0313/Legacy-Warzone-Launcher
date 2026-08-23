@@ -17,18 +17,25 @@ menu (Quick Play / Server Browser / Host a Match), and tabs for Account (sign-in
 launcher settings) — plus a Jupiter-only Modding tab (RTM automation). The quit flow and sign-in features
 are real; the server list / friends list are placeholders waiting on the Supabase backend.
 
-**Launcher settings:** Options tab edits two settings — **Dynamic Sound Effects** (force one
-mod's SFX everywhere) and **Dynamic Interfaces** (force the *other* mod's whole shell while
-keeping the content's functionality) — plus a Reset to Defaults button, and a **Developer
-Mode** toggle (see below). Settings persist to
-`Documents/retdonetskmod/settings.json` (see "Settings persistence" below). There is **no
-wallpaper setting**: the background artwork always follows the CONTENT mod (`wallpaper-${mod}`
-container class), so a swapped shell keeps the content's native background.
+**Launcher settings:** the Options tab is split into sub-tabs (**GENERAL / DISPLAY /
+DEVELOPER**) that a controller user flips with the **triggers** (LT/RT — the bumpers stay
+free for top-level tabs; keyboard `[` / `]`). GENERAL: **Silent Mode** (master mute for every
+launcher SFX) + **Dynamic Sound Effects** (force one mod's SFX everywhere); **Dynamic
+Interfaces** (force the *other* mod's whole shell while keeping the content's functionality);
+**Auto-Load Save Data**. DISPLAY: **Display Mode** (fullscreen/windowed) and **Display
+Monitor** (which of the user's monitors the launcher window lives on — choices come from a
+`list_monitors` Rust command; picking one moves the window there and re-applies the mode).
+DEVELOPER: **Testing Server** + its metadata fields + **Advanced RTM Mode** (the raw RTM
+surface on the Modding tab, see below). Plus a Reset to Defaults button on every sub-tab.
+Settings persist to `Documents/retdonetskmod/settings.json` (see "Settings persistence"
+below). There is **no wallpaper setting**: the background artwork always follows the CONTENT
+mod (`wallpaper-${mod}` container class), so a swapped shell keeps the content's native
+background.
 
 **Developer Mode** (Options > Developer, persisted as `developer_mode`): flips the PHA Client
-(Modding) tab into the **raw RTM tool surface** — every flag from `RTM.exe -h` as buttons
+(Modding) tab into the **raw RTM tool surface** — every trigger action as buttons
 (flag-only commands), text fields (commands with args: `-join`/`-cbuf`/`-lua`/`-sendips`/
-`-rename`/`-level`/`-xp`/`-file`), and a checkbox per `-toggle` feature (from `-toggles`). It
+`-rename`), and a checkbox per `-toggle` feature (from the guide's 43 toggles). It
 also lists a **local-only test server** at the top of the Jupiter Server Browser: a synthetic
 row built from settings (`dev_server_name`, default `Test Server - NOT REAL`, plus
 `dev_server_map` / `dev_server_mode` / `dev_server_lan_session`), never written to Supabase,
@@ -57,17 +64,27 @@ lobbies), `servers.instance_id` (a per-launch id so stale lobbies from a force-k
 swept on startup), `server_members` (who is sitting in each lobby — signed-in users by user_id,
 guests as `Player#123456` codes), and `parties` / `party_members` / `party_invites`.
 
-**RTM automation (Jupiter only):** The launcher drives the game through the bundled **RTM.exe**
-(74 MB, shipped via `bundle.resources`), a cmd-driven build of the RTM tool. The Rust side
-spawns it per action: `-lua "<function>"` (menu calls like `MainMenuOffline`),
-`-cbuf "<command>"` (game config commands from `WZ3 Commands.txt`), and `-join "<session>"`
-(the LAN connect — RTM.exe writes the trigger files itself: `req_execcmd.ntc` empty,
-`command.txt` with `connect <session>`, and `cbufcmd` with the same contents — all into
-`Documents/retdonetskmod/rtm`, then exits). The Modding tab's **Change Username** and **Switch
-to Zombies** use the tool's native `-rename "<name>"` / `-setzombies` flags, and the
-launch-time username sync (`main.jsx`) re-runs `-rename "<gamertag>"` when a session is known.
-(A `write_rtm_file` Tauri command still exists for raw trigger-file writes, but no UI path uses
-it anymore.) The old in-repo C# RTM tool source (`RTM_TOOL_SOURCE_CODE`) is deleted.
+**RTM automation (Jupiter only):** The launcher drives the game by writing **trigger files**
+into `Documents/retdonetskmod/rtm` — the folder the modloader inside the game polls. There is
+no RTM.exe (and none is bundled): the Rust side exposes one `rtm_action` Tauri command that
+translates flag-shaped actions into file writes: `-lua "<function>"` → `luacmd` (menu calls
+like `MainMenuOffline`), `-cbuf "<command>"` → `cbufcmd` (game config commands from
+`WZ3 Commands.txt`), and `-join "<session>"` → three files (`cbufcmd` + `command.txt` with
+`connect <session>`, plus an empty `req_execcmd.ntc` — the `.ntc` is the trigger, `command.txt`
+carries the payload). Files are overwritten, UTF-8 with no BOM and no trailing newline; empty
+content = 0-byte file; the folder is created before every write. The Modding tab's
+**Change Username** and **Switch to Zombies** write the `rename` / `setzombiesmode` trigger
+files, and the launch-time username sync (`main.jsx`) re-writes `rename` with the gamertag
+when a session is known. `-savedata`/`-loaddata` write empty `savestatus`/`loadstatus` files;
+`-disconnect` writes cbuf `disconnect`; `-startmatch`/`-createlobby` write `xpartygo`/
+`xstartlobby`; `-sendips <ip>` writes `sendips <ip>`; `-hotreloadgsc`/`-hotreloadzmgsc`/
+`-restoregsc`/`-showinfo`/`-loadcustomcamo`/`-setzombies` write their empty trigger files;
+`-brmodejup`/`-disablebrjup` write the exact BR-mode dvar cbufs; `-toggle <feature> on|off`
+deletes the opposite state file then writes the state file (only one exists at a time) — feature
+names WITHOUT an underscore append `on`/`off` (`botfix` → `botfixon`), names WITH one append
+`_on`/`_off` (`exec_everyframe_log` → `exec_everyframe_log_on`), per the guide's exact table.
+The dev panel's `-level`/`-xp`/`-file` (and MW19-only weapondef/brmode flags) were dropped —
+the recreation guide documents no trigger mapping for them.
 
 ## Tech stack
 
@@ -88,10 +105,10 @@ src/
     Launcher.jsx                Landing screen — split-screen Jupiter | IW8 tiles
     IW8Interface.jsx            Warzone 1 shell: header tabs, play menu, quit button (accepts `mod` for Dynamic Interfaces swaps)
     JupiterInterface.jsx        Warzone III shell: header tabs, card menu (incl. Quick Play auto-matchmaking), quit button (accepts `mod` for Dynamic Interfaces swaps)
-    OptionsTab.jsx              Launcher settings: Dynamic Sound Effects / Dynamic Interfaces dropdowns + Auto-Load Save Data + Reset to Defaults + Developer Mode toggle + dev-server metadata fields
+    OptionsTab.jsx              Launcher settings, split into GENERAL / DISPLAY / DEVELOPER sub-tabs (trigger-switched): Silent Mode, Dynamic Sound Effects/Interfaces, Auto-Load Save Data, Display Mode, Display Monitor, Testing Server fields, Advanced RTM Mode + Reset to Defaults
     CustomSelect.jsx            Shared controller-friendly dropdown (used by Host a Match + Options instead of native <select>, which fights the gamepad)
     SettingsProvider.jsx        useSettings() context: loads settings at startup, saves on change, applies sound override, reset baseline
-    ModdingTab.jsx              Jupiter-only RTM tab: Save Data / Load Data (-savedata / -loaddata) + Switch to Warzone Mode (prep sequence) + Switch to Zombies (runs -setzombies) + Change Username (runs -rename) + guided flows (Loadout and Operator Editing / Loadout Display Bug Fix) + full RTM tool panel in Developer Mode
+    ModdingTab.jsx              Jupiter-only RTM tab: Save Data / Load Data (-savedata / -loaddata) + Switch to Warzone Mode (prep sequence) + Switch to Zombies (runs -setzombies) + Raise Bot Limit to 23 (-cbuf "seta #x32D32FD7A0B20A1DD 23") + Change Username (runs -rename) + guided flows (Loadout and Operator Editing / Loadout Display Bug Fix) + full RTM tool panel in Advanced RTM Mode
     IW8QuitModal.jsx            "Quit to Desktop?" modal (IW8 theme)
     JupiterQuitModal.jsx        "Quit to Desktop?" modal (Jupiter theme)
     ServerBrowser.jsx           Play > Server Browser (live lobbies, mod-filtered, search/region filter; Jupiter joins route through JupiterSessionProvider; local-only dev server row in Developer Mode)
@@ -109,11 +126,11 @@ src/
     AuthRequiredNotice.jsx      "Sign In Required" toast (top-right; session-scoped dismissal)
   lib/supabase.js               Singleton Supabase client (guarded by env vars)
   utils/
-    audio.js                    playSound() + sound map + duplicate guards + setSoundOverride() (Dynamic Sound Effects remap)
+    audio.js                    playSound() + sound map + duplicate guards + setSoundOverride() (Dynamic Sound Effects remap) + setSilentMode() (Silent Mode master mute)
     settings.js                 Settings load/save/normalize — desktop → settings.json via Tauri, browser dev → localStorage
     displayName.js              getDisplayName(user) — shared username fallback chain
     controller.js               useControllerNavigation hook (keyboard + gamepad)
-    jupiterRtm.js               RTM.exe runner (-lua / -cbuf / -join) + runJupiterPrepSequence()
+    jupiterRtm.js               RTM actions runner (writes trigger files via rtm_action: -lua / -cbuf / -join / …) + runJupiterPrepSequence()
     jupiterCommands.js          WZ3 Commands.txt → cbuf config builders (mode/map → gametype + exec hash)
     jupiterSession.jsx          JupiterSessionProvider: join flow state machine, member heartbeat, server watcher, party auto-join, invite toasts
     serverPresence.js           appInstanceId + owned-server registry + stale cleanup on launch/quit + cleanupStalePartyMemberships (parties are session-scoped — dissolved on launch/quit)
@@ -121,9 +138,9 @@ src/
     openExternal.js             Open URLs in OS browser (Tauri opener plugin / window.open fallback)
   assets/                       All images + mp3 SFX (see Audio conventions below)
 src-tauri/
-  tauri.conf.json               App config (window, bundle + resources: RTM.exe, build hooks)
+  tauri.conf.json               App config (window, bundle, build hooks)
   capabilities/default.json     Permissions (core + opener plugin)
-  src/commands.rs               run_rtm + rtm_exe_path (resolve bundled RTM.exe, spawn per action) + write_rtm_file (write trigger files into Documents/retdonetskmod/RTM, e.g. rename) + load_settings/save_settings (AppSettings ↔ Documents/retdonetskmod/settings.json)
+  src/commands.rs               rtm_action (flag-shaped actions → trigger-file writes into Documents/retdonetskmod/rtm) + load_settings/save_settings (AppSettings ↔ Documents/retdonetskmod/settings.json) + apply_display_mode + list_monitors / apply_display_monitor
   src/lib.rs                    Tauri builder: single-instance + opener plugins + command handler
 supabase/migrations/            0001_initial.sql … 0006_server_grants.sql + 0007_mod_filters_members_parties.sql (servers.mod/instance_id, server_members, parties, party_members, party_invites) + 0008_social_fixes.sql (join-by-code RLS on parties, gamertag→username trigger + backfill) + 0009_profile_region.sql (profiles.region + profile_names view exposes it for player-card flags) + 0010_lobby_member_roster.sql (joined players can SELECT server_members of public lobbies — needed by the right-side roster) + 0011_friendships_profiles_grants.sql (authenticated grants for friendships + profiles — 0001 never GRANTed them) + 0012_friend_nicknames.sql (friend_nicknames table: per-viewer friend nicknames) + 0013_advanced_banning.sql (profiles.is_banned + check_identity_ban RPC) + 0014_server_lifecycle_failsafe.sql + 0015_ban_check_anon_grant.sql (anon execute on check_identity_ban — required for the pre-sign-in device ban check) + 0016_ban_check_gamertag_match.sql (device check also matches the local identity file's gamertag against profiles.username)
 scripts/boost-iw8-audio.mjs     One-off ffmpeg helper (loudness tweak) — not part of the app
@@ -164,33 +181,40 @@ WZ3 Commands.txt                Reference: every mode/map cbuf config (source of
        swapped shell (Dynamic Interfaces) keeps the content's native artwork.
      - **The Jupiter shell drops its red-tinted gradient** when rendering IW8 content
        (`.content-iw8` modifier) so Warzone 1 doesn't sit under a red haze.
-   - **OptionsTab.jsx** — two dropdowns (Dynamic Sound Effects / Dynamic Interfaces, each
-     with the per-mod options) + Reset to Defaults + a **Developer Mode** switch. Dynamic
-     Sound Effects persists immediately through the SettingsProvider. Dynamic Interfaces
-     (and a Reset that would swap the shell) is deferred behind `InterfaceReloadModal` — a
-     themed confirm dialog (portaled, controller-aware, gates the parent interface's nav via
-     `onModalChange`) because the swap re-renders the whole shell on the spot. Reset uses
-     `getResetDefaults()` to peek whether the reset would swap the shell before committing.
-     With Developer Mode on, a second card exposes the dev-server metadata (name / map /
-     mode / optional LAN session — map & mode selects come from `JUPITER_MAPS` /
-     `JUPITER_MODES` in `utils/jupiterCommands.js`). The GENERAL card also has an
-     **Auto-Load Save Data** toggle (`auto_load_savedata`): when on, the
-     `JupiterSessionProvider` runs `RTM.exe -loaddata` on every Jupiter interface entry
-     (both shells — the provider wraps all Jupiter content) so classes / operator /
-     settings come back automatically.
+   - **OptionsTab.jsx** — settings live on trigger-switched sub-tabs (GENERAL / DISPLAY /
+     DEVELOPER). On a controller the TRIGGERS (LT/RT) flip sub-tabs (the interface hook
+     keeps the bumpers for top-level tabs; keyboard equivalent: `[` / `]` — see the
+     `onTrigger` option in `controller.js`); mouse users click the pills. Rows are
+     up/down-navigated and split into themed cards: GENERAL → SOUND (Silent Mode =
+     `silent_mode`, a master mute that short-circuits `playSound()` via `setSilentMode()`;
+     Dynamic Sound Effects) + INTERFACE & GAMEPLAY (Dynamic Interfaces, Auto-Load Save
+     Data). DISPLAY → Display Mode + Display Monitor (`display_monitor`: one of the OS
+     monitor names from the `list_monitors` Rust command, or blank = default; the
+     `apply_display_monitor` command moves the window there, then the display mode is
+     re-applied so fullscreen fills the new monitor). DEVELOPER → Testing Server + its
+     metadata fields (name / map / mode / LAN session — map & mode selects come from
+     `JUPITER_MAPS` / `JUPITER_MODES` in `utils/jupiterCommands.js`) and Advanced RTM
+     Mode. A Reset to Defaults row sits below every sub-tab. Dynamic Interfaces
+     (and a Reset that would swap the shell) is deferred behind `InterfaceReloadModal` —
+     a themed confirm dialog (portaled, controller-aware, gates the parent interface's
+     nav via `onModalChange`) because the swap re-renders the whole shell on the spot.
+     Reset uses `getResetDefaults()` to peek whether the reset would swap the shell
+     before committing. New values persist immediately through the SettingsProvider
+     (which also applies monitor + display-mode changes to the native window).
    - **IW8 modals match the IW8 quit modal**: every modal rendered with `theme="iw8"` (error
      dialog, interface-reload confirm, Jupiter join / host-prompt modals in an IW8 shell)
      restyles via the "IW8 MODAL VARIANTS" CSS block to the quit modal's look — square dark
      panel, no accent rail, centered title, full-width stacked buttons that flip white.
-   - **ModdingTab.jsx** (Jupiter only) — "Save Data" / "Load Data" run `RTM.exe -savedata` /
-     `-loaddata` (snapshot / restore classes, operator, settings, loadouts); "Switch to
-     Warzone Mode" runs the same `runJupiterPrepSequence()` the join/host flows use
-     (`MainMenuOffline` → 1.5 s → `WarzonePrivateMatchLobby` → 1.5 s → `MainMenuOffline`)
-     — each arrow is a 1.5 s gap, so the whole prep is ~3 s of waiting plus RTM.exe spawn
+   - **ModdingTab.jsx** (Jupiter only) — "Save Data" / "Load Data" write the `savestatus` /
+     `loadstatus` trigger files (snapshot / restore classes, operator, settings, loadouts);
+     "Switch to Warzone Mode" runs the same `runJupiterPrepSequence()` the join/host flows
+     use (`MainMenuOffline` → 1.5 s → `WarzonePrivateMatchLobby` → 1.5 s → `MainMenuOffline`)
+     — each arrow is a 1.5 s gap, so the whole prep is ~3 s of waiting plus the trivial write
      overhead; the same per-step 1.5 s gap applies to the join/host sequences below;
-     "Switch to Zombies" runs `RTM.exe -setzombies` (note: be in the Local Game server
-     browser menu); "Change Username" runs `RTM.exe -rename "<name>"` — all with cancel +
-     themed error modal. The two `kind: 'flow'` tools are guided multi-step flows driven
+     "Switch to Zombies" writes the `setzombiesmode` trigger (note: be in the Local Game server
+     browser menu); "Raise Bot Limit to 23" writes `cbufcmd` = `seta #x32D32FD7A0B20A1DD 23`
+     (the bot-limit dvar); "Change Username" writes the `rename` trigger with the new name —
+     all with cancel + themed error modal. The two `kind: 'flow'` tools are guided multi-step flows driven
      by `ModdingFlowModal` (portaled, controller-aware, gates the interface nav via
      `onModalChange`): **Loadout and Operator Editing** and **Loadout Display Bug Fix**.
      Both start with an "ARE YOU IN A WARZONE LOBBY?" Yes/No ask. **Yes** = already in a
@@ -216,7 +240,7 @@ WZ3 Commands.txt                Reference: every mode/map cbuf config (source of
 LAN session (and is the only candidate when the backend is unreachable, so Quick Play still
 works fully offline with dev mode on), and the 3 s countdown + auto-join run exactly like a
 real lobby.
-   - **Server Browser (Jupiter) → join flow**: `ServerBrowser` lists only this mod's lobbies (`servers.mod` filter). Clicking a Jupiter lobby calls `beginJoin(server)` on the **JupiterSessionProvider** (wraps all of `JupiterInterface`; renders the join modal + error modal + toasts globally, so party auto-joins work from any screen). The exact sequence is `RTM.exe -lua "MainMenuOffline"` → wait 1.5 s → `RTM.exe -lua "WarzonePrivateMatchLobby"` → wait 1.5 s → `RTM.exe -lua "MainMenuOffline"` → guided modal (PHA Client → Local Play → Create Local Game → Continue) → `RTM.exe -cbuf "<config>"` → wait 1.5 s → connect (`RTM.exe -join "<session>"` — the tool writes the trigger files itself: `req_execcmd.ntc` empty, `command.txt` with `connect <session>`, and `cbufcmd` with the same contents — into `Documents/retdonetskmod/rtm`). On Continue the player registers in `server_members` (signed-in users store their display name; guests get `Player#123456`), and if they lead a party, `parties.leader_server_id` is set (the auto-join broadcast). While joined, the provider polls the server row every 5 s: a map/mode change from the host triggers a new config cbuf on the member's client (+ themed toast), and a deleted server row ends the session. `finishJoin` removes the member row and clears `leader_server_id`. IW8's join is still a stub status line. The result modal's secondary button is **Retry** (re-runs the config + connect without repeating the prep — the old "It didn't work" CLI manual-fallback view was removed). **While connected to a server** (`connected` = join result stage or a persisted `lastLobby`) the Play menu swaps the cards for a `ConnectedServerPanel` (lobby name + current map/mode + Leave Server button), Server Browser / Host a Match are hidden (`!inServer`), the right-side `PlayerRoster` lists **everyone in the lobby from `server_members`** (per the launcher's database) with a Leave Server button under the list, and the bottom-right `JupiterMapBadge` shows the current map/mode. **Leave Server** runs `RTM.exe -disconnect` → `RTM.exe -lua "MainMenuOffline"` → clears the membership row (host's player count drops), the roster, the badge, and returns to the Play main menu. Tabs stay switchable the whole time. **Developer Mode** prepends a local-only test server row (amber DEV badge, host `LOCAL DEV`): its metadata comes from settings, it appears even with no Supabase config, and clicking it runs the same join flow as any real lobby — `JupiterSessionProvider` flags it `isDevServer` and skips the Supabase presence steps (registration, `setLeaderServer`, `leaveMembership` cleanup; the roster shows a local self-card, and the map/mode watcher reads the Options settings instead of a server row). The ONLY command-level difference: without a LAN session the config cbuf and the `-join` are skipped (prep + guided modal + result still run); with one, every RTM step is identical to a real join.
+   - **Server Browser (Jupiter) → join flow**: `ServerBrowser` lists only this mod's lobbies (`servers.mod` filter). Clicking a Jupiter lobby calls `beginJoin(server)` on the **JupiterSessionProvider** (wraps all of `JupiterInterface`; renders the join modal + error modal + toasts globally, so party auto-joins work from any screen). The exact sequence is `-lua "MainMenuOffline"` → wait 1.5 s → `-lua "WarzonePrivateMatchLobby"` → wait 1.5 s → `-lua "MainMenuOffline"` → guided modal (PHA Client → Local Play → Create Local Game → Continue) → `-cbuf "<config>"` → wait 1.5 s → connect (`-join "<session>"` — the Rust side writes the trigger files itself: `req_execcmd.ntc` empty, `command.txt` with `connect <session>`, and `cbufcmd` with the same contents — into `Documents/retdonetskmod/rtm`). On Continue the player registers in `server_members` (signed-in users store their display name; guests get `Player#123456`), and if they lead a party, `parties.leader_server_id` is set (the auto-join broadcast). While joined, the provider polls the server row every 5 s: a map/mode change from the host triggers a new config cbuf on the member's client (+ themed toast), and a deleted server row ends the session. `finishJoin` removes the member row and clears `leader_server_id`. IW8's join is still a stub status line. The result modal's secondary button is **Retry** (re-runs the config + connect without repeating the prep — the old "It didn't work" CLI manual-fallback view was removed). **While connected to a server** (`connected` = join result stage or a persisted `lastLobby`) the Play menu swaps the cards for a `ConnectedServerPanel` (lobby name + current map/mode + Leave Server button), Server Browser / Host a Match are hidden (`!inServer`), the right-side `PlayerRoster` lists **everyone in the lobby from `server_members`** (per the launcher's database) with a Leave Server button under the list, and the bottom-right `JupiterMapBadge` shows the current map/mode. **Leave Server** writes the `-disconnect` cbuf → `-lua "MainMenuOffline"` → clears the membership row (host's player count drops), the roster, the badge, and returns to the Play main menu. Tabs stay switchable the whole time. **Developer Mode** prepends a local-only test server row (amber DEV badge, host `LOCAL DEV`): its metadata comes from settings, it appears even with no Supabase config, and clicking it runs the same join flow as any real lobby — `JupiterSessionProvider` flags it `isDevServer` and skips the Supabase presence steps (registration, `setLeaderServer`, `leaveMembership` cleanup; the roster shows a local self-card, and the map/mode watcher reads the Options settings instead of a server row). The ONLY command-level difference: without a LAN session the config cbuf and the `-join` are skipped (prep + guided modal + result still run); with one, every RTM step is identical to a real join.
    - **Host a Match (Jupiter)**: entering Host a Match runs the same lua prep sequence and shows a host-mode guided modal — steps include *copy the LAN Session code from the game's command window* and a code input; Continue runs the config cbuf, publishes the row (with `mod` + `instance_id`), and switches to the **LOBBY CONTROL dashboard**: live player list (polled from `server_members`, stale guests pruned after 10 min), map/mode selects (update the row + the host's client; members auto-update via their watcher), a **CURRENT MAP badge** (map artwork + name + mode, pinned under the player list in a thinner right column — text left of the image, driven live by the selects), and Close Server (deletes the row → cascades members → clears `leader_server_id`). IW8 HostMatch keeps the classic form + publish + status.
    - **Friends & parties (SocialTab)**: `friendships` (migration 0001) with a search-over-`profile_names` Add Friend flow; accepting an incoming request deletes the sender's pending row and inserts our own accepted row (RLS only lets you touch your own rows). Parties: leader creates (6-char invite code), anyone can join by code, leaders can invite friends (`party_invites`). Pending invites surface both as a themed toast (Jupiter, polled by the provider) and in the Social tab. When the party leader joins a lobby, every member's client auto-runs the join flow (~8 s poll on `parties.leader_server_id`). **Parties are session-scoped**: `cleanupStalePartyMemberships()` in `serverPresence.js` runs once per app launch (desktop AND browser — a page load is a launch) and on graceful quit — parties the user leads are dissolved (row deleted, members cascade) and their memberships in other parties are dropped, so closing the app/tab and coming back never resurrects last session's squad.
 4. **Quit flow & back navigation** — Quit button opens the themed quit modal: bottom-right text button on IW8, top-left square back-arrow on Jupiter. Confirm invokes the Rust `exit_app` command (`app.exit(0)` in `commands.rs`) via `exitApp()` in `utils/serverPresence.js` (falls back to `window.close()` in plain-browser dev). `app.exit` was chosen over `getCurrentWindow().destroy()`, which the capability ACL blocks (`core:window:default` has no `allow-destroy`) and which can leave a white window on Windows WebView2 when it does run. Uses `window.__TAURI_INTERNALS__` to detect the Tauri runtime.
@@ -242,7 +266,8 @@ CSS variants are modifier classes (`jupiter-theme`, `server-browser-jupiter`, et
 - Play with `playSound('cueName', volume = 0.5)`.
 - **Adding a new SFX**: drop the mp3 in `src/assets/`, import it, add to `audioMap`, and give it a `duplicateGuardMs` entry (hovers ~60ms, selects/quits ~160ms) so repeat events can't stack the cue.
 - The quit modals play `iw8Quit` / `jupQuit` **when opened** (in each interface's `handleOpenQuitModal`); button hovers inside the modals use the theme hover cue.
-- **Dynamic Sound Effects** (`setSoundOverride('enabled' | 'iw8' | 'jupiter')`) remaps `jup*` → `iw8*` (or vice versa) before lookup, so a forced theme's cues play everywhere. The SettingsProvider calls it on load and on every sound-setting change. `mainSlide` is never remapped.
+- **Dynamic Sound Effects** (`setSoundOverride('enabled' | 'iw8' | 'jupiter')`) remaps `jup*` → `iw8*` (or vice versa) before sending, so a forced theme's cues play everywhere. The SettingsProvider calls it on load and on every sound-setting change. `mainSlide` is never remapped.
+- **Silent Mode** (`setSilentMode(bool)`) is a master mute checked FIRST in `playSound()` — every cue (hovers, selects, quits, joins) is dropped until it's turned off. The SettingsProvider applies it on load, on change, and on Reset.
 
 ### Controller / keyboard navigation
 Everything interactive uses `useControllerNavigation` from `src/utils/controller.js` (arrow keys + WASD-likes `Q`/`E` bumpers + `Enter`/`Space` confirm + `Esc`/`Backspace` back, plus Gamepad API). Each screen:
@@ -253,7 +278,7 @@ Everything interactive uses `useControllerNavigation` from `src/utils/controller
 - **Play subviews (Server Browser / Host a Match)**: the child screen owns arrows/A/B, and the interface hook runs in `bumpersOnly` mode (`useControllerNavigation` option) — LB/RB (and Q/E) still switch tabs without backing out, while arrows/Enter/Esc pass through to the child. **Host a Match uses GRID navigation**, not a vertical stack: the 2-column form's left/right follows the reading order (Map → Mode sit side by side) and up/down stays in the same visual column (the full-width Server Name row matches either column) via `navigateField`/`fieldGrid` in `HostMatch.jsx`; the LOBBY CONTROL dashboard's map/mode selects hop left/right and Close Server sits below via up/down. Focused fields wear a strong accent highlight (label tint + outline + glowing 2px control border) so the hovered row reads clearly on a gamepad.
 
 ### Settings persistence
-- Options edits save to `Documents/retdonetskmod/settings.json` (same base folder as the RTM trigger files) via `load_settings` / `save_settings` in `src-tauri/src/commands.rs`. The Rust `AppSettings` struct validates values (`dynamic_sounds` / `dynamic_interfaces`: `'enabled' | 'iw8' | 'jupiter'`; `developer_mode` / `auto_load_savedata` bools; `dev_server_*` strings trimmed + length-capped, LAN session allowed blank), normalizing anything invalid back to defaults. Older files with a `wallpaper` key are parsed fine (the field is simply ignored); new fields carry `#[serde(default)]` so old files load cleanly.
+- Options edits save to `Documents/retdonetskmod/settings.json` (same base folder as the RTM trigger files) via `load_settings` / `save_settings` in `src-tauri/src/commands.rs`. The Rust `AppSettings` struct validates values (`dynamic_sounds` / `dynamic_interfaces`: `'enabled' | 'iw8' | 'jupiter'`; `display_mode`: `'fullscreen' | 'windowed'`; `display_monitor`: monitor name or `''`; `silent_mode` / `testing_server` / `rtm_mode` / `auto_load_savedata` bools; `dev_server_*` strings trimmed + length-capped, LAN session allowed blank), normalizing anything invalid back to defaults. Older files with a `wallpaper` key are parsed fine (the field is simply ignored); new fields carry `#[serde(default)]` so old files load cleanly.
 - **The app reads settings.json once at startup, then releases it** — nothing holds the file open; it's only re-written when a setting changes (or Reset is pressed).
 - On first run the app also writes a `settings_default.json` template. The app **never reads** that file — it exists so users can edit it and manually swap it in (delete `settings.json`, rename `settings_default.json` → `settings.json`) to override the defaults. Because Reset restores the startup snapshot (kept by `SettingsProvider` in `defaultsRef`), a swapped-in file's values are honored as the reset baseline.
 - Plain-browser dev (no Tauri) falls back to `localStorage['lwz-settings']`.

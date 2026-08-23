@@ -15,6 +15,7 @@ export default function JupiterJoinModal({
   onContinue,
   onFinish,
   onRetry,
+  onCancel,
 }) {
   // `theme` is the SHELL style: in an IW8 shell (Dynamic Interfaces = IW8
   // Mod) the modal keeps its layout but wears IW8 accent colors + sounds.
@@ -25,7 +26,8 @@ export default function JupiterJoinModal({
   const isGuided = stage === 'guided'
   const isSending = stage === 'sending'
   const isResult = stage === 'result'
-  const buttonCount = isGuided || isSending ? 1 : 2
+  const isPreparing = stage === 'preparing'
+  const buttonCount = isGuided || isSending || isPreparing ? 1 : 2
 
   useEffect(() => {
     setInputMode('mouse')
@@ -59,15 +61,23 @@ export default function JupiterJoinModal({
       if (index === 0) handlePrimary()
       else handleSecondary()
     },
+    onBack: () => {
+      if (isPreparing || isGuided) {
+        playSound(selectSound)
+        onCancel?.()
+      }
+    },
   })
 
   if (!stage) return null
 
   const title = isGuided
     ? `PREPARE TO JOIN ${serverName}`
-    : isSending
-      ? 'DEPLOYING LOCAL GAME'
-      : 'CHECK YOUR GAME WINDOW'
+    : stage === 'preparing'
+      ? 'PREPARING YOUR GAME'
+      : isSending
+        ? 'DEPLOYING LOCAL GAME'
+        : 'CHECK YOUR GAME WINDOW'
 
   return (
     <div className="modal-overlay" role="presentation">
@@ -80,7 +90,6 @@ export default function JupiterJoinModal({
       >
         <div className="jupiter-join-accent-bar" />
         <div className="jupiter-join-content">
-          <span className="jupiter-join-kicker">LOCAL PLAY DEPLOYMENT</span>
           <h2 id="jupiter-join-title">{title}</h2>
 
           {isGuided && (
@@ -90,6 +99,10 @@ export default function JupiterJoinModal({
                 {guidedSteps.map((step) => <li key={step}>{step}</li>)}
               </ol>
             </>
+          )}
+
+          {isPreparing && (
+            <p className="jupiter-join-intro">Running the PHA Client prep sequence — this takes a few seconds. Keep the game visible.</p>
           )}
 
           {isSending && (
@@ -130,6 +143,19 @@ export default function JupiterJoinModal({
               >
                 Continue
               </button>
+            )}
+            {isPreparing && (
+              <>
+                <span className="jupiter-join-preparing"><span className="spinner" /> Preparing…</span>
+                <button
+                  type="button"
+                  className={`jupiter-join-button secondary ${inputMode === 'controller' && focusedIndex === 0 ? 'controller-focused' : ''}`}
+                  onMouseEnter={handleHover}
+                  onClick={() => handleSelect(onCancel)}
+                >
+                  Cancel
+                </button>
+              </>
             )}
             {isSending && <span className="jupiter-join-sending">Working…</span>}
           </div>

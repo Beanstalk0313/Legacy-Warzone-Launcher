@@ -1,35 +1,24 @@
 # Legacy Warzone Launcher
 
-A desktop **LFG (Looking For Group) launcher** for two private-server Call of Duty
-communities:
+A desktop LFG (Looking For Group) launcher for private-server Call of Duty communities — primarily **Jupiter Mod** (Warzone III), with a work-in-progress **IW8 Mod** (Warzone 1) shell that is not a current priority.
 
-- **IW8 Mod** — Warzone 1 (2019) private-server mod
-- **Jupiter Mod** — Warzone III private-server mod
+## Highlights
 
-Pick a mod on the launch screen and get a themed "command center" interface with a
-Play menu (Quick Play / Server Browser / Host a Match), tabs for Account (sign-in),
-Social (friends & parties), community Discord servers, Help, Options (real launcher
-settings — Dynamic Sound Effects, Dynamic Interfaces, Developer Mode), and a
-Jupiter-only Modding tab that automates the game through the bundled **RTM.exe**
-(prep sequences, config commands, LAN joins, save-data management).
+* **Quick Play / Server Browser / Host a Match** — find or create lobbies, join friends, and get into games fast
+* **RTM automation** — the Modding tab drives the game through trigger files (no external exe): prep sequences, config commands, LAN joins, save-data management, guided loadout flows
+* **Friends \& parties** — add friends, create/join parties by code, party auto-joins when the leader enters a lobby
+* **Theme-aware UI** — console-style menus with keyboard + gamepad navigation, customizable accent colors, theme-aware SFX
+* **Display Monitor** — pick which monitor the launcher lives on
+* **Device ban system** — pre-sign-in identity check against the backend
+* **Auto-updates** — signed installers via GitHub Releases
 
-## Tech stack
-
-- **Frontend**: React 18 + Vite 5 (plain JSX, no TypeScript). Console-style menu UI
-  with keyboard + gamepad controller navigation and theme-aware SFX.
-- **Desktop shell**: Tauri 2 (Rust in `src-tauri/`) — frameless, fullscreen
-  1280×720 window; spawns the bundled `RTM.exe` for game automation.
-- **Backend**: Supabase — email/password auth, a live Server Browser pipeline
-  (`servers` / `server_members` / `parties` tables, SQL migrations in
-  `supabase/migrations/`), and friends/parties.
+> \*\*IW8 is very WIP and not a priority.\*\* The Jupiter shell is fully featured; the IW8 shell is a stub that exists for Dynamic Interfaces swaps. Don't expect IW8-specific features to land soon.
 
 ## Prerequisites
 
-- Node.js 18+
-- npm
-- Rust toolchain + platform build deps (only for the Tauri desktop builds)
-- `RTM.exe` at the repo root (bundled into the installer via
-  `src-tauri/tauri.conf.json` resources — a fresh clone must include it to build)
+* Node.js 18+
+* npm
+* Rust toolchain + platform build dependencies (for desktop builds only)
 
 ## Setup
 
@@ -37,81 +26,75 @@ Jupiter-only Modding tab that automates the game through the bundled **RTM.exe**
 npm install
 ```
 
-Copy `.env.example` to `.env` and fill in your Supabase project credentials:
+Copy `.env.example` to `.env` and fill in your Supabase credentials:
 
 ```
-VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=<your anon key>
+VITE\_SUPABASE\_URL=https://<project-ref>.supabase.co
+VITE\_SUPABASE\_ANON\_KEY=<your anon key>
 ```
 
-Vite inlines these at build time — restart/rebuild after editing. Without them the
-app runs fully offline (no auth UI, server browser is local-only). See
-`supabase/migrations/` for the backend schema; apply them in order.
-
-> **Secrets stay local.** `.env`, `.env.*` and `info.txt` (dev credentials —
-> Supabase anon key, Discord/Google OAuth secrets) are gitignored and must never be
-> committed or pasted into source.
+Without these the app runs fully offline (no auth, no server browser). Apply the SQL migrations under `supabase/migrations/` **in order** if you want the backend.
 
 ## Running
 
 ```bash
-npm run dev            # Vite dev server (browser-only mode) — http://localhost:5173
+npm run dev            # Vite dev server (browser-only) — http://localhost:5173
 npm run build          # production frontend build (dist/)
 npm run preview        # preview the production build
-npm run tauri:dev      # Tauri dev (desktop window; needs Rust toolchain)
+npm run tauri:dev      # Tauri dev window (needs Rust toolchain)
 npm run tauri:build    # production desktop build (NSIS installer)
 ```
 
-### Jupiter-only launcher variants
+### Jupiter-only variants
 
-The `--mode jupiter` builds (`.env.jupiter`) render only the Warzone III tile,
-full-screen — no IW8 option.
+Renders only the Warzone III tile, full-screen — no IW8 option.
 
 ```bash
-npm run dev:jupiter           # browser preview of the Jupiter-only launcher
-npm run build:jupiter         # frontend build with the Jupiter-only launcher
-npm run tauri:dev:jupiter     # Tauri dev window with the Jupiter-only launcher
-npm run tauri:build:jupiter   # desktop installer with the Jupiter-only launcher
+npm run dev:jupiter
+npm run build:jupiter
+npm run tauri:dev:jupiter
+npm run tauri:build:jupiter
 ```
+
+## Environment variables
+
+### Frontend (`.env`)
+
+|Variable|Required|Description|
+|-|-|-|
+|`VITE\_SUPABASE\_URL`|No|Supabase project URL — enables auth, server browser, friends|
+|`VITE\_SUPABASE\_ANON\_KEY`|No|Supabase anon key — safe to ship in the bundle (RLS is the gate)|
+
+### Desktop builds (shell environment)
+
+|Variable|Required|Description|
+|-|-|-|
+|`LWZ\_IDENTITY\_DIR`|**Yes**|Folder where the device identity file is stored — baked into the binary at build time|
+|`LWZ\_IDENTITY\_FILE`|**Yes**|Identity file name (used verbatim, no `.json` appended) — also baked in|
+
+These **must** be set before `npm run tauri:dev` or `npm run tauri:build` — the Rust build fails without them.
+
+## Settings
+
+Settings persist to `Documents/retdonetskmod/settings.json` (desktop). On first run a `settings\_default.json` template is also created — hand-edit it and swap it in to override defaults.
+
+## Auto-updates
+
+The app checks GitHub Releases on startup. One-time setup:
+
+1. Generate a signing key: `npm run tauri signer generate -- -w \~/.tauri/legacy-warzone-launcher.key`
+2. Paste the **public key** into `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`
+3. Add the **private key** to GitHub Actions secrets (`TAURI\_SIGNING\_PRIVATE\_KEY`)
+4. Bump the version in `tauri.conf.json`, `Cargo.toml`, and `package.json`, then `git tag v1.x.x \&\& git push origin v1.x.x`
+
+The workflow builds, signs, and creates a draft release, which you can manually edit and then publish.
 
 ## Project layout
 
 ```
 src/                  React app (interfaces, tabs, utils, styles.css)
-src-tauri/            Tauri shell: Rust commands (RTM runner, settings persistence)
-supabase/migrations/  SQL migrations for the Supabase backend (apply in order)
-AGENTS.md             Full project guide — read it before making changes
+src-tauri/            Tauri shell: Rust commands (trigger-file writes, settings, device identity)
+supabase/migrations/  Backend schema (apply in order)
+AGENTS.md             Full project guide — read before making changes
 ```
 
-## Device identity file
-
-The launcher stores a **device identity file** (the signed-in account's Discord
-username, gamertag, and email) that the pre-sign-in ban check reads. Its exact
-file name and location are intentionally **not published** in this repository
-— they are baked into the binary at **build time** from two environment
-variables, so the source can't be used to locate or remove the file (see
-`ADVANCED_BANNING.md` for the ban system itself).
-
-Every build **requires** both variables — the build fails if either is unset,
-so a binary never ships with a guessable default location:
-
-```
-LWZ_IDENTITY_DIR   # the folder the identity file lives in
-LWZ_IDENTITY_FILE  # the identity file's name — used VERBATIM, no
-                   # extension (e.g. .json) is ever appended
-```
-
-Set them wherever you build the desktop app. In the GitHub Actions release
-workflow (`release.yml`) they are read from the `LWZ_IDENTITY_DIR` and
-`LWZ_IDENTITY_FILE` repo secrets — add those two secrets with the values you
-want each release to use (keep them stable across releases, or rotate them now
-and then). For local builds, `export` them in the terminal before any
-`npm run tauri:*` command. These values are per-build configuration — never
-commit them.
-
-## Notes
-
-- Settings persist to `Documents/retdonetskmod/settings.json` (desktop) or
-  `localStorage['lwz-settings']` (browser dev).
-- `AGENTS.md` is the canonical deep-dive: flows, conventions, controller-nav
-  patterns, gotchas.

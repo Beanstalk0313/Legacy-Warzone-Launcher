@@ -114,9 +114,10 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
     setLeaveConfirmOpen(true)
   }
 
-  // Leave the server we're connected to: the provider runs RTM.exe
-  // -disconnect + -lua MainMenuOffline and clears every session artifact
-  // (roster, membership row). We return to the Play main menu.
+  // Leave the server we're connected to: the provider writes the
+  // disconnect trigger then the MainMenuOffline lua trigger and clears
+  // every session artifact (roster, membership row). We return to the Play
+  // main menu.
   const handleLeaveServer = async () => {
     if (!session) return
     setLeaveConfirmOpen(false)

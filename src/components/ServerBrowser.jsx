@@ -113,7 +113,8 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, init
             players: `${memberCounts[row.id] ?? row.players_current ?? 0}`,
             ownerId: row.host_user_id,
             // Keep the actual session token: Jupiter sends this exact value
-            // to RTM.exe's -join flag when the row is selected.
+            // to the provider when the row is selected (it writes the join
+            // trigger files).
             lanSession: typeof row.lan_session === 'string' ? row.lan_session.trim() : '',
           }))
         )
@@ -197,7 +198,7 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, init
 
     if (session?.join) return
 
-    // The provider runs the full RTM.exe sequence (lua ×3 with waits →
+    // The provider runs the full RTM trigger sequence (lua ×3 with waits →
     // guided PHA modal → cbuf + join) and shows the join modal globally.
     // The dev server goes through the exact same flow as a real lobby —
     // the only difference is that without a LAN session the provider

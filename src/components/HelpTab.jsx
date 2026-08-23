@@ -92,7 +92,7 @@ export default function HelpTab({ theme = 'iw8', mod = theme }) {
     <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="tab-header-title">
         <h2>HELP & SUPPORT</h2>
-        <span className="tab-subtitle">Community Discords, troubleshooting and contact information</span>
+
       </div>
 
       <div className="help-sections" onMouseLeave={() => setLastOpened(null)}>

@@ -3,7 +3,7 @@
 # signature + latest.json) are generated and attached automatically — the
 # app's startup updater check pulls latest.json from the release.
 #
-# One-time setup (see AUTO_UPDATE.md):
+# One-time setup (see the README's "Auto-update" section):
 #   1. Generate the signing key:        npm run tauri signer generate -- -w ~/.tauri/legacy-warzone-launcher.key
 #   2. Add the PUBLIC key (printed by step 1, or publickey.pem) to
 #      src-tauri/tauri.conf.json → plugins.updater.pubkey, and set the real

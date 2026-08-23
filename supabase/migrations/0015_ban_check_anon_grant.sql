@@ -3,7 +3,8 @@
 -- =====================================================================
 --
 -- The desktop launcher checks the local device identity file against
--- the ban records BEFORE showing the sign-in screen (see ADVANCED_BANNING.md).
+-- the ban records BEFORE showing the sign-in screen (see the README's
+-- "Advanced banning" section).
 -- That check runs without an authenticated session, so
 -- `check_identity_ban()` must be callable by the `anon` role — otherwise
 -- every pre-sign-in check fails with "permission denied for function

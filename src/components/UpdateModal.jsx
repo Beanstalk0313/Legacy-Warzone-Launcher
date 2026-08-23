@@ -8,8 +8,8 @@ import { installUpdate } from '../utils/updater'
 // the user hasn't picked a mod yet) when the GitHub release check finds a
 // newer version: Update Now downloads the signed installer (with progress)
 // and relaunches into it; Later dismisses until the next app start. Esc /
-// controller-B also dismisses. See AUTO_UPDATE.md for the release/signing
-// setup on the GitHub side.
+// controller-B also dismisses. See the README's "Auto-update" section for
+// the release/signing setup on the GitHub side.
 export default function UpdateModal({ update, onDismiss }) {
   const [stage, setStage] = useState('prompt') // 'prompt' | 'downloading' | 'error'
   const [progress, setProgress] = useState(0)

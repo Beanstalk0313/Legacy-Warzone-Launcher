@@ -40,6 +40,7 @@ export function useControllerNavigation({
   onBack,
   onMove,
   onBumper,
+  onTrigger,
   onControllerActivity,
   onNavigate,
   allowedDirections = ['up', 'down', 'left', 'right'],
@@ -62,6 +63,7 @@ export function useControllerNavigation({
   const onBackRef = useRef(onBack)
   const onMoveRef = useRef(onMove)
   const onBumperRef = useRef(onBumper)
+  const onTriggerRef = useRef(onTrigger)
   const onControllerActivityRef = useRef(onControllerActivity)
   const onNavigateRef = useRef(onNavigate)
 
@@ -71,6 +73,7 @@ export function useControllerNavigation({
   onBackRef.current = onBack
   onMoveRef.current = onMove
   onBumperRef.current = onBumper
+  onTriggerRef.current = onTrigger
   onControllerActivityRef.current = onControllerActivity
   onNavigateRef.current = onNavigate
 
@@ -131,7 +134,21 @@ export function useControllerNavigation({
         target.tagName === 'TEXTAREA'
       )) return
 
-      // Bumper-only mode (see the hook doc above): Q/E tab-switch keys
+      // Triggers (LT/RT on a gamepad, [ / ] on the keyboard) switch a
+      // secondary group — the Options tab uses them for its sub-tabs so
+      // the bumpers stay free for top-level tab switching. Only hooks
+      // that provide onTrigger respond; held-key deduped like the bumpers
+      // so a long press fires once.
+      if (onTriggerRef.current && (event.key === '[' || event.key === ']')) {
+        event.preventDefault()
+        if (!heldKeys.has(event.key)) {
+          heldKeys.add(event.key)
+          onTriggerRef.current(event.key === '[' ? 'left' : 'right', 'keyboard')
+        }
+        return
+      }
+
+      // Bumper-only mode (see the hook doc above): Q / E tab-switch keys
       // respond; arrows, confirm and back belong to the child screen's hook.
       if (bumpersOnly) {
         const key = event.key.toLowerCase()
@@ -230,6 +247,21 @@ export function useControllerNavigation({
           if (justPressed(5)) {
             onControllerActivityRef.current?.('bumper-right')
             handleBumper('right', 'gamepad')
+          }
+
+          // Triggers (LT/RT, buttons 6/7) — used by the Options tab's
+          // sub-tabs so the bumpers stay free for top-level tab switching.
+          // Only hooks that provided onTrigger respond; the parent
+          // interface hook ignores these buttons.
+          if (onTriggerRef.current) {
+            if (justPressed(6)) {
+              onControllerActivityRef.current?.('trigger-left')
+              onTriggerRef.current('left', 'gamepad')
+            }
+            if (justPressed(7)) {
+              onControllerActivityRef.current?.('trigger-right')
+              onTriggerRef.current('right', 'gamepad')
+            }
           }
 
           // Bumper-only mode: A / B and stick movement belong to the child

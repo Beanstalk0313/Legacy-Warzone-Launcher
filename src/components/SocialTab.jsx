@@ -686,7 +686,7 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
       <div className={`tab-content-panel social-tab-panel ${themeClass}`}>
         <div className="tab-header-title">
           <h2>SOCIAL</h2>
-          <span className="tab-subtitle">Friends &amp; Party Management</span>
+
         </div>
         <div className={`social-locked-state ${themeClass}`}>
           <h3 className="social-locked-title">You aren't signed in.</h3>
@@ -711,7 +711,7 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
       <div className={`tab-content-panel social-tab-panel ${themeClass}`}>
         <div className="tab-header-title">
           <h2>SOCIAL</h2>
-          <span className="tab-subtitle">Friends &amp; Party Management</span>
+
         </div>
         <div className="social-locked-state ${themeClass}">
           <h3 className="social-locked-title">Backend not configured.</h3>
@@ -727,7 +727,7 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
     <div className={`tab-content-panel social-tab-panel ${themeClass}`}>
       <div className="tab-header-title">
         <h2>SOCIAL</h2>
-        <span className="tab-subtitle">{user ? getDisplayName(user) : 'Friends & Party Management'}</span>
+
       </div>
 
       {notice && (

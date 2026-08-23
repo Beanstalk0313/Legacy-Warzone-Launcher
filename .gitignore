@@ -18,6 +18,9 @@ src-tauri/gen/
 
 # Local tooling data
 .freebuff/
+
+# Private notes (personal docs — never committed)
+.notes/
 .vscode/
 .idea/
 .DS_Store

@@ -14,6 +14,38 @@ async function tryWindowOperation(label, operation, errors) {
   }
 }
 
+/**
+ * List the displays available to the launcher (Options > Display Monitor).
+ * Each entry: { name, ordinal, primary } — `name` is the OS monitor
+ * identifier and the persisted setting value; ordinal/primary feed the
+ * "Display N (Primary)" labels. Plain-browser dev returns [] (no Rust
+ * side), so the dropdown only offers the default monitor.
+ */
+export async function listMonitors() {
+  if (!isTauriRuntime()) return []
+  try {
+    const monitors = await invoke('list_monitors')
+    return Array.isArray(monitors) ? monitors : []
+  } catch (error) {
+    console.warn('[display-monitor] could not list monitors', error)
+    return []
+  }
+}
+
+/**
+ * Move the launcher window onto the named monitor ('' = system default).
+ * The move clears fullscreen/maximized, so callers re-apply the display
+ * mode afterwards to re-enter it on the new monitor.
+ */
+export async function applyDisplayMonitor(name) {
+  if (!isTauriRuntime()) return
+  try {
+    await invoke('apply_display_monitor', { name: String(name || '') })
+  } catch (error) {
+    console.warn('[display-monitor] apply failed', error)
+  }
+}
+
 /** Apply the persisted display mode to the existing frameless Tauri window. */
 export async function applyDisplayMode(mode) {
   if (!isTauriRuntime()) return

@@ -13,25 +13,35 @@ import JupiterErrorModal from './JupiterErrorModal'
 import ModdingFlowModal from './ModdingFlowModal'
 
 /**
- * RTM tab (Jupiter only — RTM.exe drives the Warzone III game).
+ * RTM tab (Jupiter only — RTM trigger files drive the Warzone III game).
+ *
+ * There is no RTM.exe: every action writes one or more trigger files into
+ * Documents\retdonetskmod\rtm, which the modloader inside the game polls.
  *
  * Each entry in MODDING_TOOLS is one action: a button plus a short
  * description of what it does. More tools will land here as the tab grows.
  *
- * "Save Data" / "Load Data" run the bundled RTM.exe with `-savedata` /
- * `-loaddata` — snapshotting / restoring the player's classes, operator,
+ * "Save Data" / "Load Data" write the `savestatus` / `loadstatus` trigger
+ * files — snapshotting / restoring the player's classes, operator,
  * settings, and loadouts.
  *
  * "Switch to Warzone Mode" drives the PHA Client back into Warzone mode
- * through the bundled RTM.exe: -lua "MainMenuOffline" → 2 s →
- * -lua "WarzonePrivateMatchLobby" → 2 s → -lua "MainMenuOffline" (the same
+ * via the `luacmd` trigger: MainMenuOffline → 2 s →
+ * WarzonePrivateMatchLobby → 2 s → MainMenuOffline (the same
  * runJupiterPrepSequence() the join/host flows use).
  *
- * "Change Username" runs the bundled RTM.exe with `-rename "<name>"` — the
- * newer tool's native way to rename the player (e.g. "CoDKING").
+ * "Change Username" writes the `rename` trigger file with the new name
+ * (e.g. "CoDKING"); the game renames the player to it.
  *
- * "Switch to Zombies" runs the bundled RTM.exe with `-setzombies` — the newer
- * tool's native flag that switches the game into Zombies mode.
+ * "Switch to Zombies" writes the `setzombiesmode` trigger file, switching
+ * the game into Zombies mode.
+ *
+ * "Raise Bot Limit to 23" runs the cbuf `seta #x32D32FD7A0B20A1DD 23`,
+ * raising the private-match bot limit so custom games fill out.
+ *
+ * "Fix Stuck on Connecting… screen" writes the xstartlobby cbuf (same as
+ * Create Lobby in the Dev Tool) — creates a fresh lobby to unstick the
+ * connecting screen.
  *
  * The two `kind: 'flow'` tools are multi-step guided flows (ModdingFlowModal):
  *
@@ -48,12 +58,12 @@ import ModdingFlowModal from './ModdingFlowModal'
 const MODDING_TOOLS = [
   {
     label: 'Save Data',
-    description: 'Saves your classes, operator, settings, and loadouts (RTM.exe -savedata).',
+    description: 'Saves your classes, operator, settings, and loadouts.',
     run: () => runRtm(['-savedata']),
   },
   {
     label: 'Load Data',
-    description: 'Loads your saved classes, operator, and settings (RTM.exe -loaddata).',
+    description: 'Loads your saved classes, operator, and settings.',
     run: () => runRtm(['-loaddata']),
   },
   {
@@ -66,6 +76,17 @@ const MODDING_TOOLS = [
     description: 'Switches the game to Zombies mode.',
     note: "Make sure you're in the Local Game server browser menu to avoid possible issues.",
     run: () => runRtm(['-setzombies']),
+  },
+  {
+    label: 'Raise Bot Limit to 23',
+    description: 'Raises the bot limit to 23 so private matches fill with more bots.',
+    run: () => runRtm(['-cbuf', 'seta #x32D32FD7A0B20A1DD 23']),
+  },
+  {
+    label: 'Fix Stuck on Connecting… screen',
+    description: 'Creates a fresh lobby (same as Create Lobby in the Dev Tool) so the game stops spinning on the connecting screen.',
+    note: 'This will create a new LAN code — you will need to copy the new one from the game.',
+    run: () => runRtm(['-createlobby']),
   },
   {
     label: 'Loadout and Operator Editing',
@@ -97,43 +118,41 @@ const MODDING_TOOLS = [
   },
 ]
 
-// ── Developer Mode: the raw RTM tool surface (mirrors RTM.exe -h) ────────
-// Flag-only commands → one button each.
+// ── Advanced RTM Mode: the raw RTM tool surface (one action per trigger) ──
+// Flag-only commands → one button each. Every flag here maps 1:1 to a
+// trigger file per the RTM recreation guide.
 const DEV_BUTTON_COMMANDS = [
-  { flag: '-savedata', description: 'Save savedata.' },
-  { flag: '-loaddata', description: 'Load savedata.' },
-  { flag: '-disconnect', description: 'Disconnect / leave in-game.' },
-  { flag: '-startmatch', description: 'Start match (xpartygo).' },
-  { flag: '-createlobby', description: 'Create/force a lobby (xstartlobby).' },
-  { flag: '-setzombies', description: 'Switch to zombies mode (JUP).' },
-  { flag: '-showinfo', description: 'Show your info (prints asset paths to console).' },
-  { flag: '-hotreloadgsc', description: 'Hot reload MP GSC.' },
-  { flag: '-hotreloadzmgsc', description: 'Hot reload ZM GSC.' },
-  { flag: '-restoregsc', description: 'Restore GSC.' },
-  { flag: '-dumpweapondef', description: 'Dump weapondef (MW19).' },
-  { flag: '-loadweapondef', description: 'Load weapondef (MW19).' },
-  { flag: '-loadcustomcamo', description: 'Load custom camo.' },
-  { flag: '-brmode', description: 'Enable BR mode (MW19).' },
+  { flag: '-savedata', description: 'Save savedata (savestatus).' },
+  { flag: '-loaddata', description: 'Load savedata (loadstatus).' },
+  { flag: '-disconnect', description: 'Disconnect / leave in-game (cbuf disconnect).' },
+  { flag: '-startmatch', description: 'Start match (cbuf xpartygo).' },
+  { flag: '-createlobby', description: 'Create/force a lobby (cbuf xstartlobby).' },
+  { flag: '-setzombies', description: 'Switch to zombies mode (setzombiesmode).' },
+  { flag: '-showinfo', description: 'Show your info (showyourinfo — prints asset paths to console).' },
+  { flag: '-hotreloadgsc', description: 'Hot reload MP GSC (hotreloadgsc).' },
+  { flag: '-hotreloadzmgsc', description: 'Hot reload ZM GSC (hotreloadzmgsc).' },
+  { flag: '-restoregsc', description: 'Restore GSC (restoregsc).' },
+  { flag: '-loadcustomcamo', description: 'Load custom camo (loadcustomcamo).' },
   { flag: '-brmodejup', description: 'Enable BR mode (JUP).' },
   { flag: '-disablebrjup', description: 'Disable BR mode (JUP).' },
 ]
 
 // Commands that take an argument → text field + button.
+// (-level / -xp / -file had no trigger-file mapping in the RTM recreation
+// guide, so they are not exposed — the guide is the source of truth for
+// the file format and those were never documented.)
 const DEV_TEXT_COMMANDS = [
-  { flag: '-join', placeholder: 'LAN code', maxLength: 64, description: 'Join a LAN session.' },
-  { flag: '-cbuf', placeholder: 'command', maxLength: 4096, description: 'Run a cbuf command.' },
-  { flag: '-lua', placeholder: 'menu/function', maxLength: 128, description: 'Open a LUA menu / call a LUA function (e.g. MainMenuOffline).' },
-  { flag: '-sendips', placeholder: 'ip', maxLength: 128, description: 'Send IPs to friends.' },
-  { flag: '-rename', placeholder: 'name', maxLength: 64, description: 'Change username.' },
-  { flag: '-level', placeholder: 'level (1-based)', maxLength: 10, description: 'Set level (1-based; writes level-1).' },
-  { flag: '-xp', placeholder: 'xp', maxLength: 10, description: 'Set XP.' },
-  { flag: '-file', placeholder: 'filename [content]', maxLength: 4096, description: 'Write any RTM command file directly.' },
+  { flag: '-join', placeholder: 'LAN code', maxLength: 256, description: 'Join a LAN session (writes the 3 connect trigger files).' },
+  { flag: '-cbuf', placeholder: 'command', maxLength: 4096, description: 'Run a cbuf command (writes cbufcmd).' },
+  { flag: '-lua', placeholder: 'menu/function', maxLength: 128, description: 'Open a LUA menu / call a LUA function via luacmd (e.g. MainMenuOffline).' },
+  { flag: '-sendips', placeholder: 'ip', maxLength: 128, description: 'Send IPs to friends (cbuf sendips <ip>).' },
+  { flag: '-rename', placeholder: 'name', maxLength: 64, description: 'Change username (rename file).' },
 ]
 
-// Debug/log toggles from `RTM.exe -toggles` — checkbox runs
-// `-toggle <feature> on|off`.
+// Debug/log toggles — checkbox runs `-toggle <feature> on|off` (writes the
+// `<feature>on` / `<feature>off` state files).
 const DEV_TOGGLE_FEATURES = [
-  'botfix', 'customtext', 'debughookmain', 'debughooksub', 'debuglog', 'devlog',
+  'customtext', 'debughookmain', 'debughooksub', 'debuglog', 'devlog',
   'dismemberment', 'dlogerror', 'dlogstring', 'exec_everyframe_log',
   'fastfile_gfxworld_detailparam_log', 'fastfile_gfxwrapper_loadparam_log',
   'fastfiledetaillog', 'fastfilegenlog', 'fastfilegfximagedump',
@@ -142,7 +161,7 @@ const DEV_TOGGLE_FEATURES = [
   'fastfilesubassetloadparamlog', 'fastfiletechsetdump', 'fastfileunilog',
   'fastfilexmodelloadparamlog', 'fastfilexmodelsurfloadparamlog', 'fastsavedebuglog',
   'getzonename', 'gscdump', 'gscinject', 'gscloaddebuglog', 'havok_log',
-  'lancreate', 'lanfix', 'luadump', 'lualoaddebuglog', 'luaprintdebuglog',
+  'lancreate', 'luadump', 'lualoaddebuglog', 'luaprintdebuglog',
   'regbooldebuglog', 'stringdebug', 'vis_all_umbra', 'vis_bsp_umbra',
   'vis_primlight_umbra', 'vis_refprobe_umbra', 'vis_smodel_umbra',
 ]
@@ -171,15 +190,15 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   const [flow, setFlow] = useState(null)
   const flowActive = Boolean(flow)
   const flowAbortRef = useRef(null)
-  // ── Developer Mode (raw RTM tool) state ────────────────────────────────
+  // ── Advanced RTM Mode (raw RTM tool) state ─────────────────────────────
   const [devValues, setDevValues] = useState({}) // flag → text field value
   const [devToggles, setDevToggles] = useState({}) // feature → on/off
   const [devBusy, setDevBusy] = useState(false)
   const [inputMode, setInputMode] = useState('mouse')
   const abortRef = useRef(null)
 
-  // Abort an in-flight sequence if the user leaves the tab — RTM.exe must
-  // stop being driven and no setState may fire on an unmounted panel. Also
+  // Abort an in-flight sequence if the user leaves the tab — RTM trigger
+  // writes must stop and no setState may fire on an unmounted panel. Also
   // reset the modal gate so the interface's controller nav never stays
   // disabled after this panel unmounts.
   useEffect(() => () => {
@@ -208,7 +227,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     if (tool.kind === 'flow') {
       playSound(selectSound)
       if (!isTauriRuntime()) {
-        setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+        setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
         return
       }
       setFlow({ tool, stage: 'ask' })
@@ -217,7 +236,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     }
     playSound(selectSound)
     if (!isTauriRuntime()) {
-      setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
       return
     }
     setRunningIndex(index)
@@ -232,7 +251,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       if (controller.signal.aborted) return
       setErrorModal({
         title: `COULDN'T RUN ${tool.label.toUpperCase()}`,
-        message: error?.message || String(error) || 'RTM.exe failed.',
+        message: error?.message || String(error) || 'RTM trigger write failed.',
       })
       onModalChange?.(true)
       setStatus(`${tool.label} failed — see the error dialog for details.`)
@@ -255,18 +274,18 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     if (!newName || renaming || runningIndex !== null || devBusy || flowActive) return
     playSound(selectSound)
     if (!isTauriRuntime()) {
-      setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
       return
     }
     setRenaming(true)
     setStatus('Renaming…')
     try {
       await runRtm(['-rename', newName])
-      setStatus(`Username saved — the game will rename you to ${newName}.`)
+      setStatus(`The game will rename you to ${newName}.`)
     } catch (error) {
       setErrorModal({
         title: "COULDN'T CHANGE USERNAME",
-        message: error?.message || String(error) || 'Failed to write the rename file.',
+        message: error?.message || String(error) || 'Failed to write the rename trigger file.',
       })
       onModalChange?.(true)
       setStatus('Username change failed — see the error dialog for details.')
@@ -281,10 +300,10 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
 
   // ── Controller navigation ────────────────────────────────────────────────
   // One flat list covering the tool buttons, the username row, and (in
-  // Developer Mode) every raw-RTM command button / text row / toggle. Text
-  // rows hand off to the on-screen keyboard; Enter inside the input runs the
-  // command. The flow + error modals gate the interface via onModalChange —
-  // this hook goes quiet while either is open.
+  // Advanced RTM Mode) every raw-RTM command button / text row / toggle.
+  // Text rows hand off to the on-screen keyboard; Enter inside the input
+  // runs the command. The flow + error modals gate the interface via
+  // onModalChange — this hook goes quiet while either is open.
   const navItems = useMemo(() => {
     const items = MODDING_TOOLS.map((tool, index) => ({ kind: 'tool', tool, index }))
     items.push({ kind: 'username' })
@@ -340,7 +359,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     resetFlow('')
     setErrorModal({
       title,
-      message: error?.message || String(error) || 'RTM.exe failed.',
+      message: error?.message || String(error) || 'RTM trigger write failed.',
     })
     onModalChange?.(true)
     setStatus(`${title} failed — see the error dialog for details.`)
@@ -414,23 +433,23 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     }
   }
 
-  // ── Developer Mode: raw RTM tool handlers ──────────────────────────────
+  // ── Advanced RTM Mode: raw RTM tool handlers ───────────────────────────
   const runDevFlag = async (cmd) => {
     if (runningIndex !== null || devBusy || flowActive) return
     if (!isTauriRuntime()) {
-      setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
       return
     }
     playSound(selectSound)
     setDevBusy(true)
     setStatus(`Running ${cmd.flag}…`)
     try {
-      const output = await runRtm([cmd.flag])
-      setStatus(output ? `${cmd.flag} → ${output}` : `${cmd.flag} done.`)
+      await runRtm([cmd.flag])
+      setStatus(`${cmd.flag} done.`)
     } catch (error) {
       setErrorModal({
         title: `COULDN'T RUN ${cmd.flag}`,
-        message: error?.message || String(error) || 'RTM.exe failed.',
+        message: error?.message || String(error) || 'RTM trigger write failed.',
       })
       onModalChange?.(true)
       setStatus(`${cmd.flag} failed — see the error dialog for details.`)
@@ -443,35 +462,20 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     if (runningIndex !== null || devBusy || flowActive) return
     const value = (devValues[cmd.flag] || '').trim()
     if (!value) return
-    if ((cmd.flag === '-level' || cmd.flag === '-xp') && !/^\d+$/.test(value)) {
-      playSound(selectSound)
-      setStatus(`${cmd.flag} expects a positive integer.`)
-      return
-    }
     if (!isTauriRuntime()) {
-      setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
       return
     }
     playSound(selectSound)
     setDevBusy(true)
     setStatus(`Running ${cmd.flag}…`)
     try {
-      // -file takes "filename [content]" — split on the first space.
-      let args = [cmd.flag]
-      if (cmd.flag === '-file') {
-        const spaceIndex = value.indexOf(' ')
-        const filename = spaceIndex === -1 ? value : value.slice(0, spaceIndex)
-        const content = spaceIndex === -1 ? '' : value.slice(spaceIndex + 1).trim()
-        args = content ? [cmd.flag, filename, content] : [cmd.flag, filename]
-      } else {
-        args = [cmd.flag, value]
-      }
-      const output = await runRtm(args)
-      setStatus(output ? `${cmd.flag} → ${output}` : `${cmd.flag} done.`)
+      await runRtm([cmd.flag, value])
+      setStatus(`${cmd.flag} done.`)
     } catch (error) {
       setErrorModal({
         title: `COULDN'T RUN ${cmd.flag}`,
-        message: error?.message || String(error) || 'RTM.exe failed.',
+        message: error?.message || String(error) || 'RTM trigger write failed.',
       })
       onModalChange?.(true)
       setStatus(`${cmd.flag} failed — see the error dialog for details.`)
@@ -483,7 +487,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   const handleDevToggle = async (feature) => {
     if (runningIndex !== null || devBusy || flowActive) return
     if (!isTauriRuntime()) {
-      setStatus('RTM.exe is only available in the desktop app — run this from the launcher, not the browser.')
+      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
       return
     }
     const next = !devToggles[feature]
@@ -499,7 +503,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       setDevToggles((current) => ({ ...current, [feature]: !next }))
       setErrorModal({
         title: `COULDN'T TOGGLE ${feature}`,
-        message: error?.message || String(error) || 'RTM.exe failed.',
+        message: error?.message || String(error) || 'RTM trigger write failed.',
       })
       onModalChange?.(true)
       setStatus(`${feature} toggle failed — see the error dialog for details.`)
@@ -512,7 +516,6 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     <div className={`tab-content-panel modding-tab-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="tab-header-title">
         <h2>RTM</h2>
-        <span className="tab-subtitle">RTM automation for the Warzone III client</span>
       </div>
 
       <div className="modding-layout">
@@ -543,7 +546,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
             )
           })}
 
-          {/* Change Username — runs RTM.exe -rename "<name>". */}
+          {/* Change Username — writes the rename trigger file. */}
           <div className="modding-tool">
             <button
               type="button"
@@ -565,7 +568,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
               maxLength={64}
               spellCheck={false}
             />
-            <span className="modding-tool-desc">Runs RTM.exe -rename — the game will rename you to this.</span>
+            <span className="modding-tool-desc">Writes the rename trigger — the game will rename you to this.</span>
           </div>
         </div>
 
@@ -573,13 +576,13 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       </div>
       </div>
 
-      {/* ── Advanced RTM Mode: the full RTM tool surface (RTM.exe -h) —
+      {/* ── Advanced RTM Mode: the full RTM trigger surface —
           rendered to the RIGHT of the main tools column. ── */}
       {devMode && (
         <div className="modding-card modding-dev-panel">
           <div className="modding-dev-header">
             <h3>RTM DEV TOOL</h3>
-            <span>Raw RTM.exe surface — every flag from the tool's help, no guardrails. Runs each action through the bundled RTM.exe.</span>
+            <span>Raw trigger surface — every RTM action from the tool, no guardrails.</span>
           </div>
 
           <div className="modding-dev-section">
@@ -637,7 +640,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
 
           <div className="modding-dev-section">
             <h4>DEBUG TOGGLES</h4>
-            <span className="modding-tool-desc">Each checkbox runs <code>-toggle &lt;feature&gt; on|off</code> through RTM.exe.</span>
+            <span className="modding-tool-desc">Each checkbox runs <code>-toggle &lt;feature&gt; on|off</code> — it writes the <code>&lt;feature&gt;on</code> / <code>&lt;feature&gt;off</code> state files.</span>
             <div className="modding-dev-toggles">
               {DEV_TOGGLE_FEATURES.map((feature) => (
                 <label

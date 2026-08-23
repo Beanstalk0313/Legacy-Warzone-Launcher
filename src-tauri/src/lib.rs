@@ -21,8 +21,8 @@ pub fn run() {
         .setup(|app| {
             // Auto-updater: checks the configured update endpoint (GitHub
             // release) and installs signed update bundles. Requires the
-            // pubkey + endpoints config in tauri.conf.json — see
-            // AUTO_UPDATE.md for the release/signing setup.
+            // pubkey + endpoints config in tauri.conf.json — see the
+            // README's "Auto-update" section for the release/signing setup.
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())
@@ -30,15 +30,16 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::run_rtm_command,
-            commands::rtm_exe_path_command,
-            commands::write_rtm_file_command,
+            commands::rtm_action_command,
             commands::load_settings_command,
             commands::save_settings_command,
             commands::load_user_identity_command,
             commands::save_user_identity_command,
             commands::clear_user_identity_command,
             commands::apply_display_mode_command,
+            commands::list_monitors_command,
+            commands::apply_display_monitor_command,
+            commands::get_resource_dir_command,
             commands::minimize_window_command,
             commands::request_window_close_command,
             commands::exit_app_command,

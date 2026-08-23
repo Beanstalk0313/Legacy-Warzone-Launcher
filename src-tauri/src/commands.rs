@@ -1,12 +1,23 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 const MAX_ARG_LENGTH: usize = 4096;
-const MAX_RTM_FILE_CONTENTS_LENGTH: usize = 64;
+
+/// The exact cbuf payloads the RTM tool used for BR mode (JUP):
+/// EnableBrModeJup sets three dvars, Disable only resets the third.
+/// (Mirrored verbatim from the RTM tool recreation guide — note the
+/// trailing semicolons and the `#x3` JUP hash prefix.)
+const BR_MODE_JUP_ENABLE_CBUF: &str =
+    "seta #x37444C1F208994CC5 1;seta #x3FAF1DB5754891B2D 1;seta #x3B5D05C0CBFA8BDC1 1;";
+const BR_MODE_JUP_DISABLE_CBUF: &str = "seta #x3B5D05C0CBFA8BDC1 0;";
+
+/// Plain cbuf payloads the RTM tool exposed as flag-only commands.
+const CBUF_DISCONNECT: &str = "disconnect";
+const CBUF_START_MATCH: &str = "xpartygo";
+const CBUF_CREATE_LOBBY: &str = "xstartlobby";
 
 /// Launcher settings, persisted to Documents\retdonetskmod\settings.json so
 /// users can share configs (or override them by hand) without touching the
@@ -40,6 +51,14 @@ fn default_dev_server_lan_session() -> String {
     String::new()
 }
 
+fn default_accent_jupiter() -> String {
+    "#028fcc".to_string()
+}
+
+fn default_accent_iw8() -> String {
+    "#d92323".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AppSettings {
@@ -47,13 +66,26 @@ pub struct AppSettings {
     pub dynamic_interfaces: String,
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
+    /// Which monitor the launcher window is shown on — the raw monitor
+    /// name from `available_monitors` (e.g. "\\\\.\\DISPLAY1"). Empty
+    /// string = the system's default monitor.
+    #[serde(default)]
+    pub display_monitor: String,
+    /// Silent Mode: muting gate for every launcher sound effect.
+    #[serde(default)]
+    pub silent_mode: bool,
+    /// Theme accent colors — user-customizable hex values (e.g. "#028fcc").
+    #[serde(default = "default_accent_jupiter")]
+    pub accent_jupiter: String,
+    #[serde(default = "default_accent_iw8")]
+    pub accent_iw8: String,
     /// Testing Server: lists a LOCAL-ONLY synthetic test server in the
     /// Server Browser / Quick Play (never touched by Supabase, invisible to
     /// other clients). Metadata comes from the dev_server_* fields below.
     #[serde(default)]
     pub testing_server: bool,
-    /// Advanced RTM Mode: shows the raw RTM DEV TOOL panel (every flag from
-    /// RTM.exe -h) on the RTM tab. The guided RTM tools are always
+    /// Advanced RTM Mode: shows the raw RTM DEV TOOL panel (every
+    /// trigger-file action) on the RTM tab. The guided RTM tools are always
     /// available regardless.
     #[serde(default)]
     pub rtm_mode: bool,
@@ -73,8 +105,9 @@ pub struct AppSettings {
     /// server is a listing only (not joinable).
     #[serde(default = "default_dev_server_lan_session")]
     pub dev_server_lan_session: String,
-    /// Auto-run RTM.exe -loaddata every time the Jupiter interface opens,
-    /// restoring the player's classes / operator / settings from savedata.
+    /// Auto-write the `loadstatus` trigger file (the game's Load Data
+    /// action) every time the Jupiter interface opens, restoring the
+    /// player's classes / operator / settings from savedata.
     #[serde(default)]
     pub auto_load_savedata: bool,
 }
@@ -85,6 +118,10 @@ impl Default for AppSettings {
             dynamic_sounds: "enabled".to_string(),
             dynamic_interfaces: "enabled".to_string(),
             display_mode: default_display_mode(),
+            display_monitor: String::new(),
+            silent_mode: false,
+            accent_jupiter: default_accent_jupiter(),
+            accent_iw8: default_accent_iw8(),
             testing_server: false,
             rtm_mode: false,
             legacy_developer_mode: None,
@@ -99,6 +136,20 @@ impl Default for AppSettings {
 
 const SETTING_VALUES: [&str; 3] = ["enabled", "iw8", "jupiter"];
 const DISPLAY_MODE_VALUES: [&str; 2] = ["fullscreen", "windowed"];
+
+/// Validate a hex color string (#rrggbb). Falls back to `default` when
+/// the value is missing or not exactly seven characters (# + six hex).
+fn normalize_hex_color(value: &str, default: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() == 7
+        && trimmed.starts_with('#')
+        && trimmed[1..].chars().all(|character| character.is_ascii_hexdigit())
+    {
+        trimmed.to_lowercase()
+    } else {
+        default.to_string()
+    }
+}
 
 /// Trim + sanitize a hand-editable settings string. Falls back to `default`
 /// when empty, too long, or containing control characters.
@@ -123,7 +174,7 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
     // anything else gets the same sanitization.
     let lan_session = settings.dev_server_lan_session.trim().to_string();
     let lan_session = if lan_session.is_empty()
-        || lan_session.chars().count() > 64
+        || lan_session.chars().count() > 256
         || lan_session.chars().any(|character| character.is_control())
     {
         String::new()
@@ -146,6 +197,10 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         } else {
             defaults.display_mode
         },
+        display_monitor: normalize_setting_text(&settings.display_monitor, "", 128),
+        silent_mode: settings.silent_mode,
+        accent_jupiter: normalize_hex_color(&settings.accent_jupiter, &defaults.accent_jupiter),
+        accent_iw8: normalize_hex_color(&settings.accent_iw8, &defaults.accent_iw8),
         testing_server: settings.testing_server || migrated_developer_mode,
         rtm_mode: settings.rtm_mode || migrated_developer_mode,
         legacy_developer_mode: None,
@@ -167,7 +222,7 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
 }
 
 /// Documents\retdonetskmod — the same base folder the RTM trigger files
-/// live in (their RTM subfolder is created on demand by write_rtm_file).
+/// live in (their lower-case `rtm` subfolder is created on demand).
 fn resolve_settings_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let document_dir = app
         .path()
@@ -381,55 +436,185 @@ pub fn apply_display_mode_command(app: tauri::AppHandle, mode: String) -> Result
     }
 }
 
-/// Candidate locations for the bundled RTM.exe, in priority order.
-///
-/// Production (`tauri build` / NSIS): the file is shipped via
-/// `bundle.resources` and lands in the app's resource directory
-/// (resource_dir()), which on Windows is next to the executable.
-///
-/// Development (`tauri dev`): Tauri copies `bundle.resources` files into the
-/// debug target dir so resource_dir() resolves them, but we also probe the
-/// executable's own directory and the current working directory (the repo
-/// root when the app is launched from the Tauri CLI) so the project-root
-/// RTM.exe is found regardless.
-fn candidate_rtm_paths(app: &tauri::AppHandle) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
+/// One display, as exposed to the Options tab's Display Monitor dropdown.
+/// `name` is the OS monitor identifier (the persisted setting value);
+/// `ordinal` is the enumeration index used for the friendly "Display N"
+/// label; `primary` marks the system's primary monitor.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MonitorInfo {
+    pub name: String,
+    pub ordinal: usize,
+    pub primary: bool,
+}
 
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        candidates.push(resource_dir.join("RTM.exe"));
-        // `bundle.resources` map entries can place files in subfolders.
-        candidates.push(resource_dir.join("resources").join("RTM.exe"));
-        candidates.push(resource_dir.join("_up_").join("RTM.exe"));
+/// List the displays available to the launcher (Options > Display Monitor).
+#[tauri::command(rename = "list_monitors")]
+pub fn list_monitors_command(app: tauri::AppHandle) -> Result<Vec<MonitorInfo>, String> {
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| format!("Could not enumerate your monitors: {error}"))?;
+    let primary_name = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .and_then(|monitor| monitor.name().cloned());
+    Ok(monitors
+        .into_iter()
+        .enumerate()
+        .map(|(index, monitor)| {
+            let name = monitor.name().cloned().unwrap_or_default();
+            MonitorInfo {
+                name: name.clone(),
+                ordinal: index + 1,
+                primary: primary_name.as_ref() == Some(&name),
+            }
+        })
+        .collect())
+}
+
+/// Move the launcher window onto the named monitor. An empty name means
+/// "the system's default monitor" — nothing to do. Fullscreen/maximized
+/// states are cleared first so the reposition lands on Windows; the caller
+/// re-applies the persisted display mode afterwards so fullscreen fills the
+/// new monitor.
+#[tauri::command(rename = "apply_display_monitor")]
+pub fn apply_display_monitor_command(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Could not find the main launcher window.".to_string())?;
+
+    let name = name.trim().to_string();
+    // Empty name = "Default" — find the primary monitor and move there.
+    let target_name = if name.is_empty() {
+        app.primary_monitor()
+            .ok()
+            .flatten()
+            .and_then(|monitor| monitor.name().cloned())
+            .unwrap_or_default()
+    } else {
+        name
+    };
+    if target_name.is_empty() {
+        return Ok(());
     }
 
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            candidates.push(dir.join("RTM.exe"));
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| format!("Could not enumerate your monitors: {error}"))?;
+    // `Monitor::name()` is an Option<&String> — compare by reference;
+    // headless monitors (no name) can never equal a requested name.
+    let monitor = monitors
+        .into_iter()
+        .find(|monitor| monitor.name().is_some_and(|monitor_name| monitor_name == &target_name))
+        .ok_or_else(|| format!("Monitor '{target_name}' is not connected."))?;
+
+    // A fullscreen / maximized window is pinned to its current monitor on
+    // Windows — come out of both before repositioning.
+    window
+        .unmaximize()
+        .map_err(|error| format!("Could not restore the window state: {error}"))?;
+    window
+        .set_fullscreen(false)
+        .map_err(|error| format!("Could not leave fullscreen: {error}"))?;
+
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
+    let window_size = window
+        .inner_size()
+        .map_err(|error| format!("Could not read the window size: {error}"))?;
+    // Center the window on the target monitor (physical pixels).
+    let x = monitor_position.x + (monitor_size.width.saturating_sub(window_size.width) / 2) as i32;
+    let y = monitor_position.y + (monitor_size.height.saturating_sub(window_size.height) / 2) as i32;
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .map_err(|error| format!("Could not move the window onto '{target_name}': {error}"))?;
+    Ok(())
+}
+
+/// Resolve the game's RTM folder: Documents\retdonetskmod\rtm — the
+/// trigger-file directory the modloader inside the game polls. There is no
+/// RTM.exe anymore: every RTM action is just one or more file writes here
+/// (see `rtm_action_command`). The folder is created before every write.
+fn resolve_rtm_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let document_dir = app
+        .path()
+        .document_dir()
+        .map_err(|error| format!("Could not locate your Documents folder: {error}"))?;
+    let folder = document_dir.join("retdonetskmod").join("rtm");
+    fs::create_dir_all(&folder)
+        .map_err(|error| format!("Could not create the RTM folder: {error}"))?;
+    Ok(folder)
+}
+
+/// Core primitive from the recreation guide: overwrite a trigger file with
+/// the exact bytes of `contents` — UTF-8, no BOM, no trailing newline (an
+/// empty string writes a 0-byte file). Returns the absolute path written.
+fn write_trigger_file(folder: &PathBuf, file_name: &str, contents: &str) -> Result<String, String> {
+    let path = folder.join(file_name);
+    fs::write(&path, contents.as_bytes()).map_err(|error| {
+        format!(
+            "Could not write {}: {error}",
+            path.to_string_lossy()
+        )
+    })?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// `cbuf` — write `cbufcmd` with the raw command text (game command buffer).
+fn write_cbuf(folder: &PathBuf, command: &str) -> Result<String, String> {
+    write_trigger_file(folder, "cbufcmd", command)
+}
+
+/// `lua` — write `luacmd` with the LUA menu/function name.
+fn write_lua(folder: &PathBuf, function: &str) -> Result<String, String> {
+    write_trigger_file(folder, "luacmd", function)
+}
+
+/// Toggle system from the recreation guide: each feature has one ON file and
+/// one OFF file, both empty. Toggling deletes the opposite state file first,
+/// then writes the state file, so only one exists at a time.
+///
+/// The EXACT filename convention (from the guide's 43-row table, do not
+/// normalize): features WITHOUT an underscore append `on` / `off`
+/// (`botfix` → `botfixon` / `botfixoff`), features WITH an underscore
+/// append `_on` / `_off` (`exec_everyframe_log` → `exec_everyframe_log_on` /
+/// `exec_everyframe_log_off`). The modloader reads these exact strings.
+fn toggle_file_names(feature: &str) -> (String, String) {
+    let (on_suffix, off_suffix) = if feature.contains('_') {
+        ("_on", "_off")
+    } else {
+        ("on", "off")
+    };
+    (format!("{feature}{on_suffix}"), format!("{feature}{off_suffix}"))
+}
+
+fn apply_toggle(folder: &PathBuf, feature: &str, on: bool) -> Result<String, String> {
+    let (on_name, off_name) = toggle_file_names(feature);
+    let (state_name, opposite_name) = if on { (on_name, off_name) } else { (off_name, on_name) };
+
+    // Delete the opposite state file if it exists (missing is fine).
+    match fs::remove_file(folder.join(&opposite_name)) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "Could not clear {}: {error}",
+                folder.join(&opposite_name).to_string_lossy()
+            ))
         }
     }
 
-    if let Ok(cwd) = std::env::current_dir() {
-        candidates.push(cwd.join("RTM.exe"));
-    }
-
-    candidates
+    write_trigger_file(folder, &state_name, "")?;
+    Ok(format!("wrote {} ({})", state_name, if on { "on" } else { "off" }))
 }
 
-fn resolve_rtm_exe(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    for path in candidate_rtm_paths(app) {
-        if path.is_file() {
-            return Ok(path);
-        }
-    }
-    Err(
-        "Could not locate RTM.exe. It ships inside the installed app; if you are \
-         running from source, place RTM.exe in the project root and rebuild."
-            .to_string(),
-    )
-}
-
-fn validate_arg(value: &str, allow_newlines: bool) -> Result<String, String> {
-    let value = value.trim();
+/// Validate a single command argument: non-empty, control-character-free
+/// (newlines allowed only for cbuf payloads), length-capped, optionally
+/// trimmed. `-rename` passes `trim: false` — the display name is written
+/// exactly as provided (the frontend already trims it).
+fn validate_arg(value: &str, allow_newlines: bool, trim: bool) -> Result<String, String> {
+    let value = if trim { value.trim().to_string() } else { value.to_string() };
     if value.is_empty() {
         return Err("RTM argument is empty.".to_string());
     }
@@ -443,32 +628,35 @@ fn validate_arg(value: &str, allow_newlines: bool) -> Result<String, String> {
     if value.len() > MAX_ARG_LENGTH || has_invalid_control {
         return Err("RTM argument contains invalid characters or is too long.".to_string());
     }
-    Ok(value.to_string())
-}
-
-/// Validate a file name we're about to write into the game's RTM folder —
-/// must be a plain file name (no separators / traversal) without control
-/// characters.
-fn validate_rtm_file_name(value: &str) -> Result<String, String> {
-    let value = validate_arg(value, false)?;
-    if value.contains('/') || value.contains('\\') || value.contains("..") {
-        return Err("RTM file name is invalid.".to_string());
-    }
     Ok(value)
 }
 
-/// Resolve the game's RTM folder: Documents\retdonetskmod\RTM (where
-/// RTM.exe reads/writes its trigger files). The folder is created if it
-/// doesn't exist yet.
-fn resolve_rtm_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let document_dir = app
-        .path()
-        .document_dir()
-        .map_err(|error| format!("Could not locate your Documents folder: {error}"))?;
-    let folder = document_dir.join("retdonetskmod").join("RTM");
-    fs::create_dir_all(&folder)
-        .map_err(|error| format!("Could not create the RTM folder: {error}"))?;
-    Ok(folder)
+/// Validate a toggle feature name: a safe file-name fragment (alphanumeric +
+/// underscore, ≤ 64 chars). The ON/OFF filenames are derived in
+/// `toggle_file_names` using the guide's exact convention — nothing is
+/// normalized here.
+fn validate_toggle_feature(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    let valid = !value.is_empty()
+        && value.len() <= 64
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_');
+    if !valid {
+        return Err("Toggle feature name is invalid.".to_string());
+    }
+    Ok(value.to_string())
+}
+
+/// Return the application's resource directory — where `bundle.resources`
+/// places files at install time. The frontend uses this to resolve moddable
+/// asset paths (sounds, images) at runtime.
+#[tauri::command(rename = "get_resource_dir")]
+pub fn get_resource_dir_command(app: tauri::AppHandle) -> Result<String, String> {
+    app.path()
+        .resource_dir()
+        .map(|path| path.to_string_lossy().to_string())
+        .map_err(|error| format!("Could not locate the resource directory: {error}"))
 }
 
 /// Minimize the launcher window. This is exposed as a small native command
@@ -508,89 +696,131 @@ pub fn exit_app_command(app: tauri::AppHandle) {
     app.exit(0);
 }
 
-/// Return the absolute path of the bundled RTM.exe (for UI status lines).
-#[tauri::command(rename = "rtm_exe_path")]
-pub fn rtm_exe_path_command(app: tauri::AppHandle) -> Result<String, String> {
-    Ok(resolve_rtm_exe(&app)?
-        .to_string_lossy()
-        .to_string())
-}
-
-/// Write a raw trigger file into the game's RTM folder
-/// (Documents\retdonetskmod\RTM). Retained as a generic low-level helper —
-/// the app's rename / zombies actions now go through RTM.exe's native
-/// `-rename` / `-setzombies` flags instead. Returns the absolute path that
-/// was written, for UI status lines.
-#[tauri::command(rename = "write_rtm_file")]
-pub fn write_rtm_file_command(
-    app: tauri::AppHandle,
-    filename: String,
-    contents: String,
-) -> Result<String, String> {
-    let file_name = validate_rtm_file_name(&filename)?;
-    // Trigger files only need to EXIST — empty contents are allowed.
-    // Non-empty contents still get validated.
-    let contents = contents.trim().to_string();
-    if !contents.is_empty()
-        && (contents.len() > MAX_RTM_FILE_CONTENTS_LENGTH
-            || contents.chars().any(|character| character.is_control()))
-    {
-        return Err("RTM file contents are too long or contain invalid characters.".to_string());
-    }
-
-    let path = resolve_rtm_folder(&app)?.join(&file_name);
-    fs::write(&path, contents.as_bytes()).map_err(|error| {
-        format!(
-            "Could not write {}: {error}",
-            path.to_string_lossy()
-        )
-    })?;
-    Ok(path.to_string_lossy().to_string())
-}
-
-/// Run the bundled RTM.exe with the given arguments (one action per call,
-/// e.g. `-lua "MainMenuOffline"`, `-cbuf "<command>"`, `-join "<session>"`).
+/// Run ONE RTM action (replaces the old bundled RTM.exe): the frontend
+/// sends the same flag-shaped arguments the tool exposed, and this command
+/// translates them into trigger-file writes in
+/// `Documents\retdonetskmod\rtm`. No process is spawned — everything is a
+/// file write, per the RTM recreation guide:
 ///
-/// RTM.exe writes its trigger files into the game's RTM folder and exits, so
-/// this command waits for the process and reports its exit status.
-#[tauri::command(rename = "run_rtm")]
-pub fn run_rtm_command(app: tauri::AppHandle, args: Vec<String>) -> Result<String, String> {
+///   -lua "<fn>"   → `luacmd` = fn
+///   -cbuf "<cmd>" → `cbufcmd` = cmd (newlines allowed — WZ3 configs)
+///   -join "<code>"→ `cbufcmd` + `command.txt` = "connect <code>",
+///                  `req_execcmd.ntc` = empty (3 files, in sequence)
+///   -savedata      → `savestatus` = empty
+///   -loaddata      → `loadstatus` = empty
+///   -disconnect    → `cbufcmd` = "disconnect"
+///   -startmatch    → `cbufcmd` = "xpartygo"
+///   -createlobby   → `cbufcmd` = "xstartlobby"
+///   -sendips "<ip>"→ `cbufcmd` = "sendips <ip>"
+///   -hotreloadgsc  → `hotreloadgsc` = empty
+///   -hotreloadzmgsc → `hotreloadzmgsc` = empty
+///   -restoregsc    → `restoregsc` = empty
+///   -showinfo      → `showyourinfo` = empty
+///   -setzombies    → `setzombiesmode` = empty
+///   -loadcustomcamo→ `loadcustomcamo` = empty
+///   -rename "<n>" → `rename` = name (exactly as provided)
+///   -brmodejup     → `cbufcmd` = Enable BR mode dvars (JUP)
+///   -disablebrjup  → `cbufcmd` = Disable BR mode dvar (JUP)
+///   -toggle "<f>" on|off → delete `<f>off` then write `<f>on` (or vice versa)
+///
+/// Returns a short status string (e.g. the path written) for UI status lines.
+#[tauri::command(rename = "rtm_action")]
+pub fn rtm_action_command(app: tauri::AppHandle, args: Vec<String>) -> Result<String, String> {
     if args.is_empty() {
-        return Err("No RTM arguments provided.".to_string());
+        return Err("No RTM action provided.".to_string());
     }
 
-    let exe = resolve_rtm_exe(&app)?;
+    let action = args[0].trim();
+    let folder = resolve_rtm_folder(&app)?;
 
-    // Only `-cbuf` payloads may contain newlines (multi-line WZ3 configs).
-    let allow_newlines = args
-        .first()
-        .map(|first| first.trim() == "-cbuf")
-        .unwrap_or(false);
-    let safe_args: Result<Vec<String>, String> = args
-        .iter()
-        .map(|argument| validate_arg(argument, allow_newlines))
-        .collect();
-    let safe_args = safe_args?;
-
-    let output = Command::new(&exe)
-        .args(&safe_args)
-        .output()
-        .map_err(|error| format!("Failed to launch RTM.exe: {error}"))?;
-
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let detail = [stdout, stderr]
-            .into_iter()
-            .filter(|part| !part.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ");
-        return Err(if detail.is_empty() {
-            format!("RTM.exe exited with {}", output.status)
-        } else {
-            format!("RTM.exe exited with {}: {}", output.status, detail)
-        });
+    match action {
+        // -lua "<function>" → luacmd
+        "-lua" => {
+            let function = args
+                .get(1)
+                .ok_or_else(|| "-lua needs a LUA function name.".to_string())
+                .and_then(|value| validate_arg(value, false, true))?;
+            write_lua(&folder, &function)
+        }
+        // -cbuf "<command>" → cbufcmd (the WZ3 config format may span lines)
+        "-cbuf" => {
+            let command = args
+                .get(1)
+                .ok_or_else(|| "-cbuf needs a command string.".to_string())
+                .and_then(|value| validate_arg(value, true, true))?;
+            write_cbuf(&folder, &command)
+        }
+        // -join "<session>" → the three-file LAN-connect sequence
+        "-join" => {
+            let session = args
+                .get(1)
+                .ok_or_else(|| "-join needs a LAN session code.".to_string())
+                .and_then(|value| validate_arg(value, false, true))?;
+            let connect = format!("connect {session}");
+            write_cbuf(&folder, &connect)?;
+            write_trigger_file(&folder, "command.txt", &connect)?;
+            write_trigger_file(&folder, "req_execcmd.ntc", "")?;
+            Ok(format!("wrote join trigger files for session {session}"))
+        }
+        // -savedata → savestatus (empty)
+        "-savedata" => write_trigger_file(&folder, "savestatus", ""),
+        // -loaddata → loadstatus (empty)
+        "-loaddata" => write_trigger_file(&folder, "loadstatus", ""),
+        // -disconnect → cbuf disconnect
+        "-disconnect" => write_cbuf(&folder, CBUF_DISCONNECT),
+        // -startmatch → cbuf xpartygo
+        "-startmatch" => write_cbuf(&folder, CBUF_START_MATCH),
+        // -createlobby → cbuf xstartlobby
+        "-createlobby" => write_cbuf(&folder, CBUF_CREATE_LOBBY),
+        // -sendips "<ip>" → cbuf sendips <ip>
+        "-sendips" => {
+            let ip = args
+                .get(1)
+                .ok_or_else(|| "-sendips needs an IP address.".to_string())
+                .and_then(|value| validate_arg(value, false, true))?;
+            write_cbuf(&folder, &format!("sendips {ip}"))
+        }
+        // -hotreloadgsc → hotreloadgsc (empty)
+        "-hotreloadgsc" => write_trigger_file(&folder, "hotreloadgsc", ""),
+        // -hotreloadzmgsc → hotreloadzmgsc (empty)
+        "-hotreloadzmgsc" => write_trigger_file(&folder, "hotreloadzmgsc", ""),
+        // -restoregsc → restoregsc (empty)
+        "-restoregsc" => write_trigger_file(&folder, "restoregsc", ""),
+        // -showinfo → showyourinfo (empty)
+        "-showinfo" => write_trigger_file(&folder, "showyourinfo", ""),
+        // -setzombies → setzombiesmode (empty)
+        "-setzombies" => write_trigger_file(&folder, "setzombiesmode", ""),
+        // -loadcustomcamo → loadcustomcamo (empty)
+        "-loadcustomcamo" => write_trigger_file(&folder, "loadcustomcamo", ""),
+        // -rename "<name>" — exactly as provided (no trim, no length edits)
+        "-rename" => {
+            let name = args
+                .get(1)
+                .ok_or_else(|| "-rename needs a name.".to_string())
+                .and_then(|value| validate_arg(value, false, false))?;
+            write_trigger_file(&folder, "rename", &name)
+        }
+        // -brmodejup → cbuf Enable BR mode (JUP)
+        "-brmodejup" => write_cbuf(&folder, BR_MODE_JUP_ENABLE_CBUF),
+        // -disablebrjup → cbuf Disable BR mode (JUP)
+        "-disablebrjup" => write_cbuf(&folder, BR_MODE_JUP_DISABLE_CBUF),
+        // -toggle "<feature>" on|off — delete the opposite file, write the state file
+        "-toggle" => {
+            let feature = args
+                .get(1)
+                .ok_or_else(|| "-toggle needs a feature name.".to_string())
+                .and_then(|value| validate_toggle_feature(value))?;
+            let state = args
+                .get(2)
+                .ok_or_else(|| "-toggle needs 'on' or 'off'.".to_string())?;
+            match state.trim() {
+                "on" => apply_toggle(&folder, &feature, true),
+                "off" => apply_toggle(&folder, &feature, false),
+                _ => Err("-toggle state must be 'on' or 'off'.".to_string()),
+            }
+        }
+        unknown => Err(format!(
+            "Unknown RTM action '{unknown}'. Known actions: -lua, -cbuf, -join, -savedata, -loaddata, -disconnect, -startmatch, -createlobby, -sendips, -hotreloadgsc, -hotreloadzmgsc, -restoregsc, -showinfo, -setzombies, -loadcustomcamo, -rename, -brmodejup, -disablebrjup, -toggle."
+        )),
     }
-
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }

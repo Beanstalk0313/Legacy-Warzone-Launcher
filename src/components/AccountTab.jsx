@@ -274,7 +274,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
       <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
         <div className="tab-header-title">
           <h2>ACCOUNT</h2>
-          <span className="tab-subtitle">{userEmail || 'Signed in'}</span>
+
         </div>
         {successMessage && (
           <div className={`account-email-sent account-email-verification-notice ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
@@ -343,9 +343,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
     <div className={`tab-content-panel account-tab-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="tab-header-title">
         <h2>ACCOUNT</h2>
-        <span className="tab-subtitle">
-          {mode === 'signin' ? 'Sign in to your account' : 'Create a new account'}
-        </span>
+
       </div>
 
       {!configured && (

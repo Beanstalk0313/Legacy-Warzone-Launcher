@@ -1,9 +1,41 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from '../utils/settings'
-import { setSoundOverride } from '../utils/audio'
-import { applyDisplayMode } from '../utils/displayMode'
+import { setSoundOverride, setSilentMode } from '../utils/audio'
+import { applyDisplayMode, applyDisplayMonitor } from '../utils/displayMode'
 
 const SettingsContext = createContext(null)
+
+/**
+ * Apply user-customized accent colors to the CSS root element, overriding
+ * the defaults defined in `:root` in styles.css. A hex string (#rrggbb) is
+ * validated upstream (settings normalization); here we just write the custom
+ * properties and derive a lighter hover variant by bumping the red/green/blue
+ * channels by 20%.
+ */
+function applyAccents(accentJupiter, accentIw8) {
+  const root = document.documentElement
+  if (accentJupiter) {
+    root.style.setProperty('--jupiter-accent', accentJupiter)
+    root.style.setProperty('--jupiter-accent-hover', lightenHex(accentJupiter, 0.2))
+  }
+  if (accentIw8) {
+    root.style.setProperty('--iw8-red-accent', accentIw8)
+  }
+}
+
+function lightenHex(hex, amount) {
+  try {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    const nr = Math.min(255, Math.round(r + (255 - r) * amount))
+    const ng = Math.min(255, Math.round(g + (255 - g) * amount))
+    const nb = Math.min(255, Math.round(b + (255 - b) * amount))
+    return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`
+  } catch {
+    return hex
+  }
+}
 
 /**
  * Global launcher settings. Loaded once at startup from
@@ -34,9 +66,17 @@ export default function SettingsProvider({ children }) {
       defaultsRef.current = { ...loaded }
       setSettings(loaded)
       setSoundOverride(loaded.dynamic_sounds)
-      void applyDisplayMode(loaded.display_mode).catch((error) => {
-        console.warn('[display-mode] startup apply failed', error)
-      })
+      setSilentMode(loaded.silent_mode)
+      applyAccents(loaded.accent_jupiter, loaded.accent_iw8)
+
+      // Monitor first, then the display mode: the monitor move clears
+      // fullscreen, so the mode re-apply is what actually fills the
+      // chosen display.
+      void applyDisplayMonitor(loaded.display_monitor)
+        .then(() => applyDisplayMode(loaded.display_mode))
+        .catch((error) => {
+          console.warn('[display] startup apply failed', error)
+        })
     })()
     return () => {
       mounted = false
@@ -49,10 +89,18 @@ export default function SettingsProvider({ children }) {
     setSettings(next)
     void saveSettings(next)
     if (key === 'dynamic_sounds') setSoundOverride(value)
-    if (key === 'display_mode') {
-      void applyDisplayMode(value).catch((error) => {
-        console.warn('[display-mode] change failed', error)
-      })
+    if (key === 'silent_mode') setSilentMode(value)
+    if (key === 'accent_jupiter' || key === 'accent_iw8') {
+      applyAccents(next.accent_jupiter, next.accent_iw8)
+    }
+    if (key === 'display_monitor' || key === 'display_mode') {
+      const monitor = key === 'display_monitor' ? value : settingsRef.current.display_monitor
+      // Same order as startup: land the monitor, then apply the mode.
+      void applyDisplayMonitor(monitor)
+        .then(() => applyDisplayMode(settingsRef.current.display_mode))
+        .catch((error) => {
+          console.warn('[display] change failed', error)
+        })
     }
   }
 
@@ -62,9 +110,13 @@ export default function SettingsProvider({ children }) {
     setSettings(defaults)
     void saveSettings(defaults)
     setSoundOverride(defaults.dynamic_sounds)
-    void applyDisplayMode(defaults.display_mode).catch((error) => {
-      console.warn('[display-mode] reset failed', error)
-    })
+    setSilentMode(defaults.silent_mode)
+    applyAccents(defaults.accent_jupiter, defaults.accent_iw8)
+    void applyDisplayMonitor(defaults.display_monitor)
+      .then(() => applyDisplayMode(defaults.display_mode))
+      .catch((error) => {
+        console.warn('[display] reset failed', error)
+      })
   }
 
   // Snapshot of the startup settings (the reset baseline). Exposed so the

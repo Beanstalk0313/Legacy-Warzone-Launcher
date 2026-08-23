@@ -25,7 +25,7 @@ import JupiterErrorModal from '../components/JupiterErrorModal'
 // open:
 //   • The join flow:  -lua "MainMenuOffline" → 2s → -lua "WarzonePrivateMatchLobby"
 //     → 2s → -lua "MainMenuOffline" → guided PHA-Client modal → Continue runs
-//     -cbuf "<config>" → 2s → connect (RTM.exe -join "<session>" — the
+//     -cbuf "<config>" → 2s → connect (-join "<session>" — the
 //     tool writes the trigger files itself: req_execcmd.ntc, command.txt,
 //     cbufcmd).
 //   • server_members registration + heartbeat so the host sees who is in
@@ -65,7 +65,7 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
   const { settings } = useSettings()
 
   // Auto-Load Save Data (Options > Auto-Load Save Data): on every Jupiter
-  // interface entry, run RTM.exe -loaddata so classes / operator / settings
+  // interface entry, write the loadstatus trigger so classes / operator / settings
   // come back. Lives here because this provider wraps ALL Jupiter content
   // (both shells), mounting exactly when the Jupiter interface opens.
   useEffect(() => {
@@ -236,6 +236,17 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
   }, [getMyParty, user?.id])
 
   // ── Join flow ────────────────────────────────────────────────────────────
+  // AbortController for the prep sequence — lets the user cancel during
+  // the 'preparing' stage via Esc / controller-Back on the join modal.
+  const joinAbortRef = useRef(null)
+
+  const cancelJoin = useCallback(() => {
+    joinAbortRef.current?.abort()
+    joinAbortRef.current = null
+    joinTokenRef.current += 1 // invalidate any in-flight stage transitions
+    setJoin(null)
+  }, [])
+
   const beginJoin = useCallback(async (server, source = 'browser') => {
     if (joinRef.current) return // one active session at a time
     const token = joinTokenRef.current + 1
@@ -243,6 +254,9 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     // A fresh join flow starts from a clean slate — any previous lobby's
     // HUD state is discarded.
     setLastLobby(null)
+
+    const controller = new AbortController()
+    joinAbortRef.current = controller
 
     const session = {
       stage: 'preparing',
@@ -265,13 +279,17 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     playSound(selectSound)
 
     try {
-      await runJupiterPrepSequence(PREP_GAP_MS)
+      await runJupiterPrepSequence(PREP_GAP_MS, controller.signal)
+      joinAbortRef.current = null
       if (joinTokenRef.current !== token) return
       setJoin((current) => current ? { ...current, stage: 'guided' } : current)
     } catch (error) {
+      joinAbortRef.current = null
       if (joinTokenRef.current !== token) return
+      // AbortError means the user cancelled — no error modal.
+      if (error?.name === 'AbortError') { setJoin(null); return }
       setJoin(null)
-      showError(`COULDN'T PREPARE ${server.name}`, error?.message || String(error) || 'RTM.exe failed.')
+      showError(`COULDN'T PREPARE ${server.name}`, error?.message || String(error) || 'RTM trigger write failed.')
     }
   }, [selectSound, showError])
 
@@ -354,7 +372,7 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     } catch (error) {
       if (joinTokenRef.current !== token) return
       setJoin(null)
-      showError(`COULDN'T JOIN ${current.serverName}`, error?.message || String(error) || 'RTM.exe failed.')
+      showError(`COULDN'T JOIN ${current.serverName}`, error?.message || String(error) || 'RTM trigger write failed.')
     }
   }, [getDisplayName, setLeaderServer, showError, user?.id])
 
@@ -418,7 +436,7 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     setLobbyMembers([])
     // Fire the game commands — failures are logged, never fatal: the launcher
     // UI returns to the menu regardless (the game may need a manual
-    // disconnect if RTM.exe itself is unavailable).
+    // disconnect if the RTM trigger write itself is unavailable).
     try {
       await runRtm(['-disconnect'])
     } catch (error) {
@@ -506,7 +524,7 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
           return
         }
 
-        // Host changed the map/mode → auto-update our client via RTM.exe.
+        // Host changed the map/mode → auto-update our client via a cbuf trigger.
         if ((server.map && server.map !== session.map) || (server.mode && server.mode !== session.mode)) {
           try {
             await writeJupiterCbufCommand(getJupiterConfigCommand({ map: server.map, mode: server.mode }))
@@ -829,11 +847,12 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
 
       <JupiterJoinModal
         theme={theme}
-        stage={join && join.stage !== 'preparing' ? join.stage : null}
+        stage={join?.stage || null}
         serverName={join?.serverName}
         onContinue={continueJoin}
         onFinish={() => void finishJoin()}
         onRetry={() => void retryJoin()}
+        onCancel={cancelJoin}
       />
       <JupiterErrorModal
         theme={theme}

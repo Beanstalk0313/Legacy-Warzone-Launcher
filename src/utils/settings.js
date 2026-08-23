@@ -11,10 +11,13 @@ import { invoke } from '@tauri-apps/api/core'
  *
  *   dynamic_sounds / dynamic_interfaces: 'enabled' | 'iw8' | 'jupiter'
  *   display_mode: 'fullscreen' | 'windowed'
+ *   display_monitor: monitor name (from list_monitors) or '' = default
+ *     monitor — which monitor the launcher window lives on
+ *   silent_mode: boolean (mute every launcher SFX)
  *   testing_server: boolean (list the local-only test server in the
  *     Server Browser / Quick Play)
  *   rtm_mode: boolean (show the raw RTM DEV TOOL panel on the RTM tab)
- *   auto_load_savedata: boolean (run RTM.exe -loaddata on Jupiter entry)
+ *   auto_load_savedata: boolean (write the loadstatus trigger on Jupiter entry)
  *   dev_server_name / dev_server_map / dev_server_mode /
  *   dev_server_lan_session: test-server metadata (Testing Server only)
  */
@@ -22,6 +25,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   dynamic_sounds: 'enabled',
   dynamic_interfaces: 'enabled',
   display_mode: 'fullscreen',
+  display_monitor: '',
+  silent_mode: false,
+  accent_jupiter: '#028fcc',
+  accent_iw8: '#d92323',
   testing_server: false,
   rtm_mode: false,
   auto_load_savedata: false,
@@ -40,6 +47,14 @@ const STORAGE_KEY = 'lwz-settings'
 const MAX_DEV_TEXT_LENGTH = 64
 
 export const isTauriRuntime = () => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
+
+/** Validate a hex color (#rrggbb); fall back to default if invalid. */
+function cleanHexColor(value, fallback) {
+  if (typeof value !== 'string') return fallback
+  const trimmed = value.trim()
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toLowerCase()
+  return fallback
+}
 
 /** Trim a hand-editable settings string; fall back when empty/too long/invalid. */
 function cleanSettingText(value, fallback, maxLength = MAX_DEV_TEXT_LENGTH) {
@@ -61,6 +76,15 @@ export function normalizeSettings(raw) {
   if (typeof source.display_mode === 'string' && DISPLAY_MODE_VALUES.includes(source.display_mode)) {
     result.display_mode = source.display_mode
   }
+  // The persisted monitor display name — blank means "the system's default
+  // monitor". Kept short + control-free so a hand-edited file can't store
+  // garbage; an unknown name just no-ops at apply time.
+  result.display_monitor = cleanSettingText(source.display_monitor, '', 128)
+  if (typeof source.silent_mode === 'boolean') {
+    result.silent_mode = source.silent_mode
+  }
+  result.accent_jupiter = cleanHexColor(source.accent_jupiter, DEFAULT_SETTINGS.accent_jupiter)
+  result.accent_iw8 = cleanHexColor(source.accent_iw8, DEFAULT_SETTINGS.accent_iw8)
   if (typeof source.testing_server === 'boolean') {
     result.testing_server = source.testing_server
   }

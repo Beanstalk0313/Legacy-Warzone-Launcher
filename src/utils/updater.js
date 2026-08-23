@@ -8,9 +8,10 @@ import { isTauriRuntime } from './jupiterRtm'
 // Download & Install → downloadAndInstall() pulls the signed NSIS installer
 // and relaunch() restarts into the new version.
 //
-// Release/signing setup lives in AUTO_UPDATE.md (generate the signing key,
-// put the PUBLIC key + repo endpoint into src-tauri/tauri.conf.json, and
-// publish releases via the .github/workflows/release.yml workflow).
+// Release/signing setup lives in the README's "Auto-update" section
+// (generate the signing key, put the PUBLIC key + repo endpoint into
+// src-tauri/tauri.conf.json, and publish releases via the
+// .github/workflows/release.yml workflow).
 
 // Returns the Update object when a newer version is available, else null.
 // Never throws — a missing/placeholder endpoint, no release yet, or being
