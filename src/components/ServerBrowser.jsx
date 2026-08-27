@@ -5,6 +5,7 @@ import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import { useJupiterSession } from '../utils/jupiterSession'
 import { useAuth } from './AuthProvider'
 import { useSettings } from './SettingsProvider'
+import { useTranslation } from '../utils/i18n'
 import JupiterErrorModal from './JupiterErrorModal'
 import { isServerLeaseFresh, unregisterOwnedServer } from '../utils/serverPresence'
 import { buildDevServer } from '../utils/devServer'
@@ -27,7 +28,8 @@ const regions = ['All Regions', 'North America', 'Europe', 'Asia Pacific']
 // are listed and whether the join flow is the Jupiter RTM sequence or the
 // IW8 stub). They're decoupled so Dynamic Interfaces can swap the shell
 // without changing the content.
-export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW8Join, initialInputMode = 'mouse' }) {
+export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW8Join, initialInputMode = 'mouse', gameMode = 'multiplayer' }) {
+  const { t } = useTranslation()
   const isJupiterStyle = theme === 'jupiter'
   const isJupiterContent = mod === 'jupiter'
   const hoverSound = isJupiterStyle ? 'jupHover' : 'iw8Hover'
@@ -64,7 +66,8 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
         if (error) throw error
         // A dead host can remain visible for at most one Cron tick. Filter
         // the lease client-side too so the browser reacts immediately.
-        const rows = (data || []).filter((row) => row.mod === contentMod && isServerLeaseFresh(row))
+        // Also filter by game_mode so each mode only sees its own lobbies.
+        const rows = (data || []).filter((row) => row.mod === contentMod && (row.game_mode || 'multiplayer') === gameMode && isServerLeaseFresh(row))
 
         // Resolve host labels from the public profile_names view (one
         // extra query for the distinct hosts in the list).
@@ -273,21 +276,21 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
     <section className={`server-browser ${isJupiterStyle ? 'server-browser-jupiter' : 'server-browser-iw8'}`}>
       <div className="server-browser-topline">
         <div>
-          <span className="server-browser-kicker">PLAY / COMMUNITY</span>
-          <h1>SERVER BROWSER</h1>
+          <span className="server-browser-kicker">{t('browser.kicker')}</span>
+          <h1>{t('browser.title')}</h1>
           <p>Find a lobby, check the rules, and deploy with your squad.</p>
         </div>
         {/* Jupiter shells hide the in-view Back button — the header back
             arrow returns to the main menu instead. IW8 shells keep it. Esc /
             controller Back still works on both. */}
         {!isJupiterStyle && (
-          <button type="button" className="server-browser-back" onMouseEnter={handleRegionHover} onClick={() => handleBrowserBack('mouse')}>Back</button>
+          <button type="button" className="server-browser-back" onMouseEnter={handleRegionHover} onClick={() => handleBrowserBack('mouse')}>{t('tut.back')}</button>
         )}
       </div>
 
       <div className="server-browser-toolbar">
         <label className="server-browser-search">
-          <span>Search</span>
+          <span>{t('browser.search').split('...')[0]}</span>
           <input
             value={search}
             onChange={(event) => {
@@ -306,12 +309,12 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
               }
               handleSearchKeyDown(event)
             }}
-            placeholder="Search servers, maps, or hosts"
-            aria-label="Search servers"
+            placeholder={t('browser.search')}
+            aria-label={t('browser.search')}
           />
         </label>
         <label className="server-browser-region">
-          <span>Region</span>
+          <span>{t('browser.region')}</span>
           <select
             value={region}
             onChange={handleRegionChange}
@@ -323,7 +326,7 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
         </label>
         <div className="server-browser-count">
           <strong>{filteredServers.length}</strong>
-          <span>LOBBIES FOUND</span>
+          <span>{t('browser.count')}</span>
         </div>
       </div>
 
@@ -332,22 +335,22 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
       <div className="server-browser-content">
         <div className="server-browser-list" role="listbox" aria-label="Available servers">
           <div className="server-browser-list-header">
-            <span>Server</span>
-            {!isJupiterContent && <span>Version</span>}
-            <span>Map / Mode</span>
-            <span>Players</span>
+            <span>{t('browser.col.server')}</span>
+            {!isJupiterContent && <span>{t('browser.col.version')}</span>}
+            <span>{t('browser.col.mapmode')}</span>
+            <span>{t('browser.col.players')}</span>
           </div>
           {filteredServers.length === 0 && (
             <div className="server-browser-empty">
               {!SUPABASE_CONFIGURED
-                ? 'Server list pending backend connection.'
+                ? t('browser.status.pending')
                 : loading
-                  ? 'Loading lobbies…'
+                  ? t('browser.status.loading')
                   : loadError
-                    ? 'Couldn\'t load the server list.'
+                    ? t('browser.status.error')
                     : servers.length === 0
-                      ? 'No lobbies hosted yet — Host a Match to get yours listed.'
-                      : 'No lobbies match those filters.'}
+                      ? t('browser.status.nohosted')
+                      : t('browser.status.nomatch')}
             </div>
           )}
           {filteredServers.map((server, index) => {
@@ -394,7 +397,7 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
                     onClick={(event) => void handleDeleteServer(event, server)}
                     disabled={deletingId === server.id}
                   >
-                    {deletingId === server.id ? 'Removing…' : 'Delete'}
+                    {deletingId === server.id ? t('browser.deleting') : t('browser.delete')}
                   </button>
                 )}
               </div>

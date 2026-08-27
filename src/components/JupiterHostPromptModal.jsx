@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useTranslation } from '../utils/i18n'
 
 // Jupiter host-entry prompt (HostMatch): a lightweight three-variant modal that
 // opens when the user clicks Host a Match (Jupiter only).
@@ -14,12 +15,13 @@ import { useControllerNavigation } from '../utils/controller'
 // No LAN session is collected here — the host pastes it in the Host a Match
 // form itself.
 const instructionsSteps = [
-  'In the PHA Client, click Local Play.',
-  'Click Create Local Game.',
-  'Return to the Warzone Legacy Launcher and click OK.',
+  'hostprompt.step1',
+  'hostprompt.step2',
+  'hostprompt.step3',
 ]
 
 export default function JupiterHostPromptModal({ theme = 'jupiter', prompt, onYes, onNo, onOk, onCancel }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -81,33 +83,29 @@ export default function JupiterHostPromptModal({ theme = 'jupiter', prompt, onYe
       >
         <div className="jupiter-join-accent-bar" />
         <div className="jupiter-join-content">
-          {!isAsk && <span className="jupiter-join-kicker">{isPrepping ? 'PREPARING GAME' : 'PHA CLIENT STEPS'}</span>}
+          {!isAsk && <span className="jupiter-join-kicker">{isPrepping ? t('hostprompt.kicker.prepping') : t('hostprompt.kicker.instructions')}</span>}
           <h2 id="jupiter-host-prompt-title">
-            {isAsk ? 'PREP PHA CLIENT?' : isPrepping ? 'PREPARING THE GAME' : 'SET UP YOUR LOCAL GAME'}
+            {isAsk ? t('hostprompt.title.ask') : isPrepping ? t('hostprompt.title.prepping') : t('hostprompt.title.instructions')}
           </h2>
 
           {isAsk ? (
             <p className="jupiter-join-intro">
-              Should the launcher drive the PHA Client menus to prepare your
-              local game? If you're already sitting in a local game lobby,
-              choose No to skip the prep and configure straight away.
+              {t('hostprompt.ask')}
             </p>
           ) : isPrepping ? (
             <div className="jupiter-host-prompt-prepping">
               <div className="jupiter-host-prompt-spinner" aria-hidden="true" />
               <p className="jupiter-join-intro">
-                The launcher is driving the local game menus. Keep the game
-                visible — this takes a few seconds.
+                {t('hostprompt.prepping')}
               </p>
             </div>
           ) : (
             <>
               <p className="jupiter-join-intro">
-                The launcher has prepared Jupiter. Create the local game in the
-                PHA Client, then return here.
+                {t('hostprompt.instructions')}
               </p>
               <ol className="jupiter-join-steps">
-                {instructionsSteps.map((step) => <li key={step}>{step}</li>)}
+                {instructionsSteps.map((key) => <li key={key}>{t(key)}</li>)}
               </ol>
             </>
           )}
@@ -121,7 +119,7 @@ export default function JupiterHostPromptModal({ theme = 'jupiter', prompt, onYe
                   onMouseEnter={handleHover}
                   onClick={handlePrimary}
                 >
-                  Yes
+                  {t('hostprompt.yes')}
                 </button>
                 <button
                   type="button"
@@ -129,7 +127,7 @@ export default function JupiterHostPromptModal({ theme = 'jupiter', prompt, onYe
                   onMouseEnter={handleHover}
                   onClick={handleSecondary}
                 >
-                  No
+                  {t('hostprompt.no')}
                 </button>
               </>
             ) : (
@@ -139,7 +137,7 @@ export default function JupiterHostPromptModal({ theme = 'jupiter', prompt, onYe
                 onMouseEnter={handleHover}
                 onClick={handlePrimary}
               >
-                {isPrepping ? 'Cancel Prep' : 'OK'}
+                {isPrepping ? t('hostprompt.cancelPrep') : t('hostprompt.ok')}
               </button>
             )}
           </div>

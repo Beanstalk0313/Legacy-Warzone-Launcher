@@ -6,6 +6,7 @@ import { useControllerNavigation } from '../utils/controller'
 import { focusTextInput } from '../utils/keyboard'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import { saveUserIdentity } from '../utils/userIdentity'
+import { useTranslation } from '../utils/i18n'
 import CustomSelect from './CustomSelect'
 
 // Account tab — full account management screen.
@@ -57,6 +58,7 @@ function validatePassword(value) {
 
 export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
   const { user, configured, signUp, signIn, signOut } = useAuth()
+  const { t } = useTranslation()
 
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
@@ -142,7 +144,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
     try {
       const { error } = await supabase.auth.updateUser({ data: { gamertag: trimmed } })
       if (error) throw error
-      setSaveMessage('Gamertag updated.')
+      setSaveMessage(t('account.profile.savedGamertag'))
       const identity = {
         discord_username: (user?.user_metadata?.discord_username || '').trim(),
         gamertag: trimmed,
@@ -170,7 +172,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
     try {
       const { error } = await supabase.auth.updateUser({ data: { discord_username: trimmed } })
       if (error) throw error
-      setSaveMessage('Discord username updated.')
+      setSaveMessage(t('account.profile.savedDiscord'))
       const identity = {
         discord_username: trimmed,
         gamertag: (user?.user_metadata?.gamertag || '').trim(),
@@ -198,7 +200,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
         .update({ region: value || null })
         .eq('user_id', user.id)
       if (error) throw error
-      setSaveMessage('Region updated.')
+      setSaveMessage(t('account.profile.savedRegion'))
     } catch (err) {
       setEditError(err?.message || 'Could not save region.')
     } finally {
@@ -290,14 +292,14 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
   // ── Controller nav (signed-in editor) ───────────────────────────────────
   // Rows: gamertag, discord, region, sign-out
   const signedInItems = useMemo(() => [
-    { kind: 'text', key: 'gamertag', label: 'Gamertag' },
-    { kind: 'text', key: 'discord', label: 'Discord Username' },
-    { kind: 'select', key: 'region', label: 'Region' },
-    { kind: 'action', key: 'signout', label: 'Sign Out' },
-  ], [])
+    { kind: 'text', key: 'gamertag', label: t('account.gamertag') },
+    { kind: 'text', key: 'discord', label: t('account.discord') },
+    { kind: 'select', key: 'region', label: t('account.region') },
+    { kind: 'action', key: 'signout', label: t('account.signout') },
+  ], [t])
 
-  const regionDisplay = profileRegion || 'Not set'
-  const regionOptions = useMemo(() => ['Not set', ...REGION_OPTIONS], [])
+  const regionDisplay = profileRegion || t('account.profile.notSet')
+  const regionOptions = useMemo(() => [t('account.profile.notSet'), ...REGION_OPTIONS], [t])
 
   const signedInFocusedIndex = useControllerNavigation({
     itemCount: signedInItems.length,
@@ -367,7 +369,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
     return (
       <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
         <div className="tab-header-title">
-          <h2>ACCOUNT</h2>
+          <h2>{t('account.title')}</h2>
         </div>
 
         {saveMessage && (
@@ -382,18 +384,18 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
           <div className="account-profile-info">
             <h3 className="account-display-name">{displayName}</h3>
             <span className="account-email-line">{userEmail}</span>
-            <span className="account-member-since">Member since {memberSince}</span>
+            <span className="account-member-since">{t('account.profile.memberSince')} {memberSince}</span>
           </div>
         </div>
 
         {/* ── Identity card — editable fields ───────────────────────────── */}
         <div className={`account-editor-card ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
-          <h4 className="account-card-heading">IDENTITY</h4>
+          <h4 className="account-card-heading">{t('account.profile.identity')}</h4>
 
           <label className={`account-editor-row ${signedInFocused('gamertag') ? 'controller-focused' : ''}`}>
             <div className="account-editor-label">
-              <strong>Gamertag</strong>
-              <span>Your in-game name, shown in lobbies and the server browser.</span>
+              <strong>{t('account.gamertag')}</strong>
+              <span>{t('account.profile.gamertag.desc')}</span>
             </div>
             <div className="account-editor-field">
               <input
@@ -409,14 +411,14 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
                 disabled={savingField === 'gamertag'}
                 onMouseEnter={() => playSound(hoverSound)}
               />
-              {savingField === 'gamertag' && <span className="account-saving-indicator">Saving…</span>}
+              {savingField === 'gamertag' && <span className="account-saving-indicator">{t('account.profile.saving')}</span>}
             </div>
           </label>
 
           <label className={`account-editor-row ${signedInFocused('discord') ? 'controller-focused' : ''}`}>
             <div className="account-editor-label">
-              <strong>Discord Username</strong>
-              <span>Your complete Discord username (not display name).</span>
+              <strong>{t('account.discord')}</strong>
+              <span>{t('account.profile.discord.desc')}</span>
             </div>
             <div className="account-editor-field">
               <input
@@ -432,14 +434,14 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
                 disabled={savingField === 'discord'}
                 onMouseEnter={() => playSound(hoverSound)}
               />
-              {savingField === 'discord' && <span className="account-saving-indicator">Saving…</span>}
+              {savingField === 'discord' && <span className="account-saving-indicator">{t('account.profile.saving')}</span>}
             </div>
           </label>
 
           <label className={`account-editor-row ${signedInFocused('region') ? 'controller-focused' : ''}`}>
             <div className="account-editor-label">
-              <strong>Region</strong>
-              <span>Shown as a flag on your player card.</span>
+              <strong>{t('account.region')}</strong>
+              <span>{t('account.profile.region.desc')}</span>
             </div>
             <div className="account-editor-field">
               <CustomSelect
@@ -465,12 +467,12 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
 
         {/* ── Account actions ───────────────────────────────────────────── */}
         <div className={`account-editor-card ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
-          <h4 className="account-card-heading">SESSION</h4>
+          <h4 className="account-card-heading">{t('account.profile.session')}</h4>
 
           <div className={`account-editor-row ${signedInFocused('signout') ? 'controller-focused' : ''}`}>
             <div className="account-editor-label">
-              <strong>Sign Out</strong>
-              <span>Ends your session. Your device identity is preserved for the ban system.</span>
+              <strong>{t('account.signout')}</strong>
+              <span>{t('account.profile.signout.desc')}</span>
             </div>
             <button
               type="button"
@@ -478,7 +480,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
               onClick={handleSignOut}
               onMouseEnter={() => playSound(hoverSound)}
             >
-              Sign Out
+              {t('account.signout')}
             </button>
           </div>
         </div>
@@ -497,32 +499,28 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
   return (
     <div className={`tab-content-panel account-tab-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="tab-header-title">
-        <h2>ACCOUNT</h2>
+        <h2>{t('account.title')}</h2>
       </div>
 
       {!configured && (
         <div className="account-not-configured-banner">
-          <h4>Backend not configured</h4>
+          <h4>{t('account.signin.backendNotConfigured')}</h4>
           <p>
-            Add <code>VITE_SUPABASE_URL</code> and{' '}
-            <code>VITE_SUPABASE_ANON_KEY</code> to <code>.env</code> then
-            restart the app. See <code>SUPABASE_SETUP.md</code> for the
-            walkthrough.
+            {t('account.signin.backendNotConfigured.desc')}
           </p>
         </div>
       )}
 
       {successMessage ? (
         <div className={`account-email-sent ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
-          <h3>Verify Your Email</h3>
+          <h3>{t('account.signin.verifyYourEmail')}</h3>
           <p>{successMessage}</p>
           <button
             type="button"
             className={`account-email-submit ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}
             onClick={() => { switchMode('signin'); setEmail(''); setPassword('') }}
-            onMouseEnter={() => playSound(hoverSound)}
-          >
-            Back to Sign In
+            onMouseEnter={() => playSound(hoverSound)}            >
+            {t('account.signin.backToSignIn')}
           </button>
         </div>
       ) : (
@@ -537,7 +535,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
                 onMouseEnter={() => playSound(hoverSound)}
                 disabled={!configured}
               >
-                Sign In
+                {t('account.signin')}
               </button>
               <button
                 type="button"
@@ -546,20 +544,20 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
                 onMouseEnter={() => playSound(hoverSound)}
                 disabled={!configured}
               >
-                Sign Up
+                {t('account.signup')}
               </button>
             </div>
 
             {mode === 'signup' && (
               <div className="account-beta-signup-notice">
-                <strong>Account required</strong>
-                <span>Your complete Discord username is required. Enter the username from your Discord account, not your display name.</span>
+                <strong>{t('account.signin.accountRequired')}</strong>
+                <span>{t('account.signin.accountRequired.desc')}</span>
               </div>
             )}
 
             {/* ── Email ─────────────────────────────────────────────── */}
             <label className="account-field">
-              <span>Email</span>
+              <span>{t('account.signin.emailLabel')}</span>
               <input
                 type="email"
                 value={email}
@@ -575,12 +573,12 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
 
             {/* ── Password ──────────────────────────────────────────── */}
             <label className="account-field">
-              <span>Password</span>
+              <span>{t('account.signin.passwordLabel')}</span>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder={t('account.signin.passwordLabel')}
                 disabled={!configured || submitting}
                 autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 onMouseEnter={() => playSound(hoverSound)}
@@ -592,7 +590,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
             {/* ── Discord username (sign-up only) ───────────────────── */}
             {mode === 'signup' && (
               <label className={`account-field ${formFocused('discord') ? 'controller-focused' : ''}`}>
-                <span>Discord Username <em>Required</em></span>
+                <span>{t('account.signin.discordLabel')} <em>{t('account.signin.discordRequiredBadge')}</em></span>
                 <input
                   type="text"
                   data-signup-field="discord"
@@ -607,7 +605,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
                   aria-invalid={discordUsernameError ? 'true' : 'false'}
                 />
                 <span className="account-field-hint">
-                  {discordUsernameError || 'Use your complete Discord username, not your display name.'}
+                  {discordUsernameError || t('account.signin.discordHint')}
                 </span>
               </label>
             )}
@@ -615,7 +613,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
             {/* ── Gamertag (sign-up only) ───────────────────────────── */}
             {mode === 'signup' && (
               <label className={`account-field ${formFocused('gamertag') ? 'controller-focused' : ''}`}>
-                <span>Gamertag</span>
+                <span>{t('account.signin.gamertagLabel')}</span>
                 <input
                   type="text"
                   data-signup-field="gamertag"
@@ -630,7 +628,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
                   aria-invalid={gamertagError ? 'true' : 'false'}
                 />
                 <span className="account-field-hint">
-                  {gamertagError || '3-20 characters · letters, numbers, underscore, dot.'}
+                  {gamertagError || t('account.signin.gamertagHint')}
                 </span>
               </label>
             )}
@@ -638,12 +636,12 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
             {/* ── Confirm password (sign-up only) ───────────────────── */}
             {mode === 'signup' && (
               <label className="account-field">
-                <span>Confirm Password</span>
+                <span>{t('account.signin.confirmPassword')}</span>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter password"
+                  placeholder={t('account.signin.confirmPassword')}
                   disabled={!configured || submitting}
                   autoComplete="new-password"
                   onMouseEnter={() => playSound(hoverSound)}
@@ -658,7 +656,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
               onMouseEnter={() => playSound(hoverSound)}
               disabled={!configured || submitting}
             >
-              {submitting ? 'Please wait…' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+              {submitting ? t('account.signin.pleaseWait') : mode === 'signin' ? t('account.signin') : t('account.signin.createAccount')}
             </button>
           </form>
 

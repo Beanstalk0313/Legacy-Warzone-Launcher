@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useTranslation } from '../utils/i18n'
 
 /**
  * Themed confirmation dialog for deleting the Jupiter game install.
@@ -22,6 +23,7 @@ export default function GameUninstallModal({
   onCancel,
   installPath = '',
 }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -81,13 +83,9 @@ export default function GameUninstallModal({
         <div className={`${modalPrefix}-error-accent-bar`} />
         <div className={`${modalPrefix}-error-content`}>
           <div className={`${modalPrefix}-error-copy`}>
-            <span className={`${modalPrefix}-error-kicker`}>JUPITER GAME</span>
-            <h2 id="game-uninstall-title">UNINSTALL GAME?</h2>
-            <p className="game-uninstall-desc">
-              This will permanently delete the game files from{' '}
-              <code>{installPath || 'your install folder'}</code>. You can
-              reinstall it later from the Install card.
-            </p>
+            <span className={`${modalPrefix}-error-kicker`}>{t('install.kicker')}</span>
+            <h2 id="game-uninstall-title">{t('uninstall.title')}</h2>
+            <p className="game-uninstall-desc" dangerouslySetInnerHTML={{ __html: t('uninstall.desc', { path: installPath || 'your install folder' }) }} />
             <div className="game-uninstall-actions">
               <button
                 type="button"
@@ -95,7 +93,7 @@ export default function GameUninstallModal({
                 onMouseEnter={() => playSound(hoverSound)}
                 onClick={handleClose}
               >
-                CANCEL
+                {t('uninstall.cancel')}
               </button>
               <button
                 type="button"
@@ -103,7 +101,7 @@ export default function GameUninstallModal({
                 onMouseEnter={() => playSound(hoverSound)}
                 onClick={handleConfirm}
               >
-                UNINSTALL
+                {t('uninstall.confirm')}
               </button>
             </div>
           </div>

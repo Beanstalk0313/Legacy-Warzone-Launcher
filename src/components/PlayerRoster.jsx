@@ -1,6 +1,7 @@
 import React from 'react'
 import { useAuth } from './AuthProvider'
 import { useJupiterSession } from '../utils/jupiterSession'
+import { useTranslation } from '../utils/i18n'
 import RegionFlag from './RegionFlag'
 
 // Right-side player HUD: the PARTY squad, shown while NOT in a match.
@@ -15,6 +16,7 @@ import RegionFlag from './RegionFlag'
 // content renders without a provider, so `useJupiterSession()` returns null
 // there and nothing shows.
 export default function PlayerRoster({ theme = 'jupiter' }) {
+  const { t } = useTranslation()
   const session = useJupiterSession()
   const { user } = useAuth()
   const partyMembers = session?.partyMembers || []
@@ -31,7 +33,7 @@ export default function PlayerRoster({ theme = 'jupiter' }) {
   return (
     <div className={`player-roster ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="player-roster-title">
-        SQUAD
+        {t('roster.squad')}
         <span className="player-roster-count">{partyMembers.length}</span>
       </div>
       <div className="player-roster-list">
@@ -45,7 +47,7 @@ export default function PlayerRoster({ theme = 'jupiter' }) {
             >
               <RegionFlag region={member.region} className="player-card-flag" />
               <span className="player-card-name">{member.name}</span>
-              {isMe && <span className="player-card-tag player-card-tag-me">YOU</span>}
+              {isMe && <span className="player-card-tag player-card-tag-me">{t('roster.you')}</span>}
             </div>
           )
         })}

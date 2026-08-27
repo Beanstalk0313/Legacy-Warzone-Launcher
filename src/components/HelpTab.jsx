@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
 import { openExternal } from '../utils/openExternal'
+import { useTranslation } from '../utils/i18n'
 
 // Community Discord servers. Each interface only lists its own mod's cards:
 //   Jupiter content → Hina Warzone Mods
@@ -44,6 +45,7 @@ const DISCORD_SERVERS = [
 // content mod), then the game-mod support card, and the launcher-help card
 // sits at the BOTTOM of everything.
 export default function HelpTab({ theme = 'iw8', mod = theme }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -91,14 +93,14 @@ export default function HelpTab({ theme = 'iw8', mod = theme }) {
   return (
     <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="tab-header-title">
-        <h2>HELP & SUPPORT</h2>
+        <h2>{t('help.title')}</h2>
 
       </div>
 
       <div className="help-sections" onMouseLeave={() => setLastOpened(null)}>
         {discords.length > 0 && (
           <>
-            <div className="help-section-kicker">COMMUNITY DISCORD SERVERS</div>
+            <div className="help-section-kicker">{t('help.discords')}</div>
             {discords.map((disc, index) => (
               <div
                 key={disc.name}
@@ -118,8 +120,8 @@ export default function HelpTab({ theme = 'iw8', mod = theme }) {
                 </div>
                 <p className="discord-note">{disc.note}</p>
                 <span className="discord-link-btn" aria-hidden="true">
-                  {lastOpened === disc.name ? 'Opening…' : (
-                    <>Join Server ({disc.displayUrl}) &#8599;</>
+                  {lastOpened === disc.name ? t('help.opening') : (
+                    <>{t('help.joinserver')} ({disc.displayUrl}) &#8599;</>
                   )}
                 </span>
               </div>
@@ -128,24 +130,24 @@ export default function HelpTab({ theme = 'iw8', mod = theme }) {
         )}
 
         <div className="help-card">
-          <h3>🎮 Game Mod Support ({isJupiterContent ? 'Hina WZ Mod' : 'IW8 & Hina WZ Mod'})</h3>
+          <h3>🎮 {t('help.gamemod.support')} ({isJupiterContent ? 'Hina WZ Mod' : 'IW8 & Hina WZ Mod'})</h3>
           <p>
-            Support for the {isJupiterContent ? 'Hina WZ Mod' : 'IW8 Mod or the Hina WZ Mod'} is best asked directly in {isJupiterContent ? 'the Hina Warzone Mods Discord' : 'one of the community Discords'}.
+            Support for the {isJupiterContent ? 'Hina WZ Mod' : 'IW8 Mod or the Hina WZ Mod'} {t('help.gamemod.best')} {isJupiterContent ? 'the Hina Warzone Mods Discord' : 'one of the community Discords'}.
           </p>
           <div className="help-tip-box">
-            <span>💡 <strong>Pro Tip:</strong> I'm very active in the <strong>Hina Warzone Mods Discord</strong> server and may be the one who helps you out directly!</span>
+            <span>💡 <strong>{t('help.gamemod.protip')}</strong> {t('help.gamemod.protip.desc')}</span>
           </div>
         </div>
 
         {/* Launcher-help card — deliberately LAST: help with this LFG tool
             sits at the bottom of everything on the tab. */}
         <div className="help-card highlight-card">
-          <h3>🛠️ LFG Tool App Support</h3>
+          <h3>🛠️ {t('help.launcher.support')}</h3>
           <p>
-            If you need assistance specifically with this LFG tool application or report bugs:
+            {t('help.launcher.desc')}
           </p>
           <div className="contact-box">
-            <span className="contact-label">Direct Discord Contact:</span>
+            <span className="contact-label">{t('help.launcher.contact')}</span>
             <span className="contact-tag">beanstalk313_16060</span>
           </div>
         </div>

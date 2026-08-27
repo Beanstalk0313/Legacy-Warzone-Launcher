@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useTranslation } from '../utils/i18n'
 
 export default function IW8QuitModal({ isOpen, onClose, onGoLauncher, onQuitDesktop }) {
+  const { t } = useTranslation()
   // Tracking input mode matches the pattern used by every other screen in the
   // app. Without this, the `useControllerNavigation` hook's default
   // focusedIndex of 0 paints `.controller-focused` on the Yes button even
@@ -57,10 +59,10 @@ export default function IW8QuitModal({ isOpen, onClose, onGoLauncher, onQuitDesk
   return (
     <div className="modal-overlay" onClick={handleNo} onMouseMove={handleMouseMove}>
       <div className="iw8-quit-modal" onClick={(e) => e.stopPropagation()}>
-        <h2 className="iw8-quit-title">Quit to Desktop?</h2>
+        <h2 className="iw8-quit-title">{t('quit.title')}</h2>
 
         <div className="iw8-quit-options">
-          {['Yes', 'No', 'Return Home'].map((label, index) => (
+          {[t('quit.yes'), t('quit.no'), t('quit.returnshell')].map((label, index) => (
             <button
               key={label}
               className={`iw8-quit-option-btn ${inputMode === 'controller' && focusedIndex === index ? 'controller-focused' : ''}`}

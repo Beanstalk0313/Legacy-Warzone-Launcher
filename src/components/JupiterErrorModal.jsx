@@ -2,8 +2,10 @@ import React, { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useTranslation } from '../utils/i18n'
 
 export default function JupiterErrorModal({ theme = 'jupiter', isOpen, title = 'REQUEST FAILED', message, onClose }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -55,9 +57,9 @@ export default function JupiterErrorModal({ theme = 'jupiter', isOpen, title = '
         <div className={`${isJupiter ? 'jupiter' : 'iw8'}-error-accent-bar`} />
         <div className={`${isJupiter ? 'jupiter' : 'iw8'}-error-content`}>
           <div className={`${isJupiter ? 'jupiter' : 'iw8'}-error-copy`}>
-            <span className={`${isJupiter ? 'jupiter' : 'iw8'}-error-kicker`}>SYSTEM MESSAGE</span>
+            <span className={`${isJupiter ? 'jupiter' : 'iw8'}-error-kicker`}>{t('error.kicker')}</span>
             <h2 id="jupiter-error-title">{title}</h2>
-            <p>{message || 'The requested operation could not be completed.'}</p>
+            <p>{message || t('error.default')}</p>
           </div>
           <button
             type="button"
@@ -65,7 +67,7 @@ export default function JupiterErrorModal({ theme = 'jupiter', isOpen, title = '
             onMouseEnter={() => playSound(hoverSound)}
             onClick={handleClose}
           >
-            Acknowledge
+            {t('error.acknowledge')}
           </button>
         </div>
       </div>

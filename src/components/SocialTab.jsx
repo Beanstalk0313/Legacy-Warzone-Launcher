@@ -6,6 +6,7 @@ import { focusTextInput } from '../utils/keyboard'
 import { useAuth } from './AuthProvider'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import { getDisplayName } from '../utils/displayName'
+import { useTranslation } from '../utils/i18n'
 
 // Social tab — friends + party management.
 //
@@ -43,6 +44,7 @@ const SOCIAL_CACHE_TTL_MS = 30000
 
 export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -689,9 +691,9 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
 
         </div>
         <div className={`social-locked-state ${themeClass}`}>
-          <h3 className="social-locked-title">You aren't signed in.</h3>
+          <h3 className="social-locked-title">{t('social.locked.title')}</h3>
           <p className="social-locked-body">
-            To access friends and parties, you'll need to sign in to an account.
+            {t('social.locked.desc')}
           </p>
           <button
             type="button"
@@ -699,7 +701,7 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
             onClick={handleSignUpClick}
             onMouseEnter={() => playSound(hoverSound)}
           >
-            Go to Sign Up
+            {t('social.locked.cta')}
           </button>
         </div>
       </div>
@@ -714,8 +716,8 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
 
         </div>
         <div className="social-locked-state ${themeClass}">
-          <h3 className="social-locked-title">Backend not configured.</h3>
-          <p className="social-locked-body">Add your Supabase credentials to use friends and parties.</p>
+          <h3 className="social-locked-title">{t('social.locked.backend')}</h3>
+          <p className="social-locked-body">{t('social.locked.backend.desc')}</p>
         </div>
       </div>
     )
@@ -740,24 +742,24 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
         {/* ── Friends column ─────────────────────────────────────────── */}
         <div className={`social-panel ${themeClass}`}>
           <div className="social-panel-head">
-            <span className="social-panel-kicker">FRIENDS</span>
+            <span className="social-panel-kicker">{t('social.friends')}</span>
             {totalFriends > 0 && <span className="social-panel-count">{totalFriends}</span>}
           </div>
 
           <div className="social-add-friend">
             <label className="social-add-search">
-              <span>Add Friend</span>
+              <span>{t('social.addfriend')}</span>
               <input
                 className={`social-add-search-input ${isNavFocused((item) => item.kind === 'search') ? 'controller-focused' : ''}`}
                 value={searchQuery}
                 onChange={(event) => handleSearchChange(event.target.value)}
-                placeholder="Search by gamertag"
+                placeholder={t('social.searchplaceholder')}
                 maxLength={20}
                 spellCheck={false}
                 onKeyDown={(event) => event.stopPropagation()}
               />
             </label>
-            {searching && <div className="social-search-status">Searching…</div>}
+            {searching && <div className="social-search-status">{t('social.searching')}</div>}
             {!searching && searchResults.length > 0 && (
               <div className="social-search-results">
                 {searchResults.map((profile) => (
@@ -765,28 +767,28 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                     <span className="social-avatar">{avatarInitial(profile.name)}</span>
                     <span className="social-result-name">{profile.name}</span>
                     <button type="button" className={`social-add-btn ${themeClass} ${isNavFocused((item) => item.kind === 'addFriend' && item.profile.userId === profile.userId) ? 'controller-focused' : ''}`} onClick={() => handleAddFriend(profile)} onMouseEnter={handleHover} disabled={busy}>
-                      Add
+                      {t('social.add')}
                     </button>
                   </div>
                 ))}
               </div>
             )}
             {!searching && searchQuery.trim() && searchResults.length === 0 && (
-              <div className="social-search-status">No players found.</div>
+              <div className="social-search-status">{t('social.noresults')}</div>
             )}
           </div>
 
           <div className="social-friend-groups">
             {friends.incoming.length > 0 && (
               <div className="social-friend-group">
-                <span className="social-group-title">INCOMING REQUESTS</span>
+                <span className="social-group-title">{t('social.incoming')}</span>
                 {friends.incoming.map((friend) => (
                   <div key={friend.userId} className="social-friend-row">
                     <span className="social-avatar social-avatar-incoming">{avatarInitial(friend.name)}</span>
                     <span className="social-friend-name">{friend.name}</span>
                     <div className="social-friend-actions">
-                      <button type="button" className={`social-accept ${isNavFocused((item) => item.kind === 'acceptFriend' && item.friend.userId === friend.userId) ? 'controller-focused' : ''}`} onClick={() => handleAcceptFriend(friend)} onMouseEnter={handleHover} disabled={busy}>Accept</button>
-                      <button type="button" className={`social-decline ${isNavFocused((item) => item.kind === 'declineFriend' && item.friend.userId === friend.userId) ? 'controller-focused' : ''}`} onClick={() => handleDeclineFriend(friend)} onMouseEnter={handleHover} disabled={busy}>Decline</button>
+                      <button type="button" className={`social-accept ${isNavFocused((item) => item.kind === 'acceptFriend' && item.friend.userId === friend.userId) ? 'controller-focused' : ''}`} onClick={() => handleAcceptFriend(friend)} onMouseEnter={handleHover} disabled={busy}>{t('social.accept')}</button>
+                      <button type="button" className={`social-decline ${isNavFocused((item) => item.kind === 'declineFriend' && item.friend.userId === friend.userId) ? 'controller-focused' : ''}`} onClick={() => handleDeclineFriend(friend)} onMouseEnter={handleHover} disabled={busy}>{t('social.decline')}</button>
                     </div>
                   </div>
                 ))}
@@ -795,28 +797,28 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
 
             {friends.outgoing.length > 0 && (
               <div className="social-friend-group">
-                <span className="social-group-title">OUTGOING REQUESTS</span>
+                <span className="social-group-title">{t('social.outgoing')}</span>
                 {friends.outgoing.map((friend) => (
                   <div key={friend.userId} className="social-friend-row social-friend-row-muted">
                     <span className="social-avatar social-avatar-muted">{avatarInitial(friend.name)}</span>
                     <span className="social-friend-name">{friend.name}</span>
-                    <span className="social-pending-tag">PENDING</span>
+                    <span className="social-pending-tag">{t('social.pending')}</span>
                   </div>
                 ))}
               </div>
             )}
 
             <div className="social-friend-group">
-              <span className="social-group-title">FRIENDS {totalFriends > 0 && `(${totalFriends})`}</span>
+              <span className="social-group-title">{t('social.friends')} {totalFriends > 0 && `(${totalFriends})`}</span>
               {friends.accepted.length === 0 && (
-                <div className="social-empty">No friends yet — search a gamertag above to add one.</div>
+                <div className="social-empty">{t('social.empty')}</div>
               )}
               {friends.accepted.map((friend) => (
                 <div
                   key={friend.userId}
                   className="social-friend-row"
                   onContextMenu={(event) => openFriendMenu(event, friend)}
-                  title="Right-click for options"
+                  title={t('social.rightclick')}
                 >
                   <span className="social-avatar">{avatarInitial(friend.name)}</span>
                   {editingNick?.friendId === friend.userId ? (
@@ -835,8 +837,8 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                         }}
                       />
                       <button type="button" className="social-nick-save" onClick={() => handleSaveNickname(friend)} onMouseEnter={handleHover} disabled={busy}>
-                        Save
-                      </button>
+                {t('social.save')}
+              </button>
                       <button type="button" className="social-nick-cancel" onClick={() => setEditingNick(null)} onMouseEnter={handleHover}>
                         ✕
                       </button>
@@ -868,20 +870,20 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
         {/* ── Party column ───────────────────────────────────────────── */}
         <div className={`social-panel ${themeClass}`}>
           <div className="social-panel-head">
-            <span className="social-panel-kicker">PARTY</span>
+            <span className="social-panel-kicker">{t('social.party.title')}</span>
             {party && <span className="social-panel-count">{party.members.length}</span>}
           </div>
 
           {partyInvites.length > 0 && (
             <div className="social-friend-group">
-              <span className="social-group-title">PARTY INVITES</span>
+              <span className="social-group-title">{t('social.party.invites')}</span>
               {partyInvites.map((invite) => (
                 <div key={invite.id} className="social-friend-row">
                   <span className="social-avatar social-avatar-incoming">{avatarInitial(invite.inviterName)}</span>
-                  <span className="social-friend-name">{invite.inviterName} invited you</span>
+                  <span className="social-friend-name">{t('social.party.invitedYou', { name: invite.inviterName })}</span>
                   <div className="social-friend-actions">
-                    <button type="button" className={`social-accept ${isNavFocused((item) => item.kind === 'acceptInvite' && item.invite.id === invite.id) ? 'controller-focused' : ''}`} onClick={() => handleAcceptPartyInvite(invite)} onMouseEnter={handleHover} disabled={busy}>Accept</button>
-                    <button type="button" className={`social-decline ${isNavFocused((item) => item.kind === 'declineInvite' && item.invite.id === invite.id) ? 'controller-focused' : ''}`} onClick={() => handleDeclinePartyInvite(invite)} onMouseEnter={handleHover} disabled={busy}>Decline</button>
+                    <button type="button" className={`social-accept ${isNavFocused((item) => item.kind === 'acceptInvite' && item.invite.id === invite.id) ? 'controller-focused' : ''}`} onClick={() => handleAcceptPartyInvite(invite)} onMouseEnter={handleHover} disabled={busy}>{t('social.accept')}</button>
+                    <button type="button" className={`social-decline ${isNavFocused((item) => item.kind === 'declineInvite' && item.invite.id === invite.id) ? 'controller-focused' : ''}`} onClick={() => handleDeclinePartyInvite(invite)} onMouseEnter={handleHover} disabled={busy}>{t('social.decline')}</button>
                   </div>
                 </div>
               ))}
@@ -895,11 +897,11 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                   {isLeader && <span className="social-party-crown">★</span>}
                   <span className="social-party-leader-name">{party.leaderName}</span>
                 </div>
-                <span className="social-party-role">{isLeader ? 'LEADER' : 'MEMBER'}</span>
+                <span className="social-party-role">{isLeader ? t('social.party.leader') : t('social.party.member')}</span>
               </div>
 
               <div className="social-party-code-row">
-                <span className="social-party-code-label">INVITE CODE</span>
+                <span className="social-party-code-label">{t('social.party.inviteCode')}</span>
                 <div className="social-party-code-chip">
                   <code>{party.inviteCode || '—'}</code>
                   <button
@@ -909,7 +911,7 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                     onMouseEnter={handleHover}
                     disabled={!party.inviteCode}
                   >
-                    {codeCopied ? 'Copied' : 'Copy'}
+                    {codeCopied ? t('social.party.copied') : t('social.party.copy')}
                   </button>
                 </div>
               </div>
@@ -920,32 +922,32 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                     <span className={`social-avatar ${member.userId === party.leaderUserId ? 'social-avatar-leader' : ''}`}>{avatarInitial(member.name)}</span>
                     {member.userId === party.leaderUserId && <span className="social-party-crown">★</span>}
                     <span className="social-party-member-name">{member.name}</span>
-                    {member.userId === myId && <span className="social-party-you">YOU</span>}
+                    {member.userId === myId && <span className="social-party-you">{t('roster.you')}</span>}
                   </div>
                 ))}
               </div>
 
               {party.leaderServerId && (
-                <div className="social-party-status">Leader is in a lobby — your client follows automatically.</div>
+                <div className="social-party-status">{t('social.party.leaderInLobby')}</div>
               )}
 
               <button type="button" className={`social-party-leave ${isNavFocused((item) => item.kind === 'leaveParty') ? 'controller-focused' : ''}`} onClick={handleLeaveParty} onMouseEnter={handleHover} disabled={busy}>
-                {isLeader ? 'Disband Party' : 'Leave Party'}
+                {isLeader ? t('social.disband') : t('social.leaveparty')}
               </button>
             </div>
           ) : (
             <div className="social-party-join">
               <button type="button" className={`social-party-create ${themeClass} ${isNavFocused((item) => item.kind === 'createParty') ? 'controller-focused' : ''}`} onClick={handleCreateParty} onMouseEnter={handleHover} disabled={busy}>
-                Create Party
+                {t('social.createparty')}
               </button>
-              <div className="social-party-or"><span>OR</span></div>
+              <div className="social-party-or"><span>{t('social.party.or')}</span></div>
               <label className="social-party-code-field">
-                <span>Join Party with Code</span>
+                <span>{t('social.party.joinWithCode')}</span>
                 <input
                   className={`social-party-code-input ${isNavFocused((item) => item.kind === 'partyCode') ? 'controller-focused' : ''}`}
                   value={partyCode}
                   onChange={(event) => setPartyCode(event.target.value.toUpperCase())}
-                  placeholder="Enter 6-character code"
+                  placeholder={t('social.party.joinCodePlaceholder')}
                   maxLength={6}
                   spellCheck={false}
                   onKeyDown={(event) => {
@@ -955,13 +957,13 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                 />
               </label>
               <button type="button" className={`social-party-joinbtn ${themeClass} ${isNavFocused((item) => item.kind === 'joinParty') ? 'controller-focused' : ''}`} onClick={handleJoinPartyByCode} onMouseEnter={handleHover} disabled={busy || !partyCode.trim()}>
-                Join Party
+                {t('social.joinparty')}
               </button>
             </div>
           )}
 
           <p className="social-party-hint">
-            When the party leader joins a lobby, every member's client automatically joins it too.
+            {t('social.party.hint')}
           </p>
         </div>
       </div>
@@ -985,10 +987,10 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                 Remove {friendMenu.friend.name} from your friends?
               </div>
               <button type="button" className="social-context-item social-context-danger" onClick={() => handleRemoveFriend(friendMenu.friend)} onMouseEnter={handleHover} disabled={busy}>
-                Remove Friend
+                {t('social.context.remove')}
               </button>
               <button type="button" className="social-context-item" onClick={closeFriendMenu} onMouseEnter={handleHover}>
-                Cancel
+                {t('social.context.cancel')}
               </button>
             </>
           ) : (
@@ -1005,15 +1007,14 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
               </button>
               {(!party || !isLeader) && (
                 <div className="social-context-hint">
-                  {!party ? 'Create or join a party to invite.' : 'Only the party leader can invite.'}
+                  {!party ? t('social.context.createPartyHint') : t('social.context.leaderOnlyHint')}
                 </div>
               )}
-              <button type="button" className="social-context-item" onClick={() => startEditingNickname(friendMenu.friend)} onMouseEnter={handleHover}>
-                {nicknames[friendMenu.friend.userId] ? 'Edit Nickname' : 'Set Nickname'}
+              <button type="button" className="social-context-item" onClick={() => startEditingNickname(friendMenu.friend)} onMouseEnter={handleHover}>                  {nicknames[friendMenu.friend.userId] ? t('social.context.editNickname') : t('social.context.nickname')}
               </button>
               {nicknames[friendMenu.friend.userId] && (
                 <button type="button" className="social-context-item" onClick={() => handleClearNickname(friendMenu.friend)} onMouseEnter={handleHover}>
-                  Clear Nickname
+                  {t('social.context.clearNickname')}
                 </button>
               )}
               <button
@@ -1025,7 +1026,7 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
                 }}
                 onMouseEnter={handleHover}
               >
-                Remove Friend…
+                {t('social.context.removeFriend')}
               </button>
             </>
           )}

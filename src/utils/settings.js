@@ -39,16 +39,17 @@ export const DEFAULT_SETTINGS = Object.freeze({
   dev_server_map: 'Rebirth Island',
   dev_server_mode: 'Resurgence',
   dev_server_lan_session: '',
-  // Where the Jupiter game is installed (empty = not set / not installed yet).
-  game_install_path: '',
   // Controller/keyboard glyph pack ('auto' = detect from the connected pad).
   glyph_platform: 'auto',
+  // Display language ('en' | 'fr' | 'ru' | 'es' | 'zh-CN')
+  language: 'en',
 })
 
 const SETTING_KEYS = ['dynamic_sounds', 'dynamic_interfaces']
 const DYNAMIC_SETTING_VALUES = ['enabled', 'iw8', 'jupiter']
 const DISPLAY_MODE_VALUES = ['fullscreen', 'windowed']
 const GLYPH_PLATFORM_VALUES = ['auto', 'keyboard', 'xbox', 'playstation', 'switch', 'steam', 'steamdeck']
+const LANGUAGE_VALUES = ['en', 'fr', 'ru', 'es', 'zh-CN']
 
 const STORAGE_KEY = 'lwz-settings'
 
@@ -125,6 +126,9 @@ export function normalizeSettings(raw) {
   result.game_install_path = cleanSettingText(source.game_install_path, '', 512)
   if (typeof source.glyph_platform === 'string' && GLYPH_PLATFORM_VALUES.includes(source.glyph_platform)) {
     result.glyph_platform = source.glyph_platform
+  }
+  if (typeof source.language === 'string' && LANGUAGE_VALUES.includes(source.language)) {
+    result.language = source.language
   }
   return result
 }

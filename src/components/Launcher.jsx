@@ -83,12 +83,12 @@ export default function Launcher({ onSelectMod, expandingMod = null, collapsingM
     playSound('iw8Hover')
   }
 
-  const handleSelectJupiter = (e) => {
+  const handleSelectJupiter = (e, gameMode) => {
     e?.stopPropagation()
     playSound('jupSelect')
     try { window.localStorage.setItem(LAST_MOD_KEY, 'jupiter') } catch {}
     setLastMod('jupiter')
-    onSelectMod('jupiter')
+    onSelectMod('jupiter', gameMode || 'multiplayer')
   }
 
   const handleSelectIW8 = (e) => {
@@ -161,13 +161,27 @@ export default function Launcher({ onSelectMod, expandingMod = null, collapsingM
       >
         <img src={jupLogo} alt="Warzone III" className="launcher-logo" />
 
-        <div className="launcher-button-wrapper">
+        <div className="launcher-button-stack">
           <button
-            className={`btn-launcher-play-jupiter ${inputMode === 'controller' && focusedButtonIndex === 0 ? 'controller-focused' : ''}`}
-            onClick={handleSelectJupiter}
+            className="btn-launcher-play-jupiter"
+            onClick={(e) => handleSelectJupiter(e, 'warzone')}
             onMouseEnter={handleHoverJupButton}
           >
-            Play
+            Warzone
+          </button>
+          <button
+            className="btn-launcher-play-jupiter"
+            onClick={(e) => handleSelectJupiter(e, 'zombies')}
+            onMouseEnter={handleHoverJupButton}
+          >
+            Zombies
+          </button>
+          <button
+            className={`btn-launcher-play-jupiter ${inputMode === 'controller' && focusedButtonIndex === 0 ? 'controller-focused' : ''}`}
+            onClick={(e) => handleSelectJupiter(e, 'multiplayer')}
+            onMouseEnter={handleHoverJupButton}
+          >
+            Multiplayer
           </button>
         </div>
       </div>

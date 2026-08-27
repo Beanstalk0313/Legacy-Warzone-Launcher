@@ -1,7 +1,17 @@
+/* CoD font */
+@font-face {
+  font-family: 'CoD';
+  src: url('./assets/font/CoD.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Hitmarker & CoD Tactical Theme System */
 :root {
-  --font-family: 'Hitmarker', 'Rajdhani', -apple-system, sans-serif;
-  --font-heading: 'Hitmarker', 'Teko', 'Rajdhani', sans-serif;
+  font-size: 14px;
+  --font-family: 'CoD', 'Rajdhani', -apple-system, sans-serif;
+  --font-heading: 'CoD', 'Teko', 'Rajdhani', sans-serif;
   
   /* Jupiter Mod Theme Variables */
   --jupiter-accent: #028fcc;
@@ -532,9 +542,20 @@ button, a {
   width: 100%;
 }
 
+/* Jupiter launcher button stack — 3 game modes */
+.launcher-button-stack {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 24px;
+}
+
 /* Launcher Play Buttons */
 .btn-launcher-play-jupiter {
-  background-color: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   color: #ffffff;
   font-size: 2.5rem;
   font-weight: 700;
@@ -547,8 +568,8 @@ button, a {
 
 .launcher-container:not(.controller-mode) .btn-launcher-play-jupiter:hover,
 .launcher-container.controller-mode .btn-launcher-play-jupiter.controller-focused {
-  background-color: var(--jupiter-accent-hover);
-  transform: translateY(-2px);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 .btn-launcher-play-iw8 {
@@ -755,7 +776,18 @@ button, a {
 
 .jupiter-quit-option-btn:hover,
 .jupiter-quit-option-btn.controller-focused {
-  background-color: var(--jupiter-accent);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+}
+
+/* ── Zombies mode rough accent bar ────────────────────────────────────── */
+/* The red accent bar under cards gets an organic slanted edge with curves
+   and a fade-out — like torn metal or a zombie-worn slash. */
+.zombies-mode .jupiter-card-select-bar-below {
+  height: 56px;
+  border-radius: 0;
+  background: linear-gradient(to bottom, var(--jupiter-accent) 0%, var(--jupiter-accent) 50%, rgba(96, 18, 18, 0.4) 75%, rgba(96, 18, 18, 0.0) 100%);
+  clip-path: url(#zombiesBarClip);
 }
 
 .controller-hints {
@@ -935,6 +967,28 @@ button, a {
   height: 38px;
   width: auto;
   object-fit: contain;
+}
+
+/* Zombies logo is square (not wide like MWIII), so it needs an explicit
+   width to match the visual weight of the wide logos. */
+.header-logo-img-jup-zombies {
+  height: 38px;
+  width: 38px;
+  min-width: unset;
+  max-width: unset;
+  object-fit: contain;
+}
+
+/* MWIII logo at 38px height renders ~38×152px (4:1 aspect). The zombies
+   MWZ logo is 1:1, so at 38px height it's just 38×38. To match the visual
+   weight of the wide MWIII logo, we let it be taller. */
+.jupiter-header .header-logo-img-jup-zombies {
+  height: 110px;
+  width: 110px;
+  object-fit: contain;
+  margin-left: 0;
+  margin-right: 0;
+  transform: translateX(-8px);
 }
 
 /* The same Jupiter asset inside the taller IW8 header: keep it prominent
@@ -1639,7 +1693,7 @@ button, a {
   padding: 13px 16px;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   font-size: 0.92rem;
   font-weight: 800;
   border-radius: 4px;
@@ -1653,7 +1707,7 @@ button, a {
 }
 
 .jupiter-quickplay-modal-btn.secondary {
-  background: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
 }
 
 /* Jupiter Quit Button (Top Left — back arrow) */
@@ -1735,18 +1789,17 @@ button, a {
   padding: 11px 22px;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(0, 0, 0, 0.42);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   font-size: 0.85rem;
   font-weight: 800;
   border-radius: 4px;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .server-browser-back:hover,
 .server-browser-deploy:hover {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: #000000;
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 .server-browser-toolbar {
@@ -2013,8 +2066,8 @@ button, a {
 
 .server-browser-jupiter .server-browser-deploy:hover,
 .server-browser-jupiter .server-browser-back:hover {
-  background: var(--jupiter-accent-hover);
-  border-color: var(--jupiter-accent-hover);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
   color: #ffffff;
 }
 
@@ -2064,7 +2117,7 @@ button, a {
   padding: 11px 22px;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(0, 0, 0, 0.42);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   font-size: 0.85rem;
   font-weight: 800;
   border-radius: 4px;
@@ -2074,9 +2127,8 @@ button, a {
 .host-match-back:hover,
 .host-match-deploy:hover,
 .host-match-deploy.controller-focused {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: #000000;
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 .host-match-layout {
@@ -2969,7 +3021,7 @@ button, a {
 
 .options-reset-btn {
   flex: 0 0 auto;
-  background: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   border: 1px solid rgba(255, 255, 255, 0.28);
   color: #ffffff;
   font-size: 0.92rem;
@@ -2977,13 +3029,12 @@ button, a {
   letter-spacing: 0.08em;
   padding: 13px 28px;
   border-radius: 4px;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .options-reset-btn:hover {
   background: var(--jupiter-accent);
   border-color: var(--jupiter-accent);
-  transform: translateY(-1px);
 }
 
 .iw8-theme .options-reset-btn:hover {
@@ -2994,7 +3045,6 @@ button, a {
 .options-reset-btn.controller-focused {
   background: var(--jupiter-accent);
   border-color: var(--jupiter-accent);
-  transform: translateY(-1px);
   box-shadow: 0 0 0 1px var(--jupiter-accent), 0 0 12px rgba(0, 200, 255, 0.18);
 }
 
@@ -3163,23 +3213,21 @@ button, a {
 
 .modding-tool-btn {
   flex: 0 0 auto;
-  background: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   color: #ffffff;
   font-size: 1.05rem;
   font-weight: 800;
   padding: 13px 26px;
   border-radius: 4px;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .modding-tool-btn:hover:not(:disabled) {
-  background: var(--jupiter-accent-hover);
-  transform: translateY(-2px);
+  background: var(--jupiter-accent);
 }
 
 .modding-tool-btn.controller-focused {
   background: var(--jupiter-accent);
-  transform: translateY(-2px);
 }
 
 .iw8-theme .modding-tool-btn.controller-focused {
@@ -3696,8 +3744,8 @@ button, a {
 
 /* --- Jupiter Quit Modal (jupiter quit.png - NO HOVER TRANSLATE SHIFT) --- */
 .jupiter-quit-modal {
-  width: 680px;
-  height: 260px;
+  width: 1190px;
+  height: 455px;
   background-color: #111317;
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
@@ -3709,7 +3757,7 @@ button, a {
 }
 
 .jupiter-quit-accent-bar {
-  width: 32px;
+  width: 16px;
   background-color: var(--jupiter-accent);
   height: 100%;
   /* The accent bar sits at the modal's left edge. Its left corners need
@@ -3725,40 +3773,39 @@ button, a {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 30px 38px;
+  padding: 52px 66px;
 }
 
 .jupiter-quit-title {
-  font-size: 2.2rem;
+  font-size: 3.85rem;
   font-weight: 700;
   color: #ffffff;
 }
 
-/* Buttons sit in a bottom-right horizontal row, mirroring the host-prompt
-   modal's action row (jupiter-join-actions) instead of the old vertical
-   stack on the right edge. */
+/* Buttons sit in a vertical stack on the right side, mirroring the join
+   modal's action layout. */
 .jupiter-quit-buttons-stack {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 21px;
   width: 100%;
 }
 
 .jupiter-quit-option-btn {
-  min-width: 150px;
-  background-color: rgba(255, 255, 255, 0.12);
+  min-width: 262px;
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   color: #ffffff;
-  font-size: 1.5rem;
+  font-size: 2.625rem;
   font-weight: 700;
-  padding: 12px 24px;
+  padding: 21px 42px;
   text-align: center;
   border-radius: 4px;
-  transition: background-color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .jupiter-quit-option-btn:hover {
-  background-color: var(--jupiter-accent);
+  background: var(--jupiter-accent);
   border-color: var(--jupiter-accent);
 }
 
@@ -3766,8 +3813,8 @@ button, a {
    modal's overlay, accent rail, typography, and controller focus behavior. */
 .jupiter-error-modal,
 .iw8-error-modal {
-  width: 680px;
-  min-height: 230px;
+  width: 1190px;
+  min-height: 402px;
   background-color: #111317;
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
@@ -3779,8 +3826,8 @@ button, a {
 }
 
 .jupiter-error-accent-bar {
-  width: 32px;
-  flex: 0 0 32px;
+  width: 16px;
+  flex: 0 0 16px;
   background-color: var(--jupiter-accent);
   border-radius: 4px 0 0 4px;
 }
@@ -3791,8 +3838,8 @@ button, a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 28px;
-  padding: 30px 38px;
+  gap: 49px;
+  padding: 52px 66px;
 }
 
 .jupiter-error-copy,
@@ -3811,18 +3858,18 @@ button, a {
 
 .jupiter-error-copy h2,
 .iw8-error-copy h2 {
-  margin-top: 6px;
+  margin-top: 10px;
   color: #ffffff;
-  font-size: 2.1rem;
+  font-size: 3.675rem;
   line-height: 1.05;
 }
 
 .jupiter-error-copy p,
 .iw8-error-copy p {
-  max-width: 390px;
-  margin-top: 12px;
+  max-width: 682px;
+  margin-top: 21px;
   color: rgba(255, 255, 255, 0.68);
-  font-size: 0.86rem;
+  font-size: 1.505rem;
   line-height: 1.5;
   text-transform: none;
   overflow-wrap: anywhere;
@@ -3830,12 +3877,13 @@ button, a {
 
 .jupiter-error-acknowledge,
 .iw8-error-acknowledge {
-  flex: 0 0 190px;
-  padding: 13px 16px;
+  flex: 0 0 auto;
+  min-width: 332px;
+  padding: 22px 28px;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.12);
-  font-size: 0.92rem;
+  font-size: 1.61rem;
   font-weight: 800;
   border-radius: 4px;
   transition: all 0.15s ease;
@@ -3852,8 +3900,8 @@ button, a {
    allowing the instruction and manual-command states to grow vertically. */
 .jupiter-join-modal,
 .jupiter-host-prompt-modal {
-  width: 820px;
-  max-height: 680px;
+  width: 1435px;
+  max-height: 1190px;
   overflow: auto;
   display: flex;
   background: #111317;
@@ -3864,15 +3912,15 @@ button, a {
 }
 
 .jupiter-join-accent-bar {
-  width: 32px;
-  flex: 0 0 32px;
+  width: 16px;
+  flex: 0 0 16px;
   background: var(--jupiter-accent);
   border-radius: 4px 0 0 4px;
 }
 
 .jupiter-join-content {
   flex: 1;
-  padding: 30px 38px;
+  padding: 52px 66px;
 }
 
 .jupiter-join-kicker {
@@ -3880,27 +3928,27 @@ button, a {
 }
 
 .jupiter-join-content h2 {
-  margin-top: 7px;
+  margin-top: 12px;
   color: #ffffff;
-  font-size: 2.15rem;
+  font-size: 3.7625rem;
   line-height: 1.05;
 }
 
 .jupiter-join-intro {
-  max-width: 700px;
-  margin-top: 16px;
+  max-width: 1225px;
+  margin-top: 28px;
   color: rgba(255, 255, 255, 0.72);
-  font-size: 0.9rem;
+  font-size: 1.575rem;
   line-height: 1.55;
   text-transform: none;
 }
 
 .jupiter-join-steps {
   display: grid;
-  gap: 9px;
-  margin: 20px 0 26px 22px;
+  gap: 16px;
+  margin: 35px 0 45px 38px;
   color: #ffffff;
-  font-size: 0.95rem;
+  font-size: 1.6625rem;
   text-transform: none;
 }
 
@@ -3942,20 +3990,20 @@ button, a {
 
 .jupiter-join-actions {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 28px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 21px;
+  margin-top: 49px;
 }
 
 .jupiter-join-button {
-  min-width: 150px;
-  padding: 13px 18px;
+  min-width: 262px;
+  padding: 22px 31px;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   border-radius: 4px;
-  font-size: 0.88rem;
+  font-size: 1.54rem;
   font-weight: 800;
   transition: all 0.15s ease;
 }
@@ -3970,7 +4018,7 @@ button, a {
    as every other button — neutral surface, cyan accent on hover/focus. No
    red: a retry is not an error state. */
 .jupiter-join-button.secondary {
-  background: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
 }
 
 .jupiter-join-button.secondary:hover,
@@ -3982,7 +4030,7 @@ button, a {
 .jupiter-join-sending,
 .jupiter-join-preparing {
   color: rgba(255, 255, 255, 0.58);
-  font-size: 0.8rem;
+  font-size: 1.4rem;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4446,15 +4494,14 @@ button, a {
 }
 
 .jupiter-auth-notice .auth-required-notice-signin {
-  background-color: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   color: #ffffff;
-  border: 1px solid var(--jupiter-accent);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .jupiter-auth-notice .auth-required-notice-signin:hover {
-  background-color: var(--jupiter-accent-hover);
-  border-color: var(--jupiter-accent-hover);
-  transform: translateY(-1px);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 .auth-required-notice-dismiss {
@@ -4568,7 +4615,7 @@ button, a {
   letter-spacing: 0.08em;
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .social-locked-cta.iw8-theme {
@@ -4584,15 +4631,14 @@ button, a {
 }
 
 .social-locked-cta.jupiter-theme {
-  background-color: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   color: #ffffff;
-  border: 1px solid var(--jupiter-accent);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .social-locked-cta.jupiter-theme:hover {
-  background-color: var(--jupiter-accent-hover);
-  border-color: var(--jupiter-accent-hover);
-  transform: translateY(-1px);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 
@@ -4867,14 +4913,14 @@ button, a {
 }
 
 .account-signout-btn.jupiter-theme {
-  background-color: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   color: #ffffff;
-  border: 1px solid var(--jupiter-accent);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .account-signout-btn.jupiter-theme:hover {
-  background-color: var(--jupiter-accent-hover);
-  border-color: var(--jupiter-accent-hover);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 /* ---- Sign-in panel ---- */
@@ -4995,14 +5041,13 @@ button, a {
 }
 
 .account-provider-btn.jupiter-theme:hover {
-  background-color: rgba(40, 44, 52, 0.96);
+  background: var(--jupiter-accent);
   border-color: var(--jupiter-accent);
-  transform: translateY(-1px);
 }
 
 /* Controller-focused styles for provider buttons */
 .account-provider-btn.controller-focused {
-  transform: translateY(-2px);
+  /* no lift */
 }
 
 .account-provider-btn.iw8-theme.controller-focused {
@@ -5012,14 +5057,12 @@ button, a {
 }
 
 .account-provider-btn.jupiter-theme.controller-focused {
-  background-color: rgba(40, 44, 52, 0.96);
+  background: var(--jupiter-accent);
   border-color: var(--jupiter-accent);
-  transform: translateY(-2px);
 }
 
 /* Controller-focused style for email submit button */
 .account-email-submit.controller-focused {
-  transform: translateY(-2px);
   opacity: 0.9;
 }
 
@@ -5215,15 +5258,14 @@ button, a {
 }
 
 .account-email-submit.jupiter-theme {
-  background-color: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   color: #ffffff;
-  border: 1px solid var(--jupiter-accent);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .account-email-submit.jupiter-theme:hover {
-  background-color: var(--jupiter-accent-hover);
-  border-color: var(--jupiter-accent-hover);
-  transform: translateY(-1px);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 .account-signin-error {
@@ -5402,14 +5444,13 @@ button, a {
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #ffffff;
-  background: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   border-radius: 3px;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .jupiter-session-toast-actions button:hover {
-  background: var(--jupiter-accent-hover);
-  transform: translateY(-1px);
+  background: var(--jupiter-accent);
 }
 
 .jupiter-session-toast-actions button.secondary {
@@ -5754,15 +5795,14 @@ button, a {
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #ffffff;
-  background: rgba(2, 143, 204, 0.75);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 3px;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .host-dashboard-return:hover:not(:disabled) {
-  background: var(--jupiter-accent-hover);
-  transform: translateY(-1px);
+  background: var(--jupiter-accent);
 }
 
 .host-dashboard-return.controller-focused {
@@ -5966,15 +6006,15 @@ button, a {
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #ffffff;
-  background: rgba(217, 35, 35, 0.85);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 3px;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .host-dashboard-close:hover:not(:disabled) {
-  background: #d92323;
-  transform: translateY(-1px);
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
 }
 
 .host-dashboard-close.controller-focused {
@@ -6222,7 +6262,6 @@ button, a {
 .social-friend-row:hover {
   background: rgba(255, 255, 255, 0.09);
   border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-1px);
 }
 
 .social-friend-row-muted {
@@ -6254,12 +6293,11 @@ button, a {
 
 .social-add-btn {
   flex: 0 0 auto;
-  background: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
 }
 
 .social-add-btn:hover:not(:disabled) {
-  background: var(--jupiter-accent-hover);
-  transform: translateY(-1px);
+  background: var(--jupiter-accent);
 }
 
 .social-add-btn.iw8-theme {
@@ -6545,16 +6583,13 @@ button, a {
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #ffffff;
-  background: var(--jupiter-accent);
+  background: linear-gradient(to bottom, #424141 0%, #252626 100%);
   border-radius: 4px;
-  box-shadow: 0 4px 14px rgba(2, 143, 204, 0.35);
-  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .social-party-create:hover:not(:disabled) {
-  background: var(--jupiter-accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(3, 166, 237, 0.45);
+  background: var(--jupiter-accent);
 }
 
 .social-party-create.iw8-theme {
@@ -8203,3 +8238,291 @@ button, a {
 .launcher-glyph-img {
   height: 18px;
 }
+
+/* ==========================================================================
+   TUTORIAL OVERLAY (first sign-in walkthrough per mod theme)
+   ========================================================================== */
+.tutorial-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: auto;
+}
+
+.tutorial-spotlight-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.tutorial-dim-full {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
+  animation: modalFadeIn 0.25s ease forwards;
+}
+
+/* Tutorial card positioning & surface */
+.tutorial-card {
+  width: 520px;
+  background: rgba(14, 16, 20, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 2010;
+}
+
+.jupiter-tutorial-card {
+  border-color: rgba(2, 143, 204, 0.4);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 24px rgba(2, 143, 204, 0.15);
+}
+
+.iw8-tutorial-card {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85);
+}
+
+/* Accent bar at top of card */
+.tutorial-accent-bar {
+  height: 3px;
+  width: 100%;
+}
+
+.jupiter-tutorial-accent {
+  background: linear-gradient(90deg, #028fcc 0%, #00b4d8 100%);
+}
+
+.iw8-tutorial-accent {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 100%);
+}
+
+/* Card content body */
+.tutorial-card-body {
+  padding: 24px 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tutorial-step-counter {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: #028fcc;
+  text-transform: uppercase;
+}
+
+.iw8-tutorial-card .tutorial-step-counter {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tutorial-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.tutorial-body {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+
+  /* Custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.tutorial-body p {
+  margin: 0;
+}
+
+/* Action row at bottom of card */
+.tutorial-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.tutorial-btn {
+  height: 38px;
+  padding: 0 18px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Primary buttons */
+.jupiter-tutorial-btn-primary {
+  background-color: #028fcc;
+  color: #ffffff;
+  border: 1px solid #028fcc;
+  margin-left: auto;
+}
+
+.jupiter-tutorial-btn-primary:hover,
+.jupiter-tutorial-btn-primary.controller-focused {
+  background-color: #03a9f4;
+  border-color: #03a9f4;
+  box-shadow: 0 0 14px rgba(2, 143, 204, 0.5);
+}
+
+.iw8-tutorial-btn-primary {
+  background-color: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  margin-left: auto;
+}
+
+.iw8-tutorial-btn-primary:hover,
+.iw8-tutorial-btn-primary.controller-focused {
+  background-color: #e0e0e0;
+  border-color: #e0e0e0;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+}
+
+/* Secondary & Skip buttons */
+.tutorial-btn-secondary,
+.tutorial-btn-skip {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.tutorial-btn-secondary:hover,
+.tutorial-btn-skip:hover,
+.tutorial-btn-secondary.controller-focused,
+.tutorial-btn-skip.controller-focused {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Arrow indicator positioning & animation */
+.tutorial-arrow-wrapper {
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2005;
+}
+
+.tutorial-arrow-down {
+  transform: translate(-50%, calc(-100% - 16px));
+}
+
+.tutorial-arrow-up {
+  transform: translate(-50%, 16px);
+}
+
+.tutorial-arrow-right {
+  transform: translate(calc(-100% - 16px), -50%);
+}
+
+.tutorial-arrow-left {
+  transform: translate(16px, -50%);
+}
+
+.tutorial-arrow {
+  width: 32px;
+  height: 32px;
+  color: #028fcc;
+  animation: tutorialArrowBounce 1.2s ease-in-out infinite alternate;
+}
+
+.iw8-tutorial .tutorial-arrow {
+  color: #ffffff;
+}
+
+@keyframes tutorialArrowBounce {
+  from {
+    transform: scale(1) translateY(0);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1.15) translateY(6px);
+    opacity: 1;
+  }
+}
+
+/* Options row action buttons (e.g. Launcher Tutorial) */
+.options-row-action {
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.options-row-action:hover,
+.options-row-action.controller-focused {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.jupiter-theme .options-row-action.controller-focused,
+.jupiter-theme .options-row-action:hover {
+  border-color: rgba(2, 143, 204, 0.6);
+  background-color: rgba(2, 143, 204, 0.12);
+}
+
+.btn-options-action {
+  padding: 8px 18px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  transition: all 0.15s ease;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.jupiter-theme .btn-options-action {
+  background-color: #028fcc;
+  border-color: #028fcc;
+  color: #ffffff !important;
+}
+
+.jupiter-theme .options-row-action:hover .btn-options-action,
+.jupiter-theme .options-row-action.controller-focused .btn-options-action,
+.jupiter-theme .btn-options-action:hover {
+  background-color: #03a9f4;
+  border-color: #03a9f4;
+  box-shadow: 0 0 12px rgba(2, 143, 204, 0.5);
+}
+
+.iw8-theme .btn-options-action {
+  background-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff !important;
+}
+
+.iw8-theme .options-row-action:hover .btn-options-action,
+.iw8-theme .options-row-action.controller-focused .btn-options-action,
+.iw8-theme .btn-options-action:hover {
+  background-color: #ffffff;
+  border-color: #ffffff;
+  color: #000000 !important;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+}
+
+

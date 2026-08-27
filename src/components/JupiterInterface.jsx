@@ -26,27 +26,43 @@ import { destroyAppWithServerCleanup, isServerLeaseFresh } from '../utils/server
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import JupiterSessionProvider, { useJupiterSession } from '../utils/jupiterSession'
 import JupiterInstallModal from './JupiterInstallModal'
+import TutorialOverlay, { hasTutorialBeenSeen, markTutorialSeen } from './TutorialOverlay'
+import { useTranslation } from '../utils/i18n'
 import jupLogo from '../assets/jup_logo.png'
+import jupWarzoneLogo from '../assets/jup_warzone_logo.png'
+import jupZombiesLogo from '../assets/jup_zombies_logo.png'
 import iw8Logo from '../assets/iw8_logo.png'
+import { runRtm, runJupiterPrepSequence, isTauriRuntime } from '../utils/jupiterRtm'
 import jupQuickImg from '../assets/jup_quick.jpg'
 import jupQuickIcon from '../assets/jup_quick_icon.png'
+import jupQuickIconWarzone from '../assets/jup_quick_icon_warzone.png'
+import jupQuickIconZombies from '../assets/jup_zombies_quick_icon.png'
 import jupSearchingImg from '../assets/jup_searching.png'
 import jupFoundImg from '../assets/quick_play_found.jpg'
 import jupBrowseImg from '../assets/jup_browse.jpg'
 import jupHostImg from '../assets/jup_host.jpg'
+import jupWarzoneBrowseImg from '../assets/jup_warzone_browse.jpg'
+import jupWarzoneHostImg from '../assets/jup_warzone_host.jpg'
+import jupZombiesBrowseImg from '../assets/jup_zombies_browse.jpg'
+import jupZombiesHostImg from '../assets/jup_zombies_host.jpg'
 import jupInstallImg from '../assets/jup_install.jpg'
 import jupPlayImg from '../assets/jup_play.jpg'
 
-const cardDetails = {
-  // Quick Play carries an `icon` — the tile's title renders as a top-left
-  // badge (circle emblem + label beside it) instead of the bottom-left
-  // title the other cards use.
-  'Quick Play': { title: 'Quick Play', subtitle: 'Find any open match', image: jupQuickImg, imageAlt: 'Quick Play — cinematic squad shot', icon: jupQuickIcon },
-  'Server Browser': { title: 'Server Browser', subtitle: 'Browse & join custom tactical servers', image: jupBrowseImg, imageAlt: 'Server Browser — island map overview' },
-  'Host a Match': { title: 'Host a Match', subtitle: 'Host your own dedicated server', image: jupHostImg, imageAlt: 'Host a Match — combat screenshot' },
+// Card images and icons vary by game mode (multiplayer / warzone / zombies).
+// Quick Play always uses the same background image; only its badge icon
+// changes for warzone mode.
+function getCardDetailsForMode(gameMode) {
+  const browseImg = gameMode === 'warzone' ? jupWarzoneBrowseImg : gameMode === 'zombies' ? jupZombiesBrowseImg : jupBrowseImg
+  const hostImg = gameMode === 'warzone' ? jupWarzoneHostImg : gameMode === 'zombies' ? jupZombiesHostImg : jupHostImg
+  const quickIcon = gameMode === 'warzone' ? jupQuickIconWarzone : gameMode === 'zombies' ? jupQuickIconZombies : jupQuickIcon
+  return {
+    'Quick Play': { title: 'Quick Play', subtitle: 'Find any open match', image: jupQuickImg, imageAlt: 'Quick Play — cinematic squad shot', icon: quickIcon },
+    'Server Browser': { title: 'Server Browser', subtitle: 'Browse & join custom tactical servers', image: browseImg, imageAlt: 'Server Browser — island map overview' },
+    'Host a Match': { title: 'Host a Match', subtitle: 'Host your own dedicated server', image: hostImg, imageAlt: 'Host a Match — combat screenshot' },
+  }
 }
 
-const cardKeys = Object.keys(cardDetails)
+
 
 // Fourth Play-card slot, only shown for Jupiter content (installing/launching
 // the Jupiter game is a Jupiter-only feature). Its label + progress are
@@ -85,12 +101,45 @@ export default function JupiterInterface({ mod = 'jupiter', ...props }) {
 // controller nav must go quiet, otherwise Enter/Esc double-fire on both the
 // modal and the menu behind it (e.g. a party auto-join can open the quit
 // modal over the join modal).
-function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, isEntering = false, isLeaving = false }) {
+function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, isEntering = false, isLeaving = false, gameMode = 'multiplayer' }) {
   const { user } = useAuth()
   const { settings, setSetting } = useSettings()
+  const { t } = useTranslation()
   const session = useJupiterSession() // null without a provider (IW8 content)
   const isJupiterContent = mod === 'jupiter'
   const displayName = user ? getDisplayName(user) : ''
+
+  // ── Game mode: logo + accent + RTM auto-trigger ──────────────────────
+  const isZombiesMode = gameMode === 'zombies'
+  const isWarzoneMode = gameMode === 'warzone'
+  const modeLogo = isZombiesMode ? jupZombiesLogo : isWarzoneMode ? jupWarzoneLogo : jupLogo
+  const modeAlt = isZombiesMode ? 'Zombies' : isWarzoneMode ? 'Warzone' : 'Multiplayer'
+
+  // Card details + keys vary by game mode (browse/host images, quick play icon).
+  const cardDetails = getCardDetailsForMode(gameMode)
+  const cardKeys = Object.keys(cardDetails)
+
+  // Auto-run RTM command on mount when entering with a specific mode
+  const autoRanRef = useRef(false)
+  useEffect(() => {
+    if (!isJupiterContent || autoRanRef.current || !isTauriRuntime()) return
+    if (gameMode === 'multiplayer') return
+    autoRanRef.current = true
+    ;(async () => {
+      try {
+        if (gameMode === 'zombies') {
+          await runRtm(['-setzombies'])
+        } else if (gameMode === 'warzone') {
+          await runJupiterPrepSequence(1500)
+        }
+      } catch (err) {
+        console.warn('[jupiter] auto mode switch failed', err)
+      }
+    })()
+  }, [isJupiterContent, gameMode])
+
+  // Zombies accent override
+  const zombiesAccentOverride = isZombiesMode ? { '--jupiter-accent': '#601212', '--jupiter-accent-hover': '#7a1818' } : null
   // Six tabs with Jupiter content (RTM tab is Jupiter-specific UI); five
   // without (IW8 content). Discord merged into Help (one "Help" tab lists
   // the mod's community servers + support cards):
@@ -130,6 +179,9 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   const { glyphPlatform } = useGlyphPlatform()
   const [isQuitModalOpen, setIsQuitModalOpen] = useState(false)
   const [inputMode, setInputMode] = useState('mouse')
+  // Tutorial: shown once per user after first sign-in in this interface.
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const tutorialShownRef = useRef(false)
   const [playView, setPlayView] = useState('menu')
   // True while the Modding tab's error modal is open — its own controller
   // hook handles the keys, so the interface hook must go quiet (mirrors
@@ -172,6 +224,27 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
 
   const handleHover = () => playSound('jupHover')
 
+  // Open the tutorial once per user, after the entrance animation completes.
+  useEffect(() => {
+    if (!user?.id || isEntering || isLeaving || tutorialShownRef.current) return
+    if (hasTutorialBeenSeen(user.id)) return
+    tutorialShownRef.current = true
+    // Give the interface entrance animation 1.2s to finish before the overlay.
+    const id = window.setTimeout(() => setTutorialOpen(true), 1200)
+    return () => window.clearTimeout(id)
+  }, [user?.id, isEntering, isLeaving])
+
+  const handleTutorialClose = () => {
+    if (user?.id) markTutorialSeen(user.id)
+    setTutorialOpen(false)
+  }
+
+  const handleRetakeTutorial = () => {
+    setActiveHeaderTab('Play')
+    setPlayView('menu')
+    setTutorialOpen(true)
+  }
+
   // ── Quick Play: search 60s → countdown → auto-join ────────────────────
   // Clicking Quick Play swaps the tile decal to jup_searching.png (with a
   // subtle breathing pulse — see .is-quickplay-active in styles.css), hides
@@ -213,12 +286,13 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
     return (
       (data || []).find(
         (row) => row.mod === 'jupiter' &&
+          (row.isDevServer || (row.game_mode || 'multiplayer') === gameMode) &&
           isServerLeaseFresh(row) &&
           typeof row.lan_session === 'string' &&
           row.lan_session.trim() !== ''
       ) || null
     )
-  }, [settings])
+  }, [settings, gameMode])
 
   // Swap to the 'found' phase (tiles stay collapsed, decal back to the
   // quick artwork, countdown pill appears) and run the 3s auto-join
@@ -544,7 +618,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       if (direction === 'right') return Math.min(quitIdx, currentIndex + 1)
       return currentIndex
     },
-    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !noMatchModal && !installError && !installModalOpen && !uninstallConfirmOpen,
+    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !noMatchModal && !installError && !installModalOpen && !uninstallConfirmOpen && !tutorialOpen,
     bumpersOnly: isInSubView,
     onConfirm: (index, source) => {
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
@@ -614,19 +688,32 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   }
 
   const focusedQuitIdx = activeHeaderTab === 'Play' ? quitIdx : tabs.length
-  const activeInfo = hoveredCard === INSTALL_CARD
-    ? {
-        title: installGame.installed ? 'Launch Game' : installGame.busy ? 'Installing…' : 'Install',
+  const getCardInfo = (cardName) => {
+    if (cardName === INSTALL_CARD) {
+      return {
+        title: installGame.installed ? t('play.launchgame') : installGame.busy ? t('play.installing') : t('play.install'),
         subtitle: installGame.installed
-          ? 'Launch the installed game'
+          ? t('play.launchgame.sub')
           : installGame.busy
-            ? 'Downloading & extracting — tap to view progress'
-            : 'Download + install the Jupiter game',
+            ? t('play.installing.sub')
+            : t('play.install.sub'),
       }
-    : cardDetails[hoveredCard] || cardDetails['Quick Play']
+    }
+    if (cardName === 'Quick Play') {
+      return { title: t('play.quickplay'), subtitle: t('play.quickplay.sub') }
+    }
+    if (cardName === 'Server Browser') {
+      return { title: t('play.serverbrowser'), subtitle: t('play.serverbrowser.sub') }
+    }
+    if (cardName === 'Host a Match') {
+      return { title: t('play.hostmatch'), subtitle: t('play.hostmatch.sub') }
+    }
+    return cardDetails[cardName] || cardDetails['Quick Play']
+  }
+  const activeInfo = getCardInfo(hoveredCard)
 
   return (
-    <div className={`jupiter-interface-container wallpaper-${mod} ${mod === 'iw8' ? 'content-iw8' : ''} ${isEntering ? 'is-entering' : ''} ${isLeaving ? 'is-leaving' : ''}`} onMouseMove={handleMouseMove}>
+    <div className={`jupiter-interface-container wallpaper-${mod} ${mod === 'iw8' ? 'content-iw8' : ''} ${isEntering ? 'is-entering' : ''} ${isLeaving ? 'is-leaving' : ''} ${isZombiesMode ? 'zombies-mode' : ''}`} style={zombiesAccentOverride} onMouseMove={handleMouseMove}>
       {/* Top Header Bar */}
       <header className="jupiter-header">
         {/* Logo Left — with IW8 content the logo swaps to IW8's (the Jupiter
@@ -634,7 +721,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
             follows the ASSET (not the shell) — each header sizes both assets
             for its own context in styles.css. */}
         <div className="jupiter-logo">
-          <img src={isJupiterContent ? jupLogo : iw8Logo} alt={isJupiterContent ? 'Warzone III' : 'Warzone 1'} className={isJupiterContent ? 'header-logo-img-jup' : 'header-logo-img-iw8'} />
+          <img src={isJupiterContent ? modeLogo : iw8Logo} alt={isJupiterContent ? modeAlt : 'Warzone 1'} className={isJupiterContent ? (isZombiesMode ? 'header-logo-img-jup header-logo-img-jup-zombies' : 'header-logo-img-jup') : 'header-logo-img-iw8'} />
         </div>
 
         {/* Centered Navigation Tabs */}
@@ -649,7 +736,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                 onMouseEnter={handleHover}
                 onClick={() => handleTabClick(tab)}
               >
-                {tab}
+                {t('tab.' + tab.toLowerCase())}
               </button>
             )
           })}
@@ -680,11 +767,11 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       <main className="jupiter-main-body">
         <div key={`${activeHeaderTab}-${playView}`} className="tab-slide-container">
           {activeHeaderTab === 'Play' && playView === 'browser' && !inServer && (
-            <ServerBrowser theme="jupiter" mod={mod} initialInputMode={inputMode} onBack={handleBackToMenu} />
+            <ServerBrowser theme="jupiter" mod={mod} initialInputMode={inputMode} onBack={handleBackToMenu} gameMode={gameMode} />
           )}
 
           {activeHeaderTab === 'Play' && playView === 'host' && !inServer && (
-            <HostMatch theme="jupiter" mod={mod} initialInputMode={inputMode} onBack={handleBackToMenu} />
+            <HostMatch theme="jupiter" mod={mod} initialInputMode={inputMode} onBack={handleBackToMenu} gameMode={gameMode} />
           )}
 
           {activeHeaderTab === 'Play' && playView === 'menu' && (
@@ -721,10 +808,10 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                   if (cardName === INSTALL_CARD) {
                     const isControllerFocused = inputMode === 'controller' && focusedControllerIndex === firstCardIdx + cardIndex
                     const cardLabel = installGame.installed
-                      ? 'LAUNCH GAME'
+                      ? t('play.launchgame')
                       : installGame.busy
-                        ? 'INSTALLING'
-                        : 'INSTALL'
+                        ? t('play.installing')
+                        : t('play.installbtn')
                     const cardImage = installGame.installed ? jupPlayImg : jupInstallImg
                     const cardImageAlt = installGame.installed
                       ? 'Launch Game — start the installed Jupiter game'
@@ -750,8 +837,8 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                         </div>
                         <div className={`jupiter-card-select-bar-below ${isControllerFocused ? 'bar-controller-darken' : ''}`}>
                           <span className="bar-select-label">
-                            <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'confirm')} alt="" aria-hidden="true" />
-                            Select
+                            {inputMode === 'controller' && <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'confirm')} alt="" aria-hidden="true" />}
+                            {t('play.select')}
                           </span>
                           {showDivider && <div key={installDividerKey} className="bar-center-divider" />}
                           {showDivider && (
@@ -763,8 +850,8 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                               tabIndex={0}
                               onKeyDown={(e) => { if (e.key === 'Enter') handleUninstallClick(e) }}
                             >
-                              <span className="bar-uninstall-label">UNINSTALL</span>
-                              <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'uninstall')} alt="" aria-hidden="true" />
+                              <span className="bar-uninstall-label">{t('play.uninstall')}</span>
+                              {inputMode === 'controller' && <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'uninstall')} alt="" aria-hidden="true" />}
                             </span>
                           )}
                         </div>
@@ -828,7 +915,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                             JOINING IN <span>{quickPlay.countdown}</span>
                           </div>
                         )}
-                        {!card.icon && <div className="jupiter-card-title">{cardName}</div>}
+                        {!card.icon && <div className="jupiter-card-title">{cardName === 'Quick Play' ? t('play.quickplay') : cardName === 'Server Browser' ? t('play.serverbrowser') : cardName === 'Host a Match' ? t('play.hostmatch') : cardName}</div>}
                       </div>
                       {/* The Quick Play badge lives OUTSIDE .jupiter-card: the
                           enlarged emblem mostly floats above the tile, and the
@@ -837,13 +924,13 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                       {card.icon && (
                         <div className="jupiter-card-badge">
                           <img src={card.icon} alt="" className="jupiter-card-badge-icon" draggable="false" />
-                          <span className="jupiter-card-badge-text">{cardName}</span>
+                          <span className="jupiter-card-badge-text">{t('play.quickplay')}</span>
                         </div>
                       )}
                       <div className={`jupiter-card-select-bar-below ${isControllerFocused2 ? 'bar-controller-darken' : ''}`}>
                         <span className="bar-select-label">
-                          <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'confirm')} alt="" aria-hidden="true" />
-                          Select
+                          {inputMode === 'controller' && <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'confirm')} alt="" aria-hidden="true" />}
+                          {t('play.select')}
                         </span>
                       </div>
                     </div>
@@ -868,7 +955,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
           )}
           {activeHeaderTab === 'RTM' && isJupiterContent && <ModdingTab theme="jupiter" onModalChange={setModdingErrorOpen} />}
           {activeHeaderTab === 'Help' && <HelpTab theme="jupiter" mod={mod} />}
-          {activeHeaderTab === 'Options' && <OptionsTab theme="jupiter" onModalChange={setInterfaceModalOpen} />}
+          {activeHeaderTab === 'Options' && <OptionsTab theme="jupiter" onModalChange={setInterfaceModalOpen} onRetakeTutorial={handleRetakeTutorial} />}
         </div>
       </main>
 
@@ -954,6 +1041,12 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
         theme="jupiter"
         entranceActive={isEntering || isLeaving}
         onSwitchToAccount={() => handleTabClick('Account')}
+      />
+
+      <TutorialOverlay
+        isOpen={tutorialOpen}
+        theme="jupiter"
+        onClose={handleTutorialClose}
       />
     </div>
   )

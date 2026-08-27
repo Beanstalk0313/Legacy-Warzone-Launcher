@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { playSound } from '../utils/audio'
+import { useTranslation } from '../utils/i18n'
 import { useControllerNavigation } from '../utils/controller'
 import { focusTextInput } from '../utils/keyboard'
 import { useAuth } from './AuthProvider'
@@ -40,7 +41,8 @@ const first = (items) => items[0]
 // mod's maps/modes, prep flow, publish pipeline and dashboard apply). They're
 // decoupled so Dynamic Interfaces can swap the shell without changing the
 // content.
-export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialInputMode = 'mouse' }) {
+export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialInputMode = 'mouse', gameMode = 'multiplayer' }) {
+  const { t } = useTranslation()
   const isJupiterStyle = theme === 'jupiter'
   const isJupiterContent = mod === 'jupiter'
   const hoverSound = isJupiterStyle ? 'jupHover' : 'iw8Hover'
@@ -474,8 +476,9 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           // The server is a leased resource: the centralized presence module
           // renews this timestamp while the app is alive.
           last_heartbeat_at: new Date().toISOString(),
-          // Mod filter (migration 0007) + stale-host cleanup instance id.
+          // Mod filter (migration 0007) + game mode filter (0017) + stale-host cleanup instance id.
           mod: isJupiterContent ? 'jupiter' : 'iw8',
+          game_mode: isJupiterContent ? gameMode : 'multiplayer',
           instance_id: appInstanceId,
         }).select('*').single()
         if (error) throw error
@@ -824,16 +827,15 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       <section className={`host-match ${isJupiterStyle ? 'host-match-jupiter' : 'host-match-iw8'}`}>
         <div className="host-match-heading">
           <div>
-            <span className="host-match-kicker">PLAY / HOSTING</span>
-            <h1>LOBBY CONTROL</h1>
-            <p>Your lobby is live — manage players and the match configuration.</p>
+            <span className="host-match-kicker">{t('host.dashboard.kicker')}</span>
+            <h1>{t('host.dashboard.title')}</h1>
           </div>
         </div>
 
         <div className="host-dashboard">
           <div className="host-dashboard-main">
             <div className="host-dashboard-lobby">
-              <span className="host-dashboard-kicker">LIVE LOBBY</span>
+              <span className="host-dashboard-kicker">{t('host.dashboard.title')}</span>
               <input
                 type="text"
                 className={`host-dashboard-name-input ${dashboardIsFocused('name') ? 'controller-focused' : ''}`}
@@ -851,8 +853,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                 spellCheck={false}
               />
               <div className="host-dashboard-line"><span>Region</span><strong>{hosted.region || '—'}</strong></div>
-              <label className={`host-dashboard-field ${dashboardIsFocused('lanSession') ? 'controller-focused' : ''}`} onMouseEnter={handleHostHover}>
-                <span>LAN Session</span>
+              <label className={`host-dashboard-field ${dashboardIsFocused('lanSession') ? 'controller-focused' : ''}`} onMouseEnter={handleHostHover}>                  <span>{t('host.form.lansession')}</span>
                 <input
                   type="text"
                   className="host-dashboard-session-input"
@@ -908,7 +909,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             <div className="host-dashboard-right">
               <div className="host-dashboard-players">
                 <div className="host-dashboard-players-header">
-                  <span className="host-dashboard-kicker">IN THE GAME</span>
+                  <span className="host-dashboard-kicker">{t('connected.inthegame')}</span>
                   <strong>{players.length}</strong>
                 </div>
                 <div className="host-dashboard-players-list">
@@ -968,9 +969,8 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   return (
     <section className={`host-match ${isJupiterStyle ? 'host-match-jupiter' : 'host-match-iw8'}`}>
       <div className="host-match-heading">
-        <div>
-          <span className="host-match-kicker">PLAY / CREATE</span>
-          <h1>HOST A MATCH</h1>
+        <div>              <span className="host-match-kicker">{t('host.kicker')}</span>
+          <h1>{t('host.title')}</h1>
           <p>{isJupiterContent ? 'Jupiter prepares a local game — create it in the PHA Client, then deploy the lobby.' : 'Build a lobby for your squad and set the rules before launch.'}</p>
         </div>
         {/* Jupiter shells hide the in-view Back button — the header back
@@ -999,7 +999,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       <div className="host-match-layout">
         <div className="host-match-form">
           <label className={`host-match-field ${isFocused('serverName') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-            <span>Server Name</span>
+            <span>{t('host.form.servername')}</span>
             <input
               data-host-field="serverName"
               value={form.serverName}
@@ -1027,10 +1027,9 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             </label>
           )}
 
-          <label className={`host-match-field ${isFocused('map') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-            <span>Map</span>
-            <CustomSelect
-              value={form.map}
+          <label className={`host-match-field ${isFocused('map') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>              <span>{t('host.form.map')}</span>
+              <CustomSelect
+                value={form.map}
               options={availableMaps}
               onSelect={(value) => updateSelectField('map', value)}
               isOpen={openSelect === 'map'}
@@ -1042,10 +1041,9 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             />
           </label>
 
-          <label className={`host-match-field ${isFocused('mode') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-            <span>Mode</span>
-            <CustomSelect
-              value={form.mode}
+          <label className={`host-match-field ${isFocused('mode') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>              <span>{t('host.form.mode')}</span>
+              <CustomSelect
+                value={form.mode}
               options={availableModes}
               onSelect={(value) => updateSelectField('mode', value)}
               isOpen={openSelect === 'mode'}
@@ -1078,10 +1076,10 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           )}
 
           <label className={`host-match-field ${isFocused('gameType') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-            <span>Game Type</span>
+            <span>{t('host.form.gametype')}</span>
             <CustomSelect
               value={form.gameType}
-              options={['Multiplayer', 'Play Against Bots']}
+              options={[t('host.form.gametype.multiplayer'), t('host.form.gametype.bots')]}
               onSelect={(value) => updateSelectField('gameType', value)}
               isOpen={openSelect === 'gameType'}
               onToggle={() => toggleSelect('gameType')}
@@ -1092,10 +1090,9 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             />
           </label>
 
-          <label className={`host-match-field ${isFocused('region') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-            <span>Region</span>
-            <CustomSelect
-              value={form.region}
+          <label className={`host-match-field ${isFocused('region') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>              <span>{t('host.form.region')}</span>
+              <CustomSelect
+                value={form.region}
               options={REGIONS}
               onSelect={(value) => updateSelectField('region', value)}
               isOpen={openSelect === 'region'}

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useTranslation } from '../utils/i18n'
 
 const MOD_NAMES = {
   iw8: 'IW8 Mod',
@@ -20,6 +21,7 @@ const MOD_NAMES = {
  * (same reason JupiterErrorModal portals).
  */
 export default function InterfaceReloadModal({ theme = 'iw8', targetMod, isOpen, onConfirm, onCancel }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -77,16 +79,15 @@ export default function InterfaceReloadModal({ theme = 'iw8', targetMod, isOpen,
 
         <div className="interface-reload-content">
           <div className="interface-reload-copy">
-            <span className="interface-reload-kicker">INTERFACE CHANGE</span>
-            <h2>Reload Interface?</h2>
+            <span className="interface-reload-kicker">{t('reload.kicker')}</span>
+            <h2>{t('reload.title')}</h2>
             <p>
-              Switching to the {MOD_NAMES[targetMod] || 'other'} interface style. The current
-              screen will reload with the new look.
+              {t('reload.desc', { mod: MOD_NAMES[targetMod] || 'other' })}
             </p>
           </div>
 
           <div className="interface-reload-actions">
-            {['Reload', 'Cancel'].map((label, index) => (
+            {[t('reload.confirm'), t('reload.cancel')].map((label, index) => (
               <button
                 key={label}
                 type="button"

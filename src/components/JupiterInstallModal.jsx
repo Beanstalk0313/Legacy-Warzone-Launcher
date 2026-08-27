@@ -4,6 +4,7 @@ import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
 import { focusTextInput } from '../utils/keyboard'
 import { getGameInstallStatus } from '../utils/gameInstall'
+import { useTranslation } from '../utils/i18n'
 
 // Normalize a user-typed Windows path: trim whitespace, tolerate a trailing
 // backslash (C:\Games\Warzone III\) or forward slash, and collapse any doubled
@@ -37,6 +38,7 @@ export default function JupiterInstallModal({
   installState, // { busy, percent, phase, installed, start, cancel, launch }
   onError,
 }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -122,7 +124,7 @@ export default function JupiterInstallModal({
         if (installState.checkStatus) await installState.checkStatus()
         setStage('done')
       } else {
-        setLocalError('No game found in that folder. It must contain startgame.bat.')
+        setLocalError(t('install.localerror'))
       }
     } catch (error) {
       setLocalError(String(error?.message || error))
@@ -185,12 +187,12 @@ export default function JupiterInstallModal({
 
   const modalPrefix = isJupiter ? 'jupiter' : 'iw8'
   const phaseLabel = installState.phase === 'extract'
-    ? 'Extracting the game…'
+    ? t('install.phase.extract')
     : installState.phase === 'finalize'
-      ? 'Finalizing…'
+      ? t('install.phase.finalize')
       : installState.phase === 'auth'
-        ? 'Connecting to GoFile…'
-        : 'Downloading the game…'
+        ? t('install.phase.auth')
+        : t('install.phase.download')
   const isFocused = (index) => inputMode === 'controller' && focusedIndex === index
 
   return createPortal(
@@ -205,15 +207,15 @@ export default function JupiterInstallModal({
         <div className={`${modalPrefix}-error-accent-bar`} />
         <div className={`${modalPrefix}-error-content jupiter-install-content`}>
           <div className={`${modalPrefix}-error-copy jupiter-install-copy`}>
-            <span className={`${modalPrefix}-error-kicker`}>JUPITER GAME</span>
+            <span className={`${modalPrefix}-error-kicker`}>{t('install.kicker')}</span>
             <h2 id="jupiter-install-title">
-              {stage === 'progress' ? 'INSTALLING…' : stage === 'done' ? 'INSTALL COMPLETE' : 'INSTALL & PLAY'}
+              {stage === 'progress' ? t('install.installing') : stage === 'done' ? t('install.complete') : t('install.title')}
             </h2>
 
             {stage === 'choice' && (
               <>
                 <p className="jupiter-install-desc">
-                  Do you already have the game, or should the launcher download it for you?
+                  {t('install.choice')}
                 </p>
                 <div className="jupiter-install-actions">
                   <button
@@ -225,7 +227,7 @@ export default function JupiterInstallModal({
                       setStage('local')
                     }}
                   >
-                    LOCAL GAME
+                    {t('install.localgame')}
                   </button>
                   <button
                     type="button"
@@ -236,7 +238,7 @@ export default function JupiterInstallModal({
                       setStage('setup')
                     }}
                   >
-                    Download and Install
+                    {t('install.download')}
                   </button>
                   <button
                     type="button"
@@ -244,7 +246,7 @@ export default function JupiterInstallModal({
                     onMouseEnter={() => playSound(hoverSound)}
                     onClick={handleClose}
                   >
-                    Cancel
+                    {t('install.cancel')}
                   </button>
                 </div>
               </>
@@ -316,7 +318,7 @@ export default function JupiterInstallModal({
                 }}
                 disabled={!normalizeInstallPath(fieldValue)}
               >
-                {stage === 'local' ? 'USE THIS FOLDER' : 'INSTALL'}
+                {stage === 'local' ? t('install.usefolder') : t('install.installBtn')}
               </button>
               <button
                 type="button"
@@ -324,58 +326,54 @@ export default function JupiterInstallModal({
                 onMouseEnter={() => playSound(hoverSound)}
                 onClick={() => setStage('choice')}
               >
-                Back
+                {t('install.back')}
               </button>
             </div>
-          )}
-
-          {stage === 'progress' && (
-            <>
-              <div className="jupiter-install-progress-actions">
+          )}            {stage === 'progress' && (
+              <>
+                <div className="jupiter-install-progress-actions">
+                  <button
+                    type="button"
+                    className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary jupiter-install-cancel-btn ${isFocused(0) ? 'controller-focused' : ''}`}
+                    onMouseEnter={() => playSound(hoverSound)}
+                    onClick={handleCancel}
+                    disabled={!installState.busy}
+                  >
+                    {t('install.cancelDownload')}
+                  </button>
+                  <button
+                    type="button"
+                    className={`jupiter-install-close-btn ${isFocused(1) ? 'controller-focused' : ''}`}
+                    onMouseEnter={() => playSound(hoverSound)}
+                    onClick={handleClose}
+                  >
+                    {t('install.close')}
+                  </button>
+                </div>
+                <p className="jupiter-install-cancel-hint">
+                  {t('install.closeHint')}
+                </p>
+              </>
+            )}            {stage === 'done' && (
+              <div className="jupiter-install-actions">
                 <button
                   type="button"
-                  className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary jupiter-install-cancel-btn ${isFocused(0) ? 'controller-focused' : ''}`}
+                  className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary ${isFocused(0) ? 'controller-focused' : ''}`}
                   onMouseEnter={() => playSound(hoverSound)}
-                  onClick={handleCancel}
-                  disabled={!installState.busy}
+                  onClick={() => void handleLaunch()}
                 >
-                  Cancel Download
+                  {t('install.launch')}
                 </button>
                 <button
                   type="button"
-                  className={`jupiter-install-close-btn ${isFocused(1) ? 'controller-focused' : ''}`}
+                  className={`${modalPrefix}-error-acknowledge ${isFocused(1) ? 'controller-focused' : ''}`}
                   onMouseEnter={() => playSound(hoverSound)}
                   onClick={handleClose}
                 >
-                  Close
+                  {t('install.close')}
                 </button>
               </div>
-              <p className="jupiter-install-cancel-hint">
-                Close keeps the download running in the background.
-              </p>
-            </>
-          )}
-
-          {stage === 'done' && (
-            <div className="jupiter-install-actions">
-              <button
-                type="button"
-                className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary ${isFocused(0) ? 'controller-focused' : ''}`}
-                onMouseEnter={() => playSound(hoverSound)}
-                onClick={() => void handleLaunch()}
-              >
-                LAUNCH
-              </button>
-              <button
-                type="button"
-                className={`${modalPrefix}-error-acknowledge ${isFocused(1) ? 'controller-focused' : ''}`}
-                onMouseEnter={() => playSound(hoverSound)}
-                onClick={handleClose}
-              >
-                Close
-              </button>
-            </div>
-          )}
+            )}
         </div>
       </div>
     </div>,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { playSound } from '../utils/audio'
 import { useAuth } from './AuthProvider'
+import { useTranslation } from '../utils/i18n'
 
 // Theme-aware toast that warns the user friends + parties are locked until they
 // sign in. Mounted by the two interface containers (IW8Interface,
@@ -84,6 +85,7 @@ function writeSuppressPreference(suppress) {
 
 export default function AuthRequiredNotice({ theme = 'iw8', entranceActive = false, onSwitchToAccount }) {
   const { user, configured } = useAuth()
+  const { t } = useTranslation()
   const [visible, setVisible] = useState(false)
   // Persisted flag: once the user clicks "Don't show this message again"
   // we set localStorage and the toast never appears again on this device.
@@ -167,9 +169,9 @@ export default function AuthRequiredNotice({ theme = 'iw8', entranceActive = fal
         </svg>
       </div>
       <div className="auth-required-notice-body">
-        <div className="auth-required-notice-title">Sign In Required</div>
+        <div className="auth-required-notice-title">{t('authnotice.title')}</div>
         <div className="auth-required-notice-message">
-          Friends and parties are locked until you sign in.
+          {t('authnotice.msg')}
         </div>
       </div>
       <div className="auth-required-notice-actions">
@@ -178,14 +180,14 @@ export default function AuthRequiredNotice({ theme = 'iw8', entranceActive = fal
           className="auth-required-notice-signin"
           onClick={handleSignIn}
         >
-          Sign In
+          {t('authnotice.signin')}
         </button>
         <button
           type="button"
           className="auth-required-notice-suppress"
           onClick={handleSuppressPermanently}
         >
-          Don't show this message again
+          {t('authnotice.dontshow')}
         </button>
         <button
           type="button"

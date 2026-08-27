@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useTranslation } from '../utils/i18n'
 
 export default function JupiterQuitModal({ isOpen, onClose, onGoLauncher, onQuitDesktop }) {
+  const { t } = useTranslation()
   // Tracking input mode matches the pattern used by every other screen in the
   // app. Without this, the `useControllerNavigation` hook's default
   // focusedIndex of 0 paints `.controller-focused` on the Yes button even
@@ -62,10 +64,10 @@ export default function JupiterQuitModal({ isOpen, onClose, onGoLauncher, onQuit
         <div className="jupiter-quit-accent-bar" />
 
         <div className="jupiter-quit-content">
-          <h2 className="jupiter-quit-title">Quit to Desktop?</h2>
+          <h2 className="jupiter-quit-title">{t('quit.title')}</h2>
 
           <div className="jupiter-quit-buttons-stack">
-            {['Yes', 'No', 'Return Home'].map((label, index) => (
+            {[t('quit.yes'), t('quit.no'), t('quit.returnshell')].map((label, index) => (
               <button
                 key={label}
                 className={`jupiter-quit-option-btn ${inputMode === 'controller' && focusedIndex === index ? 'controller-focused' : ''}`}

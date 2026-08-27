@@ -7,6 +7,9 @@ import { JUPITER_MAPS, JUPITER_MODES } from '../utils/jupiterCommands'
 import { listMonitors } from '../utils/displayMode'
 import InterfaceReloadModal from './InterfaceReloadModal'
 import CustomSelect from './CustomSelect'
+import { useAuth } from './AuthProvider'
+import { resetTutorialSeen } from './TutorialOverlay'
+import { LANGUAGES, useTranslation } from '../utils/i18n'
 import { version as APP_VERSION } from '../../package.json'
 
 const DYNAMIC_OPTIONS = [
@@ -44,6 +47,7 @@ const OPTION_LISTS = {
   dynamic_sounds: DYNAMIC_OPTIONS,
   dynamic_interfaces: DYNAMIC_OPTIONS,
   glyph_platform: GLYPH_OPTIONS,
+  language: LANGUAGES,
 }
 
 // Theme accent color presets — each shell gets its own palette.
@@ -74,11 +78,13 @@ const OPTIONS_SUB_TABS = [
   { key: 'about', label: 'ABOUT' },
 ]
 
-export default function OptionsTab({ theme = 'iw8', onModalChange }) {
+export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutorial }) {
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const { user } = useAuth()
   const { settings, setSetting, resetSettings, getResetDefaults } = useSettings()
+  const { t } = useTranslation()
   // Options > Dynamic Interfaces (and Reset, when it would swap the shell)
   // re-renders the WHOLE interface — the old screen disappears on the spot.
   // Instead of snapping mid-click, the change is deferred behind a themed
@@ -172,6 +178,12 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
     resetSettings()
   }
 
+  const handleRetakeTutorial = () => {
+    playSound(selectSound)
+    if (user?.id) resetTutorialSeen(user.id)
+    onRetakeTutorial?.()
+  }
+
   const valueOf = (key) => settings?.[key]
   const testingServerOn = Boolean(valueOf('testing_server'))
   const rtmModeOn = Boolean(valueOf('rtm_mode'))
@@ -183,30 +195,31 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
     const items = []
     if (section === 'general') {
       // ORDER MUST MATCH THE DOM: THEME card → SOUND card → INTERFACE card.
-      items.push({ kind: 'accent', key: 'accent_jupiter', label: 'Jupiter Accent' })
-      items.push({ kind: 'accent', key: 'accent_iw8', label: 'IW8 Accent' })
-      items.push({ kind: 'toggle', key: 'silent_mode', label: 'Silent Mode' })
-      items.push({ kind: 'select', key: 'dynamic_sounds', label: 'Dynamic Sound Effects' })
-      items.push({ kind: 'select', key: 'dynamic_interfaces', label: 'Dynamic Interfaces' })
-      items.push({ kind: 'select', key: 'glyph_platform', label: 'Controller Glyphs' })
-      items.push({ kind: 'toggle', key: 'auto_load_savedata', label: 'Auto-Load Save Data' })
-      items.push({ kind: 'select', key: 'glyph_platform', label: 'Controller Glyphs' })
+      items.push({ kind: 'accent', key: 'accent_jupiter', label: t('options.accent.jup') })
+      items.push({ kind: 'accent', key: 'accent_iw8', label: t('options.accent.iw8') })
+      items.push({ kind: 'toggle', key: 'silent_mode', label: t('options.silentmode') })
+      items.push({ kind: 'select', key: 'dynamic_sounds', label: t('options.dynamicsounds') })
+      items.push({ kind: 'select', key: 'dynamic_interfaces', label: t('options.dynamicinterfaces') })
+      items.push({ kind: 'select', key: 'glyph_platform', label: t('options.glyphplatform') })
+      items.push({ kind: 'toggle', key: 'auto_load_savedata', label: t('options.autoloadsavedata') })
+      items.push({ kind: 'button', key: 'retake_tutorial', label: t('options.tutorial') })
     } else if (section === 'display') {
-      items.push({ kind: 'select', key: 'display_mode', label: 'Display Mode' })
-      items.push({ kind: 'select', key: 'display_monitor', label: 'Display Monitor' })
+      items.push({ kind: 'select', key: 'language', label: t('options.language') })
+      items.push({ kind: 'select', key: 'display_mode', label: t('options.displaymode') })
+      items.push({ kind: 'select', key: 'display_monitor', label: t('options.displaymonitor') })
     } else if (section === 'about') {
       // About is read-only content — no interactive rows.
     } else {
-      items.push({ kind: 'toggle', key: 'testing_server', label: 'Testing Server' })
+      items.push({ kind: 'toggle', key: 'testing_server', label: t('options.testingserver') })
       if (testingServerOn) {
-        items.push({ kind: 'text', key: 'dev_server_name', label: 'Test Server Name' })
-        items.push({ kind: 'select', key: 'dev_server_map', label: 'Test Server Map' })
-        items.push({ kind: 'select', key: 'dev_server_mode', label: 'Test Server Mode' })
-        items.push({ kind: 'text', key: 'dev_server_lan_session', label: 'Test Server LAN Session' })
+        items.push({ kind: 'text', key: 'dev_server_name', label: t('options.devserver.name') })
+        items.push({ kind: 'select', key: 'dev_server_map', label: t('options.devserver.map') })
+        items.push({ kind: 'select', key: 'dev_server_mode', label: t('options.devserver.mode') })
+        items.push({ kind: 'text', key: 'dev_server_lan_session', label: t('options.devserver.lansession') })
       }
-      items.push({ kind: 'toggle', key: 'rtm_mode', label: 'Advanced RTM Mode' })
+      items.push({ kind: 'toggle', key: 'rtm_mode', label: t('options.advancedrtm') })
     }
-    items.push({ kind: 'reset', label: 'Reset to Defaults' })
+    items.push({ kind: 'reset', label: t('options.reset') })
     return items
   }, [section, testingServerOn, rtmModeOn])
 
@@ -311,6 +324,10 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
         setSetting(item.key, presets[(idx + 1) % presets.length])
         return
       }
+      if (item.kind === 'button' && item.key === 'retake_tutorial') {
+        handleRetakeTutorial()
+        return
+      }
       if (item.kind === 'reset') handleReset()
     },
     enabled: pendingInterface === null && !openSelect,
@@ -374,12 +391,12 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
         {section === 'general' && (
           <>
             <div className="options-card">
-              <h3>THEME</h3>
+              <h3>{t('options.theme')}</h3>
 
               <label className={`options-row options-row-accent ${isRowFocused('accent_jupiter') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Jupiter Accent</strong>
-                  <span>The accent color used across Jupiter-themed UI elements.</span>
+                  <strong>{t('options.accent.jup')}</strong>
+                  <span>{t('options.accent.jup.desc')}</span>
                 </div>
                 <div className="accent-swatches">
                   {JUPITER_ACCENT_PRESETS.map((hex) => (
@@ -408,8 +425,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
               <label className={`options-row options-row-accent ${isRowFocused('accent_iw8') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>IW8 Accent</strong>
-                  <span>The accent color used across IW8-themed UI elements.</span>
+                  <strong>{t('options.accent.iw8')}</strong>
+                  <span>{t('options.accent.iw8.desc')}</span>
                 </div>
                 <div className="accent-swatches">
                   {IW8_ACCENT_PRESETS.map((hex) => (
@@ -438,12 +455,12 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
             </div>
 
             <div className="options-card">
-              <h3>SOUND</h3>
+              <h3>{t('options.sound')}</h3>
 
               <label className={`options-row ${isRowFocused('silent_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Silent Mode</strong>
-                  <span>Shuts off every launcher sound effect — hovers, selects, and join chimes. The game's own audio is not affected.</span>
+                  <strong>{t('options.silentmode')}</strong>
+                  <span>{t('options.silentmode.desc')}</span>
                 </div>
                 <span className={`options-toggle ${valueOf('silent_mode') ? 'on' : ''}`}>
                   <input
@@ -462,8 +479,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
               <label className={`options-row ${isRowFocused('dynamic_sounds') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Dynamic Sound Effects</strong>
-                  <span>Force one mod's sound effects everywhere, or keep them dynamic per theme.</span>
+                  <strong>{t('options.dynamicsounds')}</strong>
+                  <span>{t('options.dynamicsounds.desc')}</span>
                 </div>
                 <CustomSelect
                   value={selectDisplay('dynamic_sounds')}
@@ -480,12 +497,12 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
             </div>
 
             <div className="options-card">
-              <h3>INTERFACE &amp; GAMEPLAY</h3>
+              <h3>{t('options.interface')}</h3>
 
               <label className={`options-row ${isRowFocused('dynamic_interfaces') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Dynamic Interfaces</strong>
-                  <span>Swap the whole launcher interface to the other mod's style — functionality stays the same.</span>
+                  <strong>{t('options.dynamicinterfaces')}</strong>
+                  <span>{t('options.dynamicinterfaces.desc')}</span>
                 </div>
                 <CustomSelect
                   value={selectDisplay('dynamic_interfaces')}
@@ -502,8 +519,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
               <label className={`options-row ${isRowFocused('glyph_platform') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Controller Glyphs</strong>
-                  <span>Which button style the launcher shows. Auto uses the connected controller (keyboard when none).</span>
+                  <strong>{t('options.glyphplatform')}</strong>
+                  <span>{t('options.glyphplatform.desc')}</span>
                 </div>
                 <CustomSelect
                   value={selectDisplay('glyph_platform')}
@@ -520,8 +537,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
               <label className={`options-row ${isRowFocused('auto_load_savedata') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>Auto-Load Save Data</strong>
-                  <span>Loads your classes, operator, and settings automatically every time the Jupiter interface opens.</span>
+                  <strong>{t('options.autoloadsavedata')}</strong>
+                  <span>{t('options.autoloadsavedata.desc')}</span>
                 </div>
                 <span className={`options-toggle ${valueOf('auto_load_savedata') ? 'on' : ''}`}>
                   <input
@@ -537,6 +554,30 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
                   <span className="options-toggle-track" aria-hidden="true" />
                 </span>
               </label>
+
+              <div
+                className={`options-row options-row-action ${isRowFocused('retake_tutorial') ? 'controller-focused' : ''}`}
+                onClick={handleRetakeTutorial}
+                onMouseEnter={handleHover}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRetakeTutorial() } }}
+              >
+                <div className="options-row-label">
+                  <strong>{t('options.tutorial')}</strong>
+                  <span>{t('options.tutorial.desc')}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-options-action"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRetakeTutorial()
+                  }}
+                  onMouseEnter={handleHover}                  >
+                  {t('options.retaketutorial.btn')}
+                </button>
+              </div>
             </div>
 
           </>
@@ -544,12 +585,30 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
         {section === 'display' && (
           <div className="options-card">
-            <h3>DISPLAY</h3>
+            <h3>{t('options.subtab.display')}</h3>
+
+            <label className={`options-row ${isRowFocused('language') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
+              <div className="options-row-label">
+                <strong>{t('options.language')}</strong>
+                <span>{t('options.language.desc')}</span>
+              </div>
+              <CustomSelect
+                value={selectDisplay('language')}
+                options={selectOptions('language')}
+                onSelect={(display) => handleChange('language', selectStoredValue('language', display))}
+                isOpen={openSelect === 'language'}
+                onToggle={() => setOpenSelect(openSelect === 'language' ? null : 'language')}
+                onClose={() => setOpenSelect(null)}
+                focusIndex={openSelect === 'language' ? optionFocusedIndex : null}
+                theme={theme}
+                ariaLabel={t('options.language')}
+              />
+            </label>
 
             <label className={`options-row ${isRowFocused('display_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
               <div className="options-row-label">
-                <strong>Display Mode</strong>
-                <span>Choose fullscreen for the standard command-center view or windowed for a resizable desktop window.</span>
+                <strong>{t('options.displaymode')}</strong>
+                <span>{t('options.displaymode.desc')}</span>
               </div>
               <CustomSelect
                 value={selectDisplay('display_mode')}
@@ -566,8 +625,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
             <label className={`options-row ${isRowFocused('display_monitor') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
               <div className="options-row-label">
-                <strong>Display Monitor</strong>
-                <span>Pick which monitor the launcher window is shown on. Default follows your system's primary display.</span>
+                <strong>{t('options.displaymonitor')}</strong>
+                <span>{t('options.displaymonitor.desc')}</span>
               </div>
               <CustomSelect
                 value={selectDisplay('display_monitor')}
@@ -592,12 +651,12 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
                 RTM DEV TOOL panel on the RTM tab. Split into two independent
                 toggles; the test-server metadata fields appear under the
                 Testing Server toggle. All persisted to settings. */}
-            <h3>TESTING &amp; RTM</h3>
+            <h3>{t('options.developer.testingrtm')}</h3>
 
             <label className={`options-row ${isRowFocused('testing_server') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
               <div className="options-row-label">
-                <strong>Testing Server</strong>
-                <span>Lists a local-only test server in the Server Browser and Quick Play — not a real lobby, invisible to other clients.</span>
+                <strong>{t('options.testingserver')}</strong>
+                <span>{t('options.testingserver.desc')}</span>
               </div>
               <span className={`options-toggle ${valueOf('testing_server') ? 'on' : ''}`}>
                 <input
@@ -618,8 +677,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
               <div className="options-dev-fields">
                 <label className={`options-row ${isRowFocused('dev_server_name') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                   <div className="options-row-label">
-                    <strong>Test Server Name</strong>
-                    <span>The name shown for the local test server in the Server Browser.</span>
+                    <strong>{t('options.devserver.name')}</strong>
+                    <span>{t('options.devserver.name.desc')}</span>
                   </div>
                   <input
                     type="text"
@@ -635,8 +694,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
                 <label className={`options-row ${isRowFocused('dev_server_map') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                   <div className="options-row-label">
-                    <strong>Test Server Map</strong>
-                    <span>The map the test server reports — drives the join config command.</span>
+                    <strong>{t('options.devserver.map')}</strong>
+                    <span>{t('options.devserver.map.desc')}</span>
                   </div>
                   <CustomSelect
                     value={selectDisplay('dev_server_map')}
@@ -653,8 +712,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
                 <label className={`options-row ${isRowFocused('dev_server_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                   <div className="options-row-label">
-                    <strong>Test Server Mode</strong>
-                    <span>The mode the test server reports — drives the join config command.</span>
+                    <strong>{t('options.devserver.mode')}</strong>
+                    <span>{t('options.devserver.mode.desc')}</span>
                   </div>
                   <CustomSelect
                     value={selectDisplay('dev_server_mode')}
@@ -671,8 +730,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
                 <label className={`options-row ${isRowFocused('dev_server_lan_session') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                   <div className="options-row-label">
-                    <strong>Test Server LAN Session</strong>
-                    <span>Optional — paste a LAN session code to make the test server joinable. Leave blank for a listing-only row.</span>
+                    <strong>{t('options.devserver.lansession')}</strong>
+                    <span>{t('options.devserver.lansession.desc')}</span>
                   </div>
                   <input
                     type="text"
@@ -691,8 +750,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
             <label className={`options-row ${isRowFocused('rtm_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
               <div className="options-row-label">
-                <strong>Advanced RTM Mode</strong>
-                <span>Shows the raw RTM DEV TOOL panel on the RTM tab — every RTM trigger action. The guided RTM tools stay available either way.</span>
+                <strong>{t('options.advancedrtm')}</strong>
+                <span>{t('options.advancedrtm.desc')}</span>
               </div>
               <span className={`options-toggle ${valueOf('rtm_mode') ? 'on' : ''}`}>
                 <input
@@ -753,9 +812,9 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
 
         <div className="options-reset-row">
           <button type="button" className={`options-reset-btn ${isResetFocused() ? 'controller-focused' : ''}`} onMouseEnter={handleHover} onClick={handleReset}>
-            Reset to Defaults
+            {t('options.reset')}
           </button>
-          <span className="options-reset-hint">Restores the settings this session launched with.</span>
+          <span className="options-reset-hint">{t('options.reset.desc')}</span>
         </div>
       </div>
 

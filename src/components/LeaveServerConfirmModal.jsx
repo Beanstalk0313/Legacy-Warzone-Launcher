@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useTranslation } from '../utils/i18n'
 
 // Themed confirmation shown before leaving a server — Esc on the in-game
 // screen or the Leave Server button. "Leave Server" runs the full leave
@@ -9,6 +10,7 @@ import { useControllerNavigation } from '../utils/controller'
 // provider); Cancel stays connected. Reuses the jupiter-host-prompt-modal
 // surface (with the iw8-styled variant) so both themes come for free.
 export default function LeaveServerConfirmModal({ theme = 'jupiter', isOpen, onConfirm, onCancel }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -51,9 +53,9 @@ export default function LeaveServerConfirmModal({ theme = 'jupiter', isOpen, onC
         <div className="jupiter-join-accent-bar" />
         <div className="jupiter-join-content">
           <span className="jupiter-join-kicker">CONNECTED</span>
-          <h2 id="leave-server-confirm-title">RETURN TO MAIN MENU?</h2>
+          <h2 id="leave-server-confirm-title">{t('leave.title')}</h2>
           <p className="jupiter-join-intro">
-            Are you sure you want to leave the server and return to the main menu? You'll be disconnected from the lobby.
+            {t('leave.desc')}
           </p>
           <div className="jupiter-join-actions">
             <button
@@ -62,7 +64,7 @@ export default function LeaveServerConfirmModal({ theme = 'jupiter', isOpen, onC
               onMouseEnter={handleHover}
               onClick={() => handleSelect(onConfirm)}
             >
-              Leave Server
+              {t('leave.confirm')}
             </button>
             <button
               type="button"
@@ -70,7 +72,7 @@ export default function LeaveServerConfirmModal({ theme = 'jupiter', isOpen, onC
               onMouseEnter={handleHover}
               onClick={() => handleSelect(onCancel)}
             >
-              Cancel
+              {t('leave.cancel')}
             </button>
           </div>
         </div>

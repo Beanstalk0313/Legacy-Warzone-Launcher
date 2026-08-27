@@ -60,7 +60,7 @@ function UiCanvas({ children }) {
 // content mod is passed through as `mod`. The background artwork ALWAYS
 // follows the content mod (each interface paints `wallpaper-${mod}`), so a
 // swapped shell keeps the content's native background.
-function ModStage({ mod, isEntering, isLeaving, onSwitchMod, onGoLauncher }) {
+function ModStage({ mod, isEntering, isLeaving, onSwitchMod, onGoLauncher, gameMode }) {
   const { settings, loaded } = useSettings()
   // Wait for the startup settings read (a few ms file read) so the correct
   // shell renders from the first frame of the launch transition.
@@ -73,6 +73,7 @@ function ModStage({ mod, isEntering, isLeaving, onSwitchMod, onGoLauncher }) {
     isLeaving,
     onSwitchMod,
     onGoLauncher,
+    gameMode,
   }
 
   if (shell === 'jupiter') {
@@ -197,6 +198,7 @@ function App() {
   // Launcher solo during the 0-480 ms window so the user sees its tile
   // expand visibly into the full background.
   const [launchingInto, setLaunchingInto] = useState(null) // null | 'iw8' | 'jupiter'
+  const [gameMode, setGameMode] = useState('multiplayer') // 'multiplayer' | 'warzone' | 'zombies'
 
   // The reverse signal for the Return Home button. While set, the
   // .is-leaving class drives the ModStage UI exit animations and the
@@ -328,9 +330,10 @@ function App() {
     clearTimers()
   }
 
-  const beginLaunch = (mod) => {
+  const beginLaunch = (mod, mode) => {
     if (launchingInto || returningHome) return // ignore double-clicks while a transition is in flight
     setLaunchingInto(mod)
+    if (mode) setGameMode(mode)
     clearTimers()
     // T = ~480 ms: launcher's chosen tile has finished expanding and now
     // occupies the entire viewport. The launcher's ::before bg fills the
@@ -405,11 +408,20 @@ function App() {
               isLeaving={!!returningHome}
               onSwitchMod={handleSwitchMod}
               onGoLauncher={beginReturnHome}
+              gameMode={gameMode}
             />
           </div>
         )}
       </UiCanvas>
       <WindowControls />
+      {/* Zombies mode rough accent bar clip path */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+        <defs>
+          <clipPath id="zombiesBarClip" clipPathUnits="objectBoundingBox">
+            <path d="M 0 0 L 1 0 L 1 0.7 C 0.94 0.62, 0.88 0.78, 0.81 0.65 C 0.74 0.76, 0.67 0.58, 0.6 0.72 C 0.53 0.82, 0.46 0.64, 0.39 0.76 C 0.32 0.84, 0.25 0.68, 0.18 0.78 C 0.11 0.7, 0.05 0.82, 0 0.72 Z" />
+          </clipPath>
+        </defs>
+      </svg>
       {/* Startup auto-update dialog — shown when the GitHub release check
           finds a newer version (Update Now / Later). Theme-neutral: it sits
           over the launcher before a mod is chosen. */}

@@ -25,6 +25,8 @@ import JupiterSessionProvider, { useJupiterSession } from '../utils/jupiterSessi
 import JupiterQuickPlayModal from './JupiterQuickPlayModal'
 import iw8Logo from '../assets/iw8_logo.png'
 import jupLogo from '../assets/jup_logo.png'
+import TutorialOverlay, { hasTutorialBeenSeen, markTutorialSeen } from './TutorialOverlay'
+import { useTranslation } from '../utils/i18n'
 
 // `mod` is the CONTENT mod the shell renders. Normally it matches the shell
 // (IW8 shell + IW8 content), but Options > Dynamic Interfaces can swap the
@@ -49,6 +51,7 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
   const isJupiterContent = mod === 'jupiter'
   const { user } = useAuth()
   const { glyphPlatform } = useGlyphPlatform()
+  const { t } = useTranslation()
   const displayName = user ? getDisplayName(user) : ''
   // Six tabs when Jupiter content (RTM tab is Jupiter-specific UI), five
   // without. Discord merged into Help (one "Help" tab now lists the mod's
@@ -67,6 +70,9 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [suppressedMenuItem, setSuppressedMenuItem] = useState(null)
   const [inputMode, setInputMode] = useState('mouse')
+  // Tutorial: shown once per user after first sign-in in this interface.
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const tutorialShownRef = useRef(false)
   const [playView, setPlayView] = useState('menu')
   // True while the Modding tab's error modal is open — its own controller
   // hook handles the keys, so the interface hook must go quiet (mirrors the
@@ -110,6 +116,26 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
   }
 
   const handleHover = () => playSound('iw8Hover')
+
+  // Open the tutorial once per user, after the entrance animation completes.
+  useEffect(() => {
+    if (!user?.id || isEntering || isLeaving || tutorialShownRef.current) return
+    if (hasTutorialBeenSeen(user.id)) return
+    tutorialShownRef.current = true
+    const id = window.setTimeout(() => setTutorialOpen(true), 1200)
+    return () => window.clearTimeout(id)
+  }, [user?.id, isEntering, isLeaving])
+
+  const handleTutorialClose = () => {
+    if (user?.id) markTutorialSeen(user.id)
+    setTutorialOpen(false)
+  }
+
+  const handleRetakeTutorial = () => {
+    setActiveHeaderTab('Play')
+    setPlayView('menu')
+    setTutorialOpen(true)
+  }
 
   const handleTabClick = (tab) => {
     playSound('iw8Select')
@@ -377,7 +403,7 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
       if (direction === 'down') return Math.min(quitIdx, currentIndex + 1)
       return currentIndex
     },
-    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !noMatchModal,
+    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !noMatchModal && !tutorialOpen,
     bumpersOnly: isInSubView,
     onConfirm: (index, source) => {
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
@@ -476,7 +502,7 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
                 onMouseEnter={handleHover}
                 onClick={() => handleTabClick(tab)}
               >
-                <span className="iw8-tab-label">{tab}</span>
+                <span className="iw8-tab-label">{t('tab.' + tab.toLowerCase())}</span>
               </button>
             )
           })}
@@ -560,7 +586,7 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
                           onMouseLeave={() => setSuppressedMenuItem(null)}
                           onClick={() => handleMenuItemClick(item)}
                         >
-                          {item}
+                          {item === 'Quick Play' ? t('play.quickplay') : item === 'Server Browser' ? t('play.serverbrowser') : item === 'Host a Match' ? t('play.hostmatch') : item}
                         </button>
                       )
                     })
@@ -579,7 +605,7 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
             />
           )}
           {activeHeaderTab === 'Help' && <HelpTab theme="iw8" mod={mod} />}
-          {activeHeaderTab === 'Options' && <OptionsTab theme="iw8" onModalChange={setInterfaceModalOpen} />}
+          {activeHeaderTab === 'Options' && <OptionsTab theme="iw8" onModalChange={setInterfaceModalOpen} onRetakeTutorial={handleRetakeTutorial} />}
         </div>
       </main>
 
@@ -647,6 +673,12 @@ function IW8InterfaceContent({ mod = 'iw8', onSwitchMod, onGoLauncher, isEnterin
         theme="iw8"
         entranceActive={isEntering || isLeaving}
         onSwitchToAccount={() => handleTabClick('Account')}
+      />
+
+      <TutorialOverlay
+        isOpen={tutorialOpen}
+        theme="iw8"
+        onClose={handleTutorialClose}
       />
     </div>
   )

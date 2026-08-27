@@ -9,6 +9,7 @@ import {
   writeJupiterLuaCommand,
 } from '../utils/jupiterRtm'
 import { useSettings } from './SettingsProvider'
+import { useTranslation } from '../utils/i18n'
 import JupiterErrorModal from './JupiterErrorModal'
 import ModdingFlowModal from './ModdingFlowModal'
 
@@ -57,72 +58,40 @@ import ModdingFlowModal from './ModdingFlowModal'
  */
 const MODDING_TOOLS = [
   {
-    label: 'Save Data',
-    description: 'Saves your classes, operator, settings, and loadouts.',
+    label: 'modding.tool.savedata',
     run: () => runRtm(['-savedata']),
   },
   {
-    label: 'Load Data',
-    description: 'Loads your saved classes, operator, and settings.',
+    label: 'modding.tool.loaddata',
     run: () => runRtm(['-loaddata']),
   },
+
   {
-    label: 'Switch to Warzone Mode',
-    description: 'Switches PHA Client to Warzone mode.',
-    run: (signal) => runJupiterPrepSequence(1500, signal),
-  },
-  {
-    label: 'Switch to Zombies',
-    description: 'Switches the game to Zombies mode.',
-    note: "Make sure you're in the Local Game server browser menu to avoid possible issues.",
-    run: () => runRtm(['-setzombies']),
-  },
-  {
-    label: 'Raise Bot Limit to 23',
-    description: 'Raises the bot limit to 23 so private matches fill with more bots.',
+    label: 'modding.tool.raisebot',
     run: () => runRtm(['-cbuf', 'seta #x32D32FD7A0B20A1DD 23']),
   },
   {
-    label: 'Fix Stuck on Connecting… screen',
-    description: 'Creates a fresh lobby (same as Create Lobby in the Dev Tool) so the game stops spinning on the connecting screen.',
-    note: 'This will create a new LAN code — you will need to copy the new one from the game.',
+    label: 'modding.tool.fixconnecting',
+    noteKey: 'modding.tool.fixconnecting.note',
     run: () => runRtm(['-createlobby']),
   },
   {
-    label: 'Loadout and Operator Editing',
-    description: 'Prepares a local game so you can edit your classes and operators, then returns you to the main menu.',
+    label: 'modding.tool.loadoutedit',
     kind: 'flow',
     flowKey: 'loadout-edit',
-    copy: {
-      askIntro: 'Are you already in a Warzone lobby? Choose Yes to skip the prep — choose No to have the launcher drive the PHA Client menus into Warzone mode first.',
-      workingTitle: 'PREPARING THE GAME',
-      workingIntro: 'The launcher is driving the local game menus. Keep the game visible — this takes a few seconds.',
-      instructionTitle: 'EDIT YOUR LOADOUTS',
-      instructionBody: "You can now edit your classes and operators. When you are done, press Finish below — the launcher will return you to the main menu.",
-      instructionButton: 'Finish',
-    },
   },
   {
-    label: 'Loadout Display Bug Fix',
-    description: 'Fixes the loadout display bug: enables BR mode, has you create 10 blank loadouts once, then disables it and saves your data.',
+    label: 'modding.tool.loadoutfix',
     kind: 'flow',
     flowKey: 'bugfix',
-    copy: {
-      askIntro: 'Are you already in a Warzone lobby? Choose Yes to skip the prep — choose No to have the launcher drive the PHA Client menus into Warzone mode first.',
-      workingTitle: 'PREPARING THE GAME',
-      workingIntro: 'The launcher is driving the local game menus. Keep the game visible — this takes a few seconds.',
-      instructionTitle: 'CREATE YOUR 10 BLANK LOADOUTS',
-      instructionBody: "Go to the Weapons menu and create your 10 blank loadouts now — you only have to do this once. They don't actually define your classes: this just unlocks all 10 custom slots so the bug where only custom loadout 1 is selectable goes away. When you're done, come back to the launcher and press Continue: the launcher will disable BR mode and save your data.",
-      instructionButton: 'Continue',
-    },
   },
 ]
 
 // ── Advanced RTM Mode: the raw RTM tool surface (one action per trigger) ──
 // Quick presets — common Lua calls that users run frequently.
 const DEV_PRESETS = [
-  { label: 'MainMenuOffline', lua: 'MainMenuOffline', description: 'Return to the offline main menu.' },
-  { label: 'WarzonePrivateMatchLobby', lua: 'WarzonePrivateMatchLobby', description: 'Open the Warzone private match lobby.' },
+  { label: 'MainMenuOffline', lua: 'MainMenuOffline' },
+  { label: 'WarzonePrivateMatchLobby', lua: 'WarzonePrivateMatchLobby' },
 ]
 
 // Flag-only commands → one button each. Every flag here maps 1:1 to a
@@ -173,6 +142,7 @@ const DEV_TOGGLE_FEATURES = [
 ]
 
 export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
+  const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
   const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
   const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
@@ -233,7 +203,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     if (tool.kind === 'flow') {
       playSound(selectSound)
       if (!isTauriRuntime()) {
-        setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+        setStatus(t('modding.desktopOnly'))
         return
       }
       setFlow({ tool, stage: 'ask' })
@@ -242,25 +212,25 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     }
     playSound(selectSound)
     if (!isTauriRuntime()) {
-      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+      setStatus(t('modding.desktopOnly'))
       return
     }
     setRunningIndex(index)
-    setStatus(`${tool.label}…`)
+    setStatus(`${t(tool.label)}…`)
     const controller = new AbortController()
     abortRef.current = controller
     try {
       await tool.run(controller.signal)
       if (controller.signal.aborted) return
-      setStatus(`${tool.label} done.`)
+      setStatus(`${t(tool.label)} done.`)
     } catch (error) {
       if (controller.signal.aborted) return
       setErrorModal({
-        title: `COULDN'T RUN ${tool.label.toUpperCase()}`,
+        title: `COULDN'T RUN ${t(tool.label).toUpperCase()}`,
         message: error?.message || String(error) || 'RTM trigger write failed.',
       })
       onModalChange?.(true)
-      setStatus(`${tool.label} failed — see the error dialog for details.`)
+      setStatus(`${t(tool.label)} failed — see the error dialog for details.`)
     } finally {
       abortRef.current = null
       setRunningIndex(null)
@@ -280,11 +250,11 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     if (!newName || renaming || runningIndex !== null || devBusy || flowActive) return
     playSound(selectSound)
     if (!isTauriRuntime()) {
-      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+      setStatus(t('modding.desktopOnly'))
       return
     }
     setRenaming(true)
-    setStatus('Renaming…')
+    setStatus(t('modding.tool.saving'))
     try {
       await runRtm(['-rename', newName])
       setStatus(`The game will rename you to ${newName}.`)
@@ -384,13 +354,13 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       return
     }
     setFlow((current) => current ? { ...current, stage: 'working' } : current)
-    setStatus('Preparing the game…')
+    setStatus(t('modding.flow.preparing'))
     const controller = new AbortController()
     flowAbortRef.current = controller
     try {
       await runJupiterPrepSequence(1500, controller.signal)
       if (controller.signal.aborted) return
-      setStatus('Prepared — follow the steps in the dialog.')
+      setStatus(t('modding.flow.prepared'))
       setFlow((current) => current ? { ...current, stage: 'guided' } : current)
     } catch (error) {
       if (controller.signal.aborted) return
@@ -405,14 +375,14 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     const tool = flow?.tool
     if (!tool) return
     setFlow((current) => current ? { ...current, stage: 'working' } : current)
-    setStatus('Working…')
+    setStatus(t('modding.flow.working'))
     try {
       if (tool.flowKey === 'loadout-edit') {
         await writeJupiterLuaCommand('WarzonePrivateMatchLobby')
-        setStatus('In the local game — edit your classes and operators.')
+        setStatus(t('modding.flow.loadoutEditing'))
       } else {
         await runRtm(['-brmodejup'])
-        setStatus('BR mode enabled — create your 10 blank loadouts in the Weapons menu.')
+        setStatus(t('modding.flow.bugfixStep'))
       }
       setFlow((current) => current ? { ...current, stage: 'instruction' } : current)
     } catch (error) {
@@ -425,15 +395,15 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     const tool = flow?.tool
     if (!tool) return
     setFlow((current) => current ? { ...current, stage: 'working' } : current)
-    setStatus('Finishing up…')
+    setStatus(t('modding.flow.finishing'))
     try {
       if (tool.flowKey === 'loadout-edit') {
         await writeJupiterLuaCommand('MainMenuOffline')
-        setStatus('Loadout editing done — returned to the main menu.')
+        setStatus(t('modding.flow.loadoutDone'))
       } else {
         await runRtm(['-disablebrjup'])
         await runRtm(['-savedata'])
-        setStatus('Bug fix done — BR mode disabled and your loadouts were saved.')
+        setStatus(t('modding.flow.bugfixDone'))
       }
       resetFlow('')
     } catch (error) {
@@ -445,7 +415,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   const runDevFlag = async (cmd) => {
     if (runningIndex !== null || devBusy || flowActive) return
     if (!isTauriRuntime()) {
-      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+      setStatus(t('modding.desktopOnly'))
       return
     }
     playSound(selectSound)
@@ -469,7 +439,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   const runDevPreset = async (preset) => {
     if (runningIndex !== null || devBusy || flowActive) return
     if (!isTauriRuntime()) {
-      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+      setStatus(t('modding.desktopOnly'))
       return
     }
     playSound(selectSound)
@@ -495,7 +465,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     const value = (devValues[cmd.flag] || '').trim()
     if (!value) return
     if (!isTauriRuntime()) {
-      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+      setStatus(t('modding.desktopOnly'))
       return
     }
     playSound(selectSound)
@@ -519,7 +489,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   const handleDevToggle = async (feature) => {
     if (runningIndex !== null || devBusy || flowActive) return
     if (!isTauriRuntime()) {
-      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+      setStatus(t('modding.desktopOnly'))
       return
     }
     const next = !devToggles[feature]
@@ -547,7 +517,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   return (
     <div className={`tab-content-panel modding-tab-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
       <div className="tab-header-title">
-        <h2>RTM</h2>
+        <h2>{t('modding.title')}</h2>
       </div>
 
       <div className="modding-layout">
@@ -565,13 +535,12 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
                   onClick={() => void handleRun(tool, index)}
                   disabled={runningIndex !== null || devBusy || flowActive}
                 >
-                  {isRunning ? 'Running…' : tool.label}
+                  {isRunning ? t('modding.tool.running') : t(tool.label)}
                 </button>
-                <span className="modding-tool-desc">{tool.description}</span>
-                {tool.note && <span className="modding-tool-note">{tool.note}</span>}
+                {tool.noteKey && <span className="modding-tool-note">{t(tool.noteKey)}</span>}
                 {isRunning && (
                   <button type="button" className="modding-cancel-btn" onMouseEnter={handleHover} onClick={handleCancel}>
-                    Cancel
+                    {t('modding.tool.cancel')}
                   </button>
                 )}
               </div>
@@ -587,7 +556,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
               onClick={() => void handleRename()}
               disabled={renaming || runningIndex !== null || devBusy || flowActive || !username.trim()}
             >
-              {renaming ? 'Saving…' : 'Change Username'}
+              {renaming ? t('modding.tool.saving') : t('modding.tool.changename')}
             </button>
             <input
               type="text"
@@ -596,11 +565,11 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
               onChange={(event) => setUsername(event.target.value)}
               onKeyDown={handleUsernameEnter}
               onMouseEnter={handleHover}
-              placeholder="New username"
+              placeholder={t('modding.tool.changename.placeholder')}
               maxLength={64}
               spellCheck={false}
             />
-            <span className="modding-tool-desc">Writes the rename trigger — the game will rename you to this.</span>
+            <span className="modding-tool-desc">{t('modding.tool.changename.desc')}</span>
           </div>
         </div>
 
@@ -613,12 +582,12 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       {devMode && (
         <div className="modding-card modding-dev-panel">
           <div className="modding-dev-header">
-            <h3>RTM DEV TOOL</h3>
-            <span>Raw trigger surface — every RTM action from the tool, no guardrails.</span>
+            <h3>{t('modding.dev.title')}</h3>
+            <span>{t('modding.dev.desc')}</span>
           </div>
 
           <div className="modding-dev-section">
-            <h4>PRESETS</h4>
+            <h4>{t('modding.dev.presets')}</h4>
             <div className="modding-dev-grid">
               {DEV_PRESETS.map((preset) => (
                 <button
@@ -637,7 +606,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
           </div>
 
           <div className="modding-dev-section">
-            <h4>COMMANDS</h4>
+            <h4>{t('modding.dev.commands')}</h4>
             <div className="modding-dev-grid">
               {DEV_BUTTON_COMMANDS.map((cmd) => (
                 <button
@@ -656,7 +625,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
           </div>
 
           <div className="modding-dev-section">
-            <h4>COMMAND ARGUMENTS</h4>
+            <h4>{t('modding.dev.args')}</h4>
             <div className="modding-dev-text-list">
               {DEV_TEXT_COMMANDS.map((cmd) => (
                 <div key={cmd.flag} className="modding-dev-text-row">
@@ -690,7 +659,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
           </div>
 
           <div className="modding-dev-section">
-            <h4>DEBUG TOGGLES</h4>
+            <h4>{t('modding.dev.toggles')}</h4>
             <div className="modding-dev-toggles">
               {DEV_TOGGLE_FEATURES.map((feature) => (
                 <label
@@ -716,7 +685,14 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       <ModdingFlowModal
         theme={theme}
         stage={flow?.stage || null}
-        copy={flow?.tool?.copy}
+        copy={flow?.tool ? {
+          askIntro: t(`modding.flow.${flow.tool.flowKey}.ask`),
+          workingTitle: t('modding.flow.workingTitle'),
+          workingIntro: t('modding.flow.workingIntro'),
+          instructionTitle: t(`modding.flow.${flow.tool.flowKey}.instruction`),
+          instructionBody: t(`modding.flow.${flow.tool.flowKey}.body`),
+          instructionButton: t(`modding.flow.${flow.tool.flowKey}.button`),
+        } : null}
         onYes={() => void handleFlowAsk(true)}
         onNo={() => void handleFlowAsk(false)}
         onContinue={() => void handleFlowContinue()}
