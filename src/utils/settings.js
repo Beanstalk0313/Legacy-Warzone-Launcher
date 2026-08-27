@@ -20,6 +20,9 @@ import { invoke } from '@tauri-apps/api/core'
  *   auto_load_savedata: boolean (write the loadstatus trigger on Jupiter entry)
  *   dev_server_name / dev_server_map / dev_server_mode /
  *   dev_server_lan_session: test-server metadata (Testing Server only)
+ *   glyph_platform: 'auto' | 'keyboard' | 'xbox' | 'playstation' | 'switch'
+ *     | 'steam' | 'steamdeck' — which controller/keyboard glyph pack the UI
+ *     shows; 'auto' detects the connected controller (keyboard fallback)
  */
 export const DEFAULT_SETTINGS = Object.freeze({
   dynamic_sounds: 'enabled',
@@ -36,11 +39,16 @@ export const DEFAULT_SETTINGS = Object.freeze({
   dev_server_map: 'Rebirth Island',
   dev_server_mode: 'Resurgence',
   dev_server_lan_session: '',
+  // Where the Jupiter game is installed (empty = not set / not installed yet).
+  game_install_path: '',
+  // Controller/keyboard glyph pack ('auto' = detect from the connected pad).
+  glyph_platform: 'auto',
 })
 
 const SETTING_KEYS = ['dynamic_sounds', 'dynamic_interfaces']
 const DYNAMIC_SETTING_VALUES = ['enabled', 'iw8', 'jupiter']
 const DISPLAY_MODE_VALUES = ['fullscreen', 'windowed']
+const GLYPH_PLATFORM_VALUES = ['auto', 'keyboard', 'xbox', 'playstation', 'switch', 'steam', 'steamdeck']
 
 const STORAGE_KEY = 'lwz-settings'
 
@@ -113,6 +121,11 @@ export function normalizeSettings(raw) {
   result.dev_server_mode = cleanSettingText(source.dev_server_mode, DEFAULT_SETTINGS.dev_server_mode)
   // The dev LAN session is optional — blank is valid (listing-only server).
   result.dev_server_lan_session = cleanSettingText(source.dev_server_lan_session, '')
+  // Game install path — an absolute Windows path (longer than most settings).
+  result.game_install_path = cleanSettingText(source.game_install_path, '', 512)
+  if (typeof source.glyph_platform === 'string' && GLYPH_PLATFORM_VALUES.includes(source.glyph_platform)) {
+    result.glyph_platform = source.glyph_platform
+  }
   return result
 }
 

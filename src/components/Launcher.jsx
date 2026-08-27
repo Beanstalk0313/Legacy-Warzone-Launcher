@@ -1,28 +1,26 @@
 import React, { useRef, useState } from 'react'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useGlyphPlatform, glyphSrc } from '../utils/glyphs'
 import { destroyAppWithServerCleanup } from '../utils/serverPresence'
 import jupLogo from '../assets/jup_logo.png'
 import iw8Logo from '../assets/iw8_logo.png'
 
-function LeftStickGlyph() {
-  return (
-    <span className="left-stick-glyph" aria-hidden="true">
-      <span className="left-stick-glyph-ring" />
-      <span className="left-stick-glyph-stick" />
-    </span>
-  )
+// ── Platform glyphs ─────────────────────────────────────────────────────────
+// Button artwork comes from the src/assets/glyphs/<Platform>/ packs. The
+// platform is detected from the connected controller (or picked manually in
+// Options > Controller Glyphs) — see utils/glyphs.js.
+
+function NavigateGlyph({ platform }) {
+  return <img className="glyph-img launcher-glyph-img" src={glyphSrc(platform, 'navigate')} alt="" aria-hidden="true" />
 }
 
-function ControllerGlyph({ active }) {
-  return (
-    <span className="controller-glyph" aria-hidden="true">
-      <span className={`controller-glyph-dot controller-glyph-dot-top ${active === 'top' ? 'active' : ''}`} />
-      <span className={`controller-glyph-dot controller-glyph-dot-right ${active === 'right' ? 'active' : ''}`} />
-      <span className={`controller-glyph-dot controller-glyph-dot-bottom ${active === 'bottom' ? 'active' : ''}`} />
-      <span className={`controller-glyph-dot controller-glyph-dot-left ${active === 'left' ? 'active' : ''}`} />
-    </span>
-  )
+function ConfirmGlyph({ platform }) {
+  return <img className="glyph-img launcher-glyph-img" src={glyphSrc(platform, 'confirm')} alt="" aria-hidden="true" />
+}
+
+function BackGlyph({ platform }) {
+  return <img className="glyph-img launcher-glyph-img" src={glyphSrc(platform, 'back')} alt="" aria-hidden="true" />
 }
 
 // ── SVG icons for the bottom bar ─────────────────────────────────────────────
@@ -52,6 +50,7 @@ function getLastMod() {
 }
 
 export default function Launcher({ onSelectMod, expandingMod = null, collapsingMod = null, navDisabled = false }) {
+  const { glyphPlatform } = useGlyphPlatform()
   const [inputMode, setInputMode] = useState('mouse')
   const inputModeRef = useRef('mouse')
   const [lastMod, setLastMod] = useState(getLastMod)
@@ -211,9 +210,9 @@ export default function Launcher({ onSelectMod, expandingMod = null, collapsingM
         <div className="controller-hints" aria-label="Controller controls">
           {/* No Navigate hint in a Jupiter-only build — nothing to
               move between. */}
-          {!JUPITER_ONLY && <span><LeftStickGlyph /> Navigate</span>}
-          <span><ControllerGlyph active="top" /> Select</span>
-          <span><ControllerGlyph active="bottom" /> Back</span>
+          {!JUPITER_ONLY && <span><NavigateGlyph platform={glyphPlatform} /> Navigate</span>}
+          <span><ConfirmGlyph platform={glyphPlatform} /> Select</span>
+          <span><BackGlyph platform={glyphPlatform} /> Back</span>
         </div>
       )}
     </div>

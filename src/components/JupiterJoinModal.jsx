@@ -102,7 +102,7 @@ export default function JupiterJoinModal({
           )}
 
           {isPreparing && (
-            <p className="jupiter-join-intro">Running the PHA Client prep sequence — this takes a few seconds. Keep the game visible.</p>
+            <p className="jupiter-join-intro">Running the PHA Client prep sequence and auto-driving the game menu to Create Local Game — this takes a few seconds. Keep the game visible.</p>
           )}
 
           {isSending && (

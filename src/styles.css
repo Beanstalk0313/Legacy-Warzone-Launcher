@@ -345,6 +345,7 @@ button, a {
 .jupiter-interface-container.is-entering .jupiter-card-wrapper:nth-child(1) { animation-delay: 300ms; }
 .jupiter-interface-container.is-entering .jupiter-card-wrapper:nth-child(2) { animation-delay: 380ms; }
 .jupiter-interface-container.is-entering .jupiter-card-wrapper:nth-child(3) { animation-delay: 460ms; }
+.jupiter-interface-container.is-entering .jupiter-card-wrapper:nth-child(4) { animation-delay: 540ms; }
 
 .jupiter-interface-container.is-entering .jupiter-quit-btn-wrapper {
   animation: jupiterQuitFade 460ms cubic-bezier(0.16, 1, 0.3, 1) 600ms both;
@@ -390,9 +391,10 @@ button, a {
 .jupiter-interface-container.is-leaving .jupiter-card-wrapper {
   animation: jupiterCardLower 540ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(3) { animation-delay: 0ms; }
-.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(2) { animation-delay: 80ms; }
-.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(1) { animation-delay: 160ms; }
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(4) { animation-delay: 0ms; }
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(3) { animation-delay: 40ms; }
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(2) { animation-delay: 120ms; }
+.jupiter-interface-container.is-leaving .jupiter-card-wrapper:nth-child(1) { animation-delay: 200ms; }
 
 .jupiter-interface-container.is-leaving .jupiter-quit-btn-wrapper {
   animation: jupiterQuitExit 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -1436,6 +1438,7 @@ button, a {
   font-size: 1rem;
   font-weight: 700;
   color: #ffffff;
+  position: relative; /* anchors the absolute center divider */
   transform: translateY(-100%);
   opacity: 0;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
@@ -2988,6 +2991,19 @@ button, a {
   border-color: var(--iw8-red-accent);
 }
 
+.options-reset-btn.controller-focused {
+  background: var(--jupiter-accent);
+  border-color: var(--jupiter-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px var(--jupiter-accent), 0 0 12px rgba(0, 200, 255, 0.18);
+}
+
+.iw8-theme .options-reset-btn.controller-focused {
+  background: var(--iw8-red-accent);
+  border-color: var(--iw8-red-accent);
+  box-shadow: 0 0 0 1px var(--iw8-red-accent), 0 0 12px rgba(255, 60, 60, 0.18);
+}
+
 .options-reset-hint {
   font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.5);
@@ -3341,6 +3357,7 @@ button, a {
   font-size: 0.84rem;
   padding: 8px 14px;
 }
+
 
 .modding-dev-text-list {
   display: flex;
@@ -4136,57 +4153,148 @@ button, a {
 
 
 /* ==========================================================================
-   OPEN BETA WELCOME MODAL
-   Uses the same error-modal structure as the active interface: Jupiter keeps
-   its cyan accent rail, while IW8 inherits the square, stacked-button modal
-   treatment from the IW8 modal variants above.
+   IW8 JOIN MODAL
+   Simple modal for IW8 join flow: shows the `party_joinsession` command in
+   a code block with a copy button, titled "Join [servername]". Uses the
+   same square dark panel as the IW8 modal variants (no accent rail).
    ========================================================================== */
-.beta-welcome-modal {
-  width: 760px;
-  max-height: 680px;
-  overflow: auto;
+
+.iw8-join-modal {
+  width: 580px;
+  min-height: 0;
+  background: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.beta-welcome-content {
+.iw8-join-content {
+  padding: 32px;
+  display: flex;
   flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  gap: 0;
-  padding: 34px 40px;
+  align-items: center;
 }
 
-.beta-welcome-copy {
+.iw8-join-content h2 {
+  color: #ffffff;
+  font-size: 2.2rem;
+  font-weight: 700;
   text-align: center;
 }
 
-.beta-welcome-copy h2 {
-  margin-top: 8px;
-  font-size: 2.35rem;
-  line-height: 1.08;
-}
-
-.beta-welcome-copy p {
-  max-width: none;
-  margin-top: 18px;
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 0.94rem;
-  line-height: 1.58;
-  text-align: left;
+.iw8-join-intro {
+  margin-top: 14px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  text-align: center;
   text-transform: none;
 }
 
-.beta-welcome-copy em {
-  color: #ffffff;
-  font-style: italic;
-}
-
-.beta-welcome-acknowledge {
+.iw8-join-code-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  min-width: 0;
-  flex: none;
-  margin-top: 28px;
+  margin-top: 22px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.iw8-join-code {
+  flex: 1;
+  min-width: 0;
+  color: #ffffff;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-transform: none;
+  user-select: text;
+}
+
+.iw8-join-copy-btn {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.iw8-join-copy-btn:hover,
+.iw8-join-copy-btn.controller-focused {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.iw8-join-no-session {
+  margin-top: 18px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.84rem;
+  text-align: center;
+}
+
+.iw8-join-actions {
+  width: 100%;
+  margin-top: 26px;
+}
+
+.iw8-join-done-btn {
+  width: 100%;
+  padding: 16px 0;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.iw8-join-done-btn:hover,
+.iw8-join-done-btn.controller-focused {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+
+/* ==========================================================================
+   IW8 IN-SERVER PANEL
+   Simple connected-state screen for IW8 content: shows the server name and
+   a Return to Main Menu button. No player roster — the IW8 client already
+   has that. Uses the same section surface as the server browser.
+   ========================================================================== */
+
+.iw8-in-server .server-browser-topline p {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.iw8-in-server .server-browser-topline p strong {
+  color: #ffffff;
+}
+
+.iw8-in-server .connected-server-leave-btn:hover {
+  background: var(--iw8-red-accent);
+  border-color: var(--iw8-red-accent);
+}
 
 /* ==========================================================================
    AUTH REQUIRED NOTICE (FRIENDS + PARTIES LOCKED TOAST)
@@ -4527,112 +4635,223 @@ button, a {
   color: #ffda79;
 }
 
-/* ---- Signed-in panel ---- */
+/* ---- Signed-in: profile header ---- */
 
-.account-signed-in-card {
+.account-profile-header {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 20px;
-  padding: 36px 40px;
+  padding: 28px 32px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
 }
 
-.account-signed-in-card.jupiter-theme {
+.account-profile-header.jupiter-theme {
   border-top: 3px solid var(--jupiter-accent);
 }
 
-.account-signed-in-card.iw8-theme {
+.account-profile-header.iw8-theme {
   border-top: 3px solid var(--iw8-red-accent);
 }
 
-.account-avatar {
-  width: 80px;
-  height: 80px;
+.account-avatar-lg {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   background-color: rgba(0, 0, 0, 0.5);
   border: 2px solid rgba(255, 255, 255, 0.18);
-  overflow: hidden;
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 900;
   color: #ffffff;
 }
 
-.account-avatar.jupiter-theme {
+.account-avatar-lg.jupiter-theme {
   border-color: var(--jupiter-accent);
   color: var(--jupiter-accent);
 }
 
-.account-avatar.iw8-theme {
+.account-avatar-lg.iw8-theme {
   border-color: var(--iw8-red-accent);
   color: #ff5a5a;
 }
 
-.account-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.account-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .account-display-name {
-  grid-column: 2 / 4;
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 900;
   letter-spacing: 0.04em;
   color: #ffffff;
-  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.account-meta {
-  grid-column: 2 / 4;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 18px;
-  list-style: none;
-  padding: 0;
+.account-email-line {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.account-member-since {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ---- Signed-in: editor cards ---- */
+
+.account-editor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.account-editor-card.jupiter-theme {
+  border-top: 2px solid var(--jupiter-accent);
+}
+
+.account-editor-card.iw8-theme {
+  border-top: 2px solid var(--iw8-red-accent);
+}
+
+.account-card-heading {
+  padding: 14px 20px 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.45);
   margin: 0;
 }
 
-.account-meta li {
+.account-editor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: default;
+  transition: background 0.12s ease;
+}
+
+.account-editor-row:hover,
+.account-editor-row.controller-focused {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.jupiter-theme .account-editor-row.controller-focused {
+  box-shadow: inset 3px 0 0 var(--jupiter-accent);
+}
+
+.iw8-theme .account-editor-row.controller-focused {
+  box-shadow: inset 3px 0 0 var(--iw8-red-accent);
+}
+
+.account-editor-label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.32);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
-.account-meta li span {
-  font-size: 0.7rem;
+.account-editor-label strong {
+  font-size: 0.95rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.58);
-}
-
-.account-meta li strong {
-  font-size: 0.92rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
   color: #ffffff;
 }
 
+.account-editor-label span {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.account-editor-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  max-width: 320px;
+}
+
+.account-editor-field input {
+  width: 240px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.account-editor-field input:focus {
+  border-color: var(--jupiter-accent);
+}
+
+.iw8-theme .account-editor-field input:focus {
+  border-color: var(--iw8-red-accent);
+}
+
+.account-editor-field input:disabled {
+  opacity: 0.5;
+}
+
+.account-saving-indicator {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+.account-save-toast {
+  padding: 10px 16px;
+  background: rgba(0, 200, 100, 0.12);
+  border: 1px solid rgba(0, 200, 100, 0.4);
+  color: #5efa9b;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.account-edit-error {
+  padding: 10px 16px;
+  background: rgba(255, 80, 80, 0.1);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  color: #ff7070;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
 .account-signout-btn {
-  grid-column: 3 / 4;
-  grid-row: 1 / 2;
-  align-self: center;
-  padding: 10px 22px;
+  padding: 8px 20px;
   font-size: 0.85rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  flex: 0 0 auto;
 }
 
 .account-signout-btn.iw8-theme {
@@ -4862,30 +5081,55 @@ button, a {
 }
 
 .account-signin-email-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: end;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
+/* Unified field style — used by both sign-in and sign-up forms.
+   The old .account-email-field / .account-username-field / .account-discord-field
+   had inconsistent widths and grid hacks. This replaces them all. */
+.account-field,
 .account-email-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
-.account-email-field span {
-  font-size: 0.7rem;
+.account-field > span:first-child,
+.account-email-field > span:first-child {
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: rgba(255, 255, 255, 0.58);
 }
 
-/* Inline validation / format hint rendered under each input. Quiet
-   help text by default (the "3-20 chars..." line under the username
-   field) and louder red when there's a validation error so the user
-   notices it. Mirrors `.account-signin-error` palette but uses smaller
-   weight so it doesn't compete with the field label above. */
+.account-field > span:first-child em {
+  font-style: normal;
+  color: var(--jupiter-accent);
+  font-weight: 800;
+}
+
+.account-field.controller-focused > span:first-child {
+  color: var(--jupiter-accent);
+}
+
+.iw8-theme .account-field.controller-focused > span:first-child {
+  color: var(--iw8-red-accent);
+}
+
+.account-field-error {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: #ff7d7d;
+  text-transform: none;
+}
+
+.jupiter-theme .account-field-error {
+  color: var(--jupiter-accent);
+}
+
+/* Legacy alias — old components referencing .account-field-hint still work */
 .account-field-hint {
   font-size: 0.7rem;
   letter-spacing: 0.04em;
@@ -4902,31 +5146,10 @@ button, a {
   color: var(--jupiter-accent);
 }
 
-/* The sign-in form grew from {email, submit} to {username, email,
-   submit}. The original 2-column grid auto-wraps the third child onto
-   the next row — visually wrong (submit button ends up alone on row
-   2). Force the username to span both columns of row 1, keeping the
-   email + submit pair exactly where they were before.
-
-   Uses explicit class names + adjacency combinators instead of
-   `:first-of-type` / `:last-of-type`. HTML structural selectors are
-   fragile (silently wrong if a sibling type ever appears between the
-   fields), while class names stay correct under any DOM reorganization. */
-.account-signin-email-form > .account-username-field {
-  grid-column: 1 / -1;
-}
-
-.account-signin-email-form > .account-username-field + .account-email-field {
-  grid-column: 1;
-}
-
-.account-signin-email-form > .account-email-submit {
-  grid-column: 2;
-}
-
-.account-email-field input {
+.account-email-field input,
+.account-field input {
   width: 100%;
-  height: 46px;
+  height: 44px;
   padding: 0 13px;
   color: #ffffff;
   background: rgba(0, 0, 0, 0.62);
@@ -7153,61 +7376,13 @@ button, a {
 }
 
 .account-signin-email-form > .account-mode-toggle,
-.account-signin-email-form > .account-beta-signup-notice,
-.account-signin-email-form > .account-email-submit {
-  grid-column: 1 / -1;
-}
-
-.account-signin-email-form > .account-email-field,
-.account-signin-email-form > .account-discord-field,
-.account-signin-email-form > .account-username-field {
-  grid-column: auto;
-}
-
-.account-discord-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.account-discord-field > span:first-child {
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.58);
-}
-
-.account-discord-field > span:first-child em {
-  margin-left: 7px;
-  color: #ffda79;
-  font-size: 0.62rem;
-  font-style: normal;
-  letter-spacing: 0.1em;
-}
-
-.account-discord-field input {
+.account-signin-email-form > .account-beta-signup-notice {
   width: 100%;
-  height: 46px;
-  padding: 0 13px;
-  color: #ffffff;
-  background: rgba(0, 0, 0, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 4px;
-  outline: none;
-  font: inherit;
-  font-size: 0.95rem;
-  text-transform: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.account-discord-field input:focus {
-  border-color: var(--jupiter-accent);
-  box-shadow: 0 0 0 3px rgba(2, 143, 204, 0.16);
-}
-
-.account-signin-card.iw8-theme .account-discord-field input:focus {
-  border-color: var(--iw8-red-accent);
-  box-shadow: 0 0 0 3px rgba(217, 35, 35, 0.16);
+.account-signin-email-form > .account-field,
+.account-signin-email-form > .account-email-field {
+  width: 100%;
 }
 
 .account-beta-signup-notice {
@@ -7237,15 +7412,6 @@ button, a {
 .account-signin-email-form > .account-email-submit {
   width: 100%;
   margin-top: 4px;
-}
-
-.account-meta {
-  grid-template-columns: repeat(4, minmax(110px, 1fr));
-  grid-column: 1 / -1;
-}
-
-.account-region-field {
-  grid-column: 1 / -1;
 }
 
 
@@ -7331,106 +7497,51 @@ button, a {
   max-width: 1100px;
 }
 
-.account-tab-panel .account-signed-in-card,
-.account-tab-panel .account-signin-card {
-  padding: 44px 48px;
-  gap: 24px;
+.account-tab-panel .account-profile-header {
+  padding: 32px 36px;
 }
 
-.account-tab-panel .account-avatar {
-  width: 100px;
-  height: 100px;
-  font-size: 2.6rem;
+.account-tab-panel .account-avatar-lg {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  font-size: 1.8rem;
 }
 
 .account-tab-panel .account-display-name {
-  font-size: 1.8rem;
-  grid-column: auto;
-  margin-bottom: 4px;
+  font-size: 1.6rem;
 }
 
-.account-tab-panel .account-meta {
-  grid-column: auto;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  max-width: 520px;
-  width: 100%;
+.account-tab-panel .account-editor-card {
+  margin-bottom: 0;
 }
 
-.account-tab-panel .account-meta li {
-  padding: 16px 20px;
-  background: rgba(0, 0, 0, 0.28);
-  border-radius: 4px;
+.account-tab-panel .account-editor-field input {
+  width: 280px;
 }
 
-.account-tab-panel .account-meta li span {
-  font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.account-tab-panel .account-meta li strong {
-  font-size: 0.98rem;
-  color: #ffffff;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.account-tab-panel .account-signout-btn {
-  grid-column: auto;
-  grid-row: auto;
-  align-self: auto;
-}
-
-.account-tab-panel .account-signout-btn {
-  padding: 14px 28px;
-  font-size: 0.95rem;
+.account-tab-panel .account-signin-card {
+  padding: 32px 36px;
 }
 
 .account-tab-panel .account-mode-btn {
-  padding: 14px 22px;
-  font-size: 1.05rem;
+  padding: 12px 20px;
+  font-size: 0.95rem;
 }
 
-.account-tab-panel .account-email-field,
-.account-tab-panel .account-discord-field {
-  gap: 8px;
-}
-
-.account-tab-panel .account-email-field > span:first-child,
-.account-tab-panel .account-discord-field > span:first-child {
-  font-size: 0.78rem;
-}
-
-.account-tab-panel .account-email-field input,
-.account-tab-panel .account-discord-field input {
-  height: 58px;
-  padding: 0 16px;
-  font-size: 1.05rem;
+.account-tab-panel .account-field input {
+  height: 48px;
+  font-size: 0.95rem;
 }
 
 .account-tab-panel .account-email-submit {
-  height: 58px;
-  padding: 0 30px;
-  font-size: 1rem;
+  height: 50px;
+  font-size: 0.95rem;
 }
 
-.account-tab-panel .account-field-hint {
-  font-size: 0.78rem;
-}
-
-.account-tab-panel .account-beta-signup-notice {
-  padding: 14px 16px;
-  gap: 5px;
-}
-
-.account-tab-panel .account-beta-signup-notice strong {
-  font-size: 0.82rem;
-}
-
-.account-tab-panel .account-beta-signup-notice span {
-  font-size: 0.85rem;
+.account-tab-panel .account-signout-btn {
+  padding: 10px 24px;
+  font-size: 0.9rem;
 }
 
 /* ---- Social: transparent panels + bigger rows/cards ---- */
@@ -7541,4 +7652,554 @@ button, a {
 
 .social-tab-panel .social-party-hint {
   font-size: 0.82rem;
+}
+
+
+/* ==========================================================================
+   IW8 QUICK PLAY
+   Quick Play button in the IW8 vertical menu — subtle breathing glow while
+   searching, countdown text when a match is found.
+   ========================================================================== */
+
+.iw8-quickplay-btn {
+  position: relative;
+}
+
+/* Active searching state: the button pulses with a subtle glow. */
+.iw8-quickplay-active {
+  animation: iw8QpPulse 2s ease-in-out infinite;
+  cursor: pointer;
+}
+
+@keyframes iw8QpPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  50% { box-shadow: 0 0 20px 2px rgba(255, 255, 255, 0.15); }
+}
+
+.iw8-quickplay-searching,
+.iw8-quickplay-found {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.iw8-quickplay-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.iw8-quickplay-found {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+/* IW8 Quick Play no-match modal — adopt the same IW8 modal variant treatment
+   (square dark panel, stacked buttons). Scoped to .iw8-interface-container
+   so the Jupiter Quick Play modal keeps its own Jupiter styling. */
+.iw8-interface-container .jupiter-quickplay-modal {
+  width: 580px;
+  background: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+}
+
+.iw8-interface-container .jupiter-quickplay-modal-accent-bar {
+  display: none;
+}
+
+.iw8-interface-container .jupiter-quickplay-modal-content {
+  padding: 32px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.iw8-interface-container .jupiter-quickplay-modal-copy {
+  text-align: center;
+}
+
+.iw8-interface-container .jupiter-quickplay-modal-copy h2 {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+.iw8-interface-container .jupiter-quickplay-modal-actions {
+  width: 100%;
+  margin-top: 26px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.iw8-interface-container .jupiter-quickplay-modal-btn {
+  width: 100%;
+  min-width: 0;
+  padding: 16px 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+  transition: all 0.15s ease;
+}
+
+.iw8-interface-container .jupiter-quickplay-modal-btn:hover,
+.iw8-interface-container .jupiter-quickplay-modal-btn.controller-focused {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: 800;
+}
+
+/* ==========================================================================
+   JUPITER GAME INSTALL & PLAY — install modal (path entry → progress → done)
+   The Install & Play tile itself is a normal artwork card (same .jupiter-card
+   family as the others — its image is jup_install.jpg). The install flow
+   lives in a Jupiter-style modal: a plain Windows-path field on the setup
+   stage, then one combined download+extract bar with a live ETA.
+   ========================================================================== */
+.jupiter-install-modal {
+  width: 620px;
+  max-height: 640px;
+  overflow: auto;
+}
+
+.jupiter-install-content {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 22px;
+  padding: 32px 38px;
+}
+
+.jupiter-install-copy {
+  text-align: left;
+}
+
+.jupiter-install-desc {
+  margin-top: 12px;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.78);
+  text-transform: none;
+}
+
+.jupiter-install-desc code {
+  color: var(--jupiter-accent);
+  font-family: inherit;
+  word-break: break-all;
+}
+
+.jupiter-install-path-input {
+  width: 100%;
+  margin-top: 14px;
+  padding: 13px 16px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  background-color: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.jupiter-install-path-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.jupiter-install-path-input:focus,
+.jupiter-install-path-input.controller-focused {
+  border-color: var(--jupiter-accent);
+  box-shadow: 0 0 0 2px rgba(2, 143, 204, 0.3);
+}
+
+.jupiter-install-local-error {
+  margin-top: 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #ff6b6b;
+  text-transform: none;
+}
+
+/* Single combined bar (download+extract). */
+.jupiter-install-progress {
+  width: 100%;
+  height: 12px;
+  margin-top: 16px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.jupiter-install-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--jupiter-accent), #00e5ff);
+  transition: width 0.2s ease;
+}
+
+.jupiter-install-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+}
+
+.jupiter-install-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.jupiter-install-actions button {
+  flex: 1;
+  min-width: 0;
+}
+
+.jupiter-install-btn-primary {
+  background-color: rgba(2, 143, 204, 0.28);
+}
+
+.jupiter-install-btn-primary:hover:not(:disabled),
+.jupiter-install-btn-primary.controller-focused {
+  background-color: rgba(2, 143, 204, 0.45);
+}
+
+/* Progress stage: a normal Cancel button plus a deliberately SMALL Close —
+   the default .error-acknowledge style (full-width, large) was overwhelming
+   next to the progress bar. */
+.jupiter-install-progress-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.jupiter-install-cancel-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.jupiter-install-close-btn {
+  padding: 7px 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.85);
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.jupiter-install-close-btn:hover,
+.jupiter-install-close-btn.controller-focused {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+}
+
+.jupiter-install-cancel-hint {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: none;
+  text-align: center;
+}
+
+/* ==========================================================================
+   PLATFORM CONTROLLER GLYPHS (Xbox / PlayStation)
+   ==========================================================================
+   Stylized button glyphs that replace the generic D-pad dots when a
+   controller is detected. The Gamepad API's gamepad.id string identifies
+   Xbox vs PlayStation controllers.
+   ========================================================================== */
+
+.platform-btn-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.platform-btn-xbox {
+  background-color: #0fa84e;
+  color: #ffffff;
+  box-shadow: 0 0 4px rgba(15, 168, 78, 0.4);
+}
+
+.platform-btn-ps {
+  background-color: #ffffff;
+  color: #000000;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
+}
+
+.platform-btn-back {
+  background-color: #e23b3b;
+  color: #ffffff;
+}
+
+/* D-pad glyph — the generic 4-dot directional pad (non-Xbox/PS fallback) */
+.dpad-glyph {
+  width: 1.15rem;
+  height: 1.15rem;
+  position: relative;
+  display: inline-block;
+  flex: 0 0 1.15rem;
+}
+
+/* ==========================================================================
+   BLUE BAR (jupiter-card-select-bar-below) ENHANCEMENTS
+   ==========================================================================
+   1. Center divider — a thin vertical line splitting the bar into two
+      sections (Launch Game + Uninstall) when the game is installed.
+   2. Darkening — the bar darkens on :hover (mouse) and via .bar-controller-
+      darken (controller focus). When the mouse leaves the bar but stays
+      on the tile, the bar undarkens but stays visible (the tile's :hover
+      keeps the bar visible).
+   3. Uninstall section — the right half of the bar for the Launch Game tile.
+   ========================================================================== */
+
+/* Mouse hover darkening — when the cursor is over the bar itself */
+.jupiter-card-select-bar-below:hover {
+  background-color: color-mix(in srgb, var(--jupiter-accent) 78%, #000);
+}
+
+/* Controller auto-darkening — same effect as bar:hover */
+.jupiter-card-select-bar-below.bar-controller-darken {
+  background-color: color-mix(in srgb, var(--jupiter-accent) 78%, #000);
+}
+
+/* Center divider line — a thin vertical line a few pixels thick, pinned to
+   the exact center of the blue bar (Launch Game tile only). It slides down
+   (scaleY from the top) every time it appears — on mount when the install
+   finishes, and again on each hover / controller focus of the card (the
+   component re-mounts it via a bumped key). */
+.bar-center-divider {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  margin-top: -8px;
+  background-color: rgba(255, 255, 255, 0.45);
+  border-radius: 1px;
+  flex-shrink: 0;
+  transform-origin: top center;
+  animation: barDividerSlideDown 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes barDividerSlideDown {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Select label wrapper — flex row with glyph + text */
+.bar-select-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Uninstall section — right side of the divided bar */
+.bar-uninstall-section {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: auto;
+}
+
+.bar-uninstall-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+
+.bar-uninstall-section:hover .bar-uninstall-label {
+  opacity: 1;
+}
+
+/* Uninstall key glyph — R (white box), Y (yellow Xbox), Triangle (white PS) */
+.bar-uninstall-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.bar-btn-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.bar-btn-xbox {
+  background-color: #0fa84e;
+  color: #ffffff;
+}
+
+.bar-btn-ps {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* ==========================================================================
+   CONTROLLER HINT BARS (bottom-left, both shells)
+   ==========================================================================
+   Shown while a controller is connected: the A/X glyph + "Select" text
+   sits at the bottom-left of each interface shell.
+   ========================================================================== */
+
+.iw8-controller-hint-bar,
+.jupiter-controller-hint-bar {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 3;
+  display: flex;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.iw8-controller-hint,
+.jupiter-controller-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   GAME UNINSTALL MODAL
+   ==========================================================================
+   Follows the Jupiter error-modal shell (accent rail, kicker, stacked
+   buttons) so it reads as part of the same themed family.
+   ========================================================================== */
+
+.game-uninstall-modal {
+  max-width: 440px;
+}
+
+.game-uninstall-desc {
+  margin: 0 0 18px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+  text-align: center;
+}
+
+.game-uninstall-desc code {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.game-uninstall-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.game-uninstall-actions button {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-uninstall-btn-danger {
+  background-color: #c0392b !important;
+  border-color: #c0392b !important;
+  color: #ffffff !important;
+}
+
+.game-uninstall-btn-danger:hover,
+.game-uninstall-btn-danger.controller-focused {
+  background-color: #e74c3c !important;
+  border-color: #e74c3c !important;
+}
+
+/* ==========================================================================
+   IMAGE GLYPHS (src/assets/glyphs/<Platform>/)
+   ==========================================================================
+   Button artwork imported from the glyph packs via utils/glyphs.js. The
+   platform follows the connected controller (or the Options > Controller
+   Glyphs override). Sizing is per context — the images are square-ish but
+   not uniform, so height is fixed and width stays proportional.
+   ========================================================================== */
+
+.glyph-img {
+  display: inline-block;
+  height: 18px;
+  width: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Select bars under the Jupiter cards (also the uninstall shortcut — the
+   bar-uninstall-section flex gap keeps it right of the UNINSTALL label) */
+.bar-glyph-img {
+  height: 18px;
+}
+
+/* Bottom-left hint bars in both shells */
+.hint-glyph-img {
+  height: 20px;
+}
+
+/* Launcher bottom hint rows */
+.launcher-glyph-img {
+  height: 18px;
 }

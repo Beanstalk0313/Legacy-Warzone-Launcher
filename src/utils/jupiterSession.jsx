@@ -15,6 +15,7 @@ import {
   wait,
 } from './jupiterRtm'
 import { getJupiterConfigCommand } from './jupiterCommands'
+import { CREATE_LOCAL_GAME_STEPS, focusGameWindow, runGameKeyNav } from './gameInput'
 import JupiterJoinModal from '../components/JupiterJoinModal'
 import JupiterErrorModal from '../components/JupiterErrorModal'
 
@@ -281,6 +282,28 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     try {
       await runJupiterPrepSequence(PREP_GAP_MS, controller.signal)
       joinAbortRef.current = null
+
+      // Auto-drive the PHA Client → Local Play → Create Local Game menu with
+      // keyboard input (SendInput) so the user doesn't click through the
+      // guided steps by hand. Falls back to the manual modal when the game
+      // window can't be focused (game not running yet, etc.) or the user
+      // cancels mid-navigation.
+      if (joinTokenRef.current === token && !controller.signal.aborted) {
+        const gameFocused = await focusGameWindow()
+        if (gameFocused && !controller.signal.aborted) {
+          try {
+            await runGameKeyNav(CREATE_LOCAL_GAME_STEPS, controller.signal)
+          } catch (navError) {
+            // AbortError = the user cancelled (handled by the token check
+            // below); anything else just means the manual guided steps still
+            // apply, so the modal is shown as usual.
+            if (navError?.name !== 'AbortError') {
+              console.warn('[session] auto game-nav failed', navError)
+            }
+          }
+        }
+      }
+
       if (joinTokenRef.current !== token) return
       setJoin((current) => current ? { ...current, stage: 'guided' } : current)
     } catch (error) {

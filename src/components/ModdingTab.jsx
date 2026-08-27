@@ -119,6 +119,12 @@ const MODDING_TOOLS = [
 ]
 
 // ── Advanced RTM Mode: the raw RTM tool surface (one action per trigger) ──
+// Quick presets — common Lua calls that users run frequently.
+const DEV_PRESETS = [
+  { label: 'MainMenuOffline', lua: 'MainMenuOffline', description: 'Return to the offline main menu.' },
+  { label: 'WarzonePrivateMatchLobby', lua: 'WarzonePrivateMatchLobby', description: 'Open the Warzone private match lobby.' },
+]
+
 // Flag-only commands → one button each. Every flag here maps 1:1 to a
 // trigger file per the RTM recreation guide.
 const DEV_BUTTON_COMMANDS = [
@@ -308,6 +314,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
     const items = MODDING_TOOLS.map((tool, index) => ({ kind: 'tool', tool, index }))
     items.push({ kind: 'username' })
     if (devMode) {
+      for (const preset of DEV_PRESETS) items.push({ kind: 'devPreset', preset })
       for (const cmd of DEV_BUTTON_COMMANDS) items.push({ kind: 'devFlag', cmd })
       for (const cmd of DEV_TEXT_COMMANDS) items.push({ kind: 'devText', cmd })
       for (const feature of DEV_TOGGLE_FEATURES) items.push({ kind: 'devToggle', feature })
@@ -329,6 +336,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       if (!item) return
       if (item.kind === 'tool') void handleRun(item.tool, item.index)
       else if (item.kind === 'username') focusTextInput('.modding-username-input', setInputMode)
+      else if (item.kind === 'devPreset') void runDevPreset(item.preset)
       else if (item.kind === 'devFlag') void runDevFlag(item.cmd)
       else if (item.kind === 'devText') focusTextInput(`[data-modding-dev-input="${item.cmd.flag}"]`, setInputMode)
       else if (item.kind === 'devToggle') void handleDevToggle(item.feature)
@@ -453,6 +461,30 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
       })
       onModalChange?.(true)
       setStatus(`${cmd.flag} failed — see the error dialog for details.`)
+    } finally {
+      setDevBusy(false)
+    }
+  }
+
+  const runDevPreset = async (preset) => {
+    if (runningIndex !== null || devBusy || flowActive) return
+    if (!isTauriRuntime()) {
+      setStatus('RTM trigger commands are available from the desktop app only — run this from the launcher, not the browser.')
+      return
+    }
+    playSound(selectSound)
+    setDevBusy(true)
+    setStatus(`Running ${preset.label}…`)
+    try {
+      await runRtm([`-lua ${preset.lua}`])
+      setStatus(`${preset.label} done.`)
+    } catch (error) {
+      setErrorModal({
+        title: `COULDN'T RUN ${preset.label}`,
+        message: error?.message || String(error) || 'RTM trigger write failed.',
+      })
+      onModalChange?.(true)
+      setStatus(`${preset.label} failed — see the error dialog for details.`)
     } finally {
       setDevBusy(false)
     }
@@ -586,6 +618,25 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
           </div>
 
           <div className="modding-dev-section">
+            <h4>PRESETS</h4>
+            <div className="modding-dev-grid">
+              {DEV_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className={`modding-tool-btn modding-dev-btn ${isNavFocused((item) => item.kind === 'devPreset' && item.preset === preset) ? 'controller-focused' : ''}`}
+                  title={preset.description}
+                  onMouseEnter={handleHover}
+                  onClick={() => void runDevPreset(preset)}
+                  disabled={runningIndex !== null || devBusy || flowActive}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="modding-dev-section">
             <h4>COMMANDS</h4>
             <div className="modding-dev-grid">
               {DEV_BUTTON_COMMANDS.map((cmd) => (
@@ -598,7 +649,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
                   onClick={() => void runDevFlag(cmd)}
                   disabled={runningIndex !== null || devBusy || flowActive}
                 >
-                  {cmd.flag}
+                  {cmd.flag.replace(/^-/, '')}
                 </button>
               ))}
             </div>
@@ -616,7 +667,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
                     onClick={() => void runDevText(cmd)}
                     disabled={runningIndex !== null || devBusy || flowActive || !(devValues[cmd.flag] || '').trim()}
                   >
-                    {cmd.flag}
+                    {cmd.flag.replace(/^-/, '')}
                   </button>
                   <input
                     type="text"
@@ -640,7 +691,6 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
 
           <div className="modding-dev-section">
             <h4>DEBUG TOGGLES</h4>
-            <span className="modding-tool-desc">Each checkbox runs <code>-toggle &lt;feature&gt; on|off</code> — it writes the <code>&lt;feature&gt;on</code> / <code>&lt;feature&gt;off</code> state files.</span>
             <div className="modding-dev-toggles">
               {DEV_TOGGLE_FEATURES.map((feature) => (
                 <label

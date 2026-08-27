@@ -5,12 +5,14 @@ import { focusTextInput } from '../utils/keyboard'
 import { useAuth } from './AuthProvider'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import { isTauriRuntime, runJupiterPrepSequence, runRtm, writeJupiterCbufCommand } from '../utils/jupiterRtm'
+import { focusGameWindow, runGameKeyNav, CREATE_LOCAL_GAME_STEPS } from '../utils/gameInput'
 import { useJupiterSession } from '../utils/jupiterSession'
 import { getJupiterConfigCommand, JUPITER_MAPS, JUPITER_MODES, PLUNDER_DEFAULT_CASH } from '../utils/jupiterCommands'
 import JupiterErrorModal from './JupiterErrorModal'
 import JupiterHostPromptModal from './JupiterHostPromptModal'
 import JupiterMapBadge from './JupiterMapBadge'
 import CustomSelect from './CustomSelect'
+import { getDisplayName } from '../utils/displayName'
 import { appInstanceId, registerOwnedServer, unregisterOwnedServer } from '../utils/serverPresence'
 
 const IW8_VERSIONS = ['1.44', '1.64', 'Other']
@@ -56,7 +58,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     version: '1.44',
     map: 'Verdansk',
     mode: 'Battle Royal',
-    publicity: 'Public',
+    gameType: 'Multiplayer',
     region: 'North America',
     // LAN Session — a text field where the host pastes the LAN session
     // code the game client needs when connecting to this server.
@@ -65,7 +67,6 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     // Plunder-only: cash amount needed to win (file default 2000000000
     // when left blank).
     plunderCash: '',
-    password: '',
   })
 
   // ── Hosting state ───────────────────────────────────────────────────────
@@ -103,7 +104,6 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // the host-entry prompt: the prompt waits for this check to settle so it
   // never pops over an already-live dashboard.
   useEffect(() => {
-    if (!isJupiterContent) return
     let mounted = true
     ;(async () => {
       if (user?.id && SUPABASE_CONFIGURED && supabase) {
@@ -128,7 +128,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     return () => {
       mounted = false
     }
-  }, [isJupiterContent, user?.id])
+  }, [user?.id])
 
   // ── Party-host gate: only the party leader may host ────────────────────
   // Hosting while a non-leader member would fight the leader's auto-join
@@ -199,8 +199,36 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     try {
       await runJupiterPrepSequence(1500, controller.signal)
       if (controller.signal.aborted) return
-      setHostPrompt('instructions')
-      setStatus('Create the local game in the PHA Client, then return to the launcher.')
+
+      // Auto-drive the PHA Client → Local Play → Create Local Game menu
+      // with keyboard input so the user doesn't click through manually.
+      // Falls back to the manual instructions modal when the game window
+      // can't be focused or the user cancels mid-navigation.
+      let autoNavOk = false
+      if (isTauriRuntime()) {
+        const gameFocused = await focusGameWindow()
+        if (gameFocused && !controller.signal.aborted) {
+          try {
+            await runGameKeyNav(CREATE_LOCAL_GAME_STEPS, controller.signal)
+            autoNavOk = true
+          } catch (navError) {
+            if (navError?.name !== 'AbortError') {
+              console.warn('[host] auto game-nav failed', navError)
+            }
+          }
+        }
+      }
+
+      if (controller.signal.aborted) return
+      if (autoNavOk) {
+        // Auto-nav reached Create Local Game — skip the manual instructions.
+        setHostPrompt(null)
+        setStatus('Configure your lobby below — paste the LAN session code, then create the lobby.')
+      } else {
+        // Fallback: show the manual instructions modal.
+        setHostPrompt('instructions')
+        setStatus('Create the local game in the PHA Client, then return to the launcher.')
+      }
     } catch (error) {
       if (controller.signal.aborted) return // cancelled — state already reset
       setHostPrompt(null)
@@ -300,14 +328,15 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     }))
   }, [form.version, isJupiterContent, availableMaps, availableModes])
 
+  const isBotMode = form.gameType === 'Play Against Bots'
   const fields = useMemo(() => {
     const baseFields = isJupiterContent
-      ? ['serverName', 'map', 'mode', ...(form.mode === 'Plunder' ? ['plunderCash'] : []), 'publicity', 'region', 'lanSession']
-      : ['serverName', 'version', 'map', 'mode', 'publicity', 'region', 'lanSession']
-    return form.publicity === 'Private'
-      ? [...baseFields, 'password', 'deploy']
-      : [...baseFields, 'deploy']
-  }, [form.publicity, form.mode, isJupiterContent])
+      ? ['serverName', 'map', 'mode', ...(form.mode === 'Plunder' ? ['plunderCash'] : []), 'gameType', 'region']
+      : ['serverName', 'version', 'map', 'mode', 'gameType', 'region']
+    // Bot mode is local-only: no LAN session needed, no publish.
+    if (!isBotMode) baseFields.push('lanSession')
+    return [...baseFields, 'deploy']
+  }, [isBotMode, form.mode, isJupiterContent])
 
   // ── Grid navigation for the host form ──────────────────────────────────
   // The form is a 2-column CSS grid (serverName spans the full first row;
@@ -400,13 +429,6 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     }
   }
 
-  const handlePasswordEnter = (event) => {
-    if (event.key === 'Enter') {
-      handleDeploy('mouse')
-    } else {
-      handleFieldEscape(event)
-    }
-  }
 
   // Best-effort: push the WZ3 config cbuf to the host's client so the game
   // applies the selected map/mode (works once the local game exists).
@@ -422,6 +444,15 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
 
   const publishLobby = async (lanSessionOverride) => {
     const lobbyName = form.serverName.trim() || 'Unnamed Lobby'
+
+    // Bot mode is local-only: configure the game and return without
+    // publishing to the server browser.
+    if (isBotMode) {
+      setStatus(`${lobbyName} · ${form.map} · ${form.mode} — local bot match configured.`)
+      playSound(selectSound)
+      return null
+    }
+
     if (SUPABASE_CONFIGURED && supabase) {
       if (!user) {
         setStatus(`Lobby ready: ${lobbyName} · ${form.map} · ${form.mode} — sign in to publish it to the server browser.`)
@@ -437,8 +468,8 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           map: form.map,
           mode: form.mode,
           region: form.region,
-          is_private: form.publicity === 'Private',
-          join_code: form.publicity === 'Private' && form.password.trim() ? form.password.trim() : null,
+          is_private: false,
+          join_code: null,
           lan_session: (lanSessionOverride ?? form.lanSession).trim() || null,
           // The server is a leased resource: the centralized presence module
           // renews this timestamp while the app is alive.
@@ -485,16 +516,11 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     // Party-host gate re-checked at deploy time — membership may have
     // changed while the form was open.
     if (!(await ensureCanHost())) return
-    if (form.publicity === 'Private' && !form.password.trim()) {
-      setStatus('Add a password before creating a private lobby.')
-      playSound(selectSound)
-      return
-    }
     setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
 
     await applyHostConfig(form.map, form.mode)
     const created = await publishLobby(null)
-    if (created && isJupiterContent) {
+    if (created) {
       setHosted(created)
     }
     playSound(selectSound)
@@ -565,19 +591,21 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // host can change the title or roll the LAN session after a match without
   // closing and re-hosting the lobby.
   const handleDashboardTextChange = (field, value) => {
-    setHosted((current) => (current ? { ...current, [field]: value } : current))
+    const dbField = field === 'lanSession' ? 'lan_session' : field
+    setHosted((current) => (current ? { ...current, [dbField]: value } : current))
   }
 
   const commitDashboardTextField = async (field) => {
     if (!hosted || !user?.id || !SUPABASE_CONFIGURED || !supabase) return
-    const value = (hosted[field] || '').trim()
-    const next = { ...hosted, [field]: value }
+    const dbField = field === 'lanSession' ? 'lan_session' : field
+    const value = (hosted[dbField] || hosted[field] || '').trim()
+    const next = { ...hosted, [dbField]: value }
     setHosted(next)
     playSound(selectSound)
     try {
       const { error } = await supabase
         .from('servers')
-        .update({ [field]: value })
+        .update({ [dbField]: value })
         .eq('id', hosted.id)
         .eq('host_user_id', user.id)
       if (error) throw error
@@ -632,14 +660,14 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // flipped them. Works for the host form AND the dashboard's map/mode.
   const [openSelect, setOpenSelect] = useState(null)
 
-  const SELECT_FIELDS = ['version', 'map', 'mode', 'publicity', 'region']
+  const SELECT_FIELDS = ['version', 'map', 'mode', 'gameType', 'region']
   const isSelectField = (field) => SELECT_FIELDS.includes(field)
 
   const selectFieldOptions = (field) => {
     if (field === 'version') return IW8_VERSIONS
     if (field === 'map') return availableMaps
     if (field === 'mode') return availableModes
-    if (field === 'publicity') return ['Public', 'Private']
+    if (field === 'gameType') return ['Multiplayer', 'Play Against Bots']
     if (field === 'region') return REGIONS
     return []
   }
@@ -647,7 +675,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // Current value of the open field (form or dashboard) — the options hook
   // lands on it when the dropdown opens.
   const openCurrentValue = openSelect
-    ? (hosted && isJupiterContent ? hosted[openSelect] : form[openSelect])
+    ? (hosted ? hosted[openSelect] : form[openSelect])
     : ''
 
   const toggleSelect = (field) => {
@@ -701,9 +729,11 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // LAN Session rows, then the Return PHA Client Lobby + Close Server
   // buttons side by side at the bottom. Left/right hop between the pairs;
   // up/down walk the column.
-  const dashboardItems = ['map', 'mode', 'name', 'lanSession', 'return', 'close']
+  const dashboardItems = isJupiterContent
+    ? ['map', 'mode', 'name', 'lanSession', 'return', 'close']
+    : ['map', 'mode', 'name', 'lanSession', 'close']
   const dashboardFocusedIndex = useControllerNavigation({
-    itemCount: hosted && isJupiterContent ? dashboardItems.length : 0,
+    itemCount: hosted ? dashboardItems.length : 0,
     allowedDirections: ['up', 'down', 'left', 'right'],
     onNavigate: (direction, currentIndex) => {
       if (direction === 'left' || direction === 'right') {
@@ -745,7 +775,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       setOpenSelect(item)
       setStatus(`Pick the ${item} with up/down, A to select.`)
     },
-    enabled: Boolean(hosted && isJupiterContent) && !errorModal && !hostPrompt && !openSelect,
+    enabled: Boolean(hosted) && !errorModal && !hostPrompt && !openSelect,
     onBack: handleBrowserBack,
   })
 
@@ -770,7 +800,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       if (!openSelect || value === undefined) return
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
       playSound(selectSound)
-      if (hosted && isJupiterContent) {
+      if (hosted) {
         void handleDashboardMapModeChange(openSelect, value)
       } else {
         setForm((current) => ({ ...current, [openSelect]: value }))
@@ -789,7 +819,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // ══════════════════════════════════════════════════════════════════════
   // HOSTING DASHBOARD (Jupiter, after Create Lobby)
   // ══════════════════════════════════════════════════════════════════════
-  if (hosted && isJupiterContent) {
+  if (hosted) {
     return (
       <section className={`host-match ${isJupiterStyle ? 'host-match-jupiter' : 'host-match-iw8'}`}>
         <div className="host-match-heading">
@@ -843,7 +873,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                   <span>Map</span>
                   <CustomSelect
                     value={hosted.map}
-                    options={JUPITER_MAPS}
+                    options={isJupiterContent ? JUPITER_MAPS : IW8_MAPS[hosted.version] || IW8_MAPS['1.44']}
                     onSelect={(value) => void handleDashboardMapModeChange('map', value)}
                     isOpen={openSelect === 'map'}
                     onToggle={() => toggleSelect('map')}
@@ -857,7 +887,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                   <span>Mode</span>
                   <CustomSelect
                     value={hosted.mode}
-                    options={JUPITER_MODES}
+                    options={isJupiterContent ? JUPITER_MODES : IW8_MODES[hosted.version] || IW8_MODES['1.44']}
                     onSelect={(value) => void handleDashboardMapModeChange('mode', value)}
                     isOpen={openSelect === 'mode'}
                     onToggle={() => toggleSelect('mode')}
@@ -868,7 +898,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                   />
                 </label>
               </div>
-              <p className="host-dashboard-hint">Changing the map or mode updates your client and every joined player's client automatically.</p>
+              <p className="host-dashboard-hint">{isJupiterContent ? 'Changing the map or mode updates your client and every joined player\'s client automatically.' : 'Changing the map or mode updates the lobby listing. Players\' clients update when they refresh the server browser.'}</p>
             </div>
 
             {/* Right column: the live player list with the big CURRENT MAP
@@ -892,7 +922,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                   ))}
                 </div>
               </div>
-              <JupiterMapBadge map={hosted.map} mode={hosted.mode} theme={theme} />
+              {isJupiterContent && <JupiterMapBadge map={hosted.map} mode={hosted.mode} theme={theme} />}
             </div>
           </div>
 
@@ -906,15 +936,17 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             >
               {submitting ? 'Closing…' : 'Close Server'}
             </button>
-            <button
-              type="button"
-              className={`host-dashboard-return ${dashboardIsFocused('return') ? 'controller-focused' : ''}`}
-              onMouseEnter={handleHostHover}
-              onClick={() => void handleReturnToLobby()}
-              disabled={returning || submitting}
-            >
-              {returning ? 'Disconnecting…' : 'Return PHA Client Lobby'}
-            </button>
+            {isJupiterContent && (
+              <button
+                type="button"
+                className={`host-dashboard-return ${dashboardIsFocused('return') ? 'controller-focused' : ''}`}
+                onMouseEnter={handleHostHover}
+                onClick={() => void handleReturnToLobby()}
+                disabled={returning || submitting}
+              >
+                {returning ? 'Disconnecting…' : 'Return PHA Client Lobby'}
+              </button>
+            )}
           </div>
           <div className="host-match-status">{status}</div>
         </div>
@@ -1045,21 +1077,18 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             </label>
           )}
 
-          <label className={`host-match-field ${isFocused('publicity') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-            <span>Publicity</span>
+          <label className={`host-match-field ${isFocused('gameType') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
+            <span>Game Type</span>
             <CustomSelect
-              value={form.publicity}
-              options={['Public', 'Private']}
-              onSelect={(value) => {
-                updateSelectField('publicity', value)
-                if (value === 'Public') setForm((current) => ({ ...current, password: '' }))
-              }}
-              isOpen={openSelect === 'publicity'}
-              onToggle={() => toggleSelect('publicity')}
+              value={form.gameType}
+              options={['Multiplayer', 'Play Against Bots']}
+              onSelect={(value) => updateSelectField('gameType', value)}
+              isOpen={openSelect === 'gameType'}
+              onToggle={() => toggleSelect('gameType')}
               onClose={() => setOpenSelect(null)}
-              focusIndex={openSelect === 'publicity' ? optionFocusedIndex : null}
+              focusIndex={openSelect === 'gameType' ? optionFocusedIndex : null}
               theme={theme}
-              ariaLabel="Publicity"
+              ariaLabel="Game Type"
             />
           </label>
 
@@ -1078,31 +1107,18 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             />
           </label>
 
-          <label className={`host-match-field ${isFocused('lanSession') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-            <span>LAN Session</span>
-            <input
-              data-host-field="lanSession"
-              type="text"
-              value={form.lanSession}
-              onChange={(event) => updateTextField('lanSession', event.target.value)}
-              onBlur={commitTextField}
-              onKeyDown={handleTextFieldEnter}
-              placeholder="Paste your LAN session code"
-              spellCheck={false}
-            />
-          </label>
-
-          {form.publicity === 'Private' && (
-            <label className={`host-match-field ${isFocused('password') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-              <span>Password</span>
+          {!isBotMode && (
+            <label className={`host-match-field ${isFocused('lanSession') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
+              <span>LAN Session</span>
               <input
-                data-host-field="password"
-                type="password"
-                value={form.password}
-                onChange={(event) => updateTextField('password', event.target.value)}
+                data-host-field="lanSession"
+                type="text"
+                value={form.lanSession}
+                onChange={(event) => updateTextField('lanSession', event.target.value)}
                 onBlur={commitTextField}
-                onKeyDown={handlePasswordEnter}
-                placeholder="Required for private lobbies"
+                onKeyDown={handleTextFieldEnter}
+                placeholder="Paste your LAN session code"
+                spellCheck={false}
               />
             </label>
           )}
@@ -1114,7 +1130,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           <div className="host-match-summary-line"><span>Version</span><strong>{isJupiterContent ? 'JUPITER' : form.version}</strong></div>
           <div className="host-match-summary-line"><span>Map</span><strong>{form.map}</strong></div>
           <div className="host-match-summary-line"><span>Mode</span><strong>{form.mode}</strong></div>
-          <div className="host-match-summary-line"><span>Access</span><strong>{form.publicity}</strong></div>
+          <div className="host-match-summary-line"><span>Game Type</span><strong>{form.gameType}</strong></div>
           <div className="host-match-summary-line"><span>Region</span><strong>{form.region}</strong></div>
           <button type="button" className={`host-match-deploy ${isFocused('deploy') ? 'controller-focused' : ''}`} onMouseEnter={handleHostHover} onClick={() => handleDeploy('mouse')} disabled={submitting}>{submitting ? 'Publishing…' : 'Create Lobby'}</button>
           <div className="host-match-status">{status}</div>

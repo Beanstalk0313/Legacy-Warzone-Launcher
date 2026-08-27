@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import JupiterQuitModal from './JupiterQuitModal'
 import JupiterQuickPlayModal from './JupiterQuickPlayModal'
+import GameUninstallModal from './GameUninstallModal'
 import SocialTab from './SocialTab'
 import AccountTab from './AccountTab'
 import PlayerRoster from './PlayerRoster'
@@ -12,16 +13,19 @@ import HostMatch from './HostMatch'
 import ConnectedServerPanel from './ConnectedServerPanel'
 import LeaveServerConfirmModal from './LeaveServerConfirmModal'
 import AuthRequiredNotice from './AuthRequiredNotice'
-import BetaWelcomeModal, { hasBetaWelcomeAcknowledged } from './BetaWelcomeModal'
 import { useAuth } from './AuthProvider'
 import { useSettings } from './SettingsProvider'
+import JupiterErrorModal from './JupiterErrorModal'
 import { getDisplayName } from '../utils/displayName'
 import { buildDevServer } from '../utils/devServer'
 import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
+import { useGlyphPlatform, glyphSrc } from '../utils/glyphs'
+import { useGameInstall } from '../utils/gameInstall'
 import { destroyAppWithServerCleanup, isServerLeaseFresh } from '../utils/serverPresence'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import JupiterSessionProvider, { useJupiterSession } from '../utils/jupiterSession'
+import JupiterInstallModal from './JupiterInstallModal'
 import jupLogo from '../assets/jup_logo.png'
 import iw8Logo from '../assets/iw8_logo.png'
 import jupQuickImg from '../assets/jup_quick.jpg'
@@ -30,6 +34,8 @@ import jupSearchingImg from '../assets/jup_searching.png'
 import jupFoundImg from '../assets/quick_play_found.jpg'
 import jupBrowseImg from '../assets/jup_browse.jpg'
 import jupHostImg from '../assets/jup_host.jpg'
+import jupInstallImg from '../assets/jup_install.jpg'
+import jupPlayImg from '../assets/jup_play.jpg'
 
 const cardDetails = {
   // Quick Play carries an `icon` — the tile's title renders as a top-left
@@ -41,6 +47,12 @@ const cardDetails = {
 }
 
 const cardKeys = Object.keys(cardDetails)
+
+// Fourth Play-card slot, only shown for Jupiter content (installing/launching
+// the Jupiter game is a Jupiter-only feature). Its label + progress are
+// dynamic, so it isn't part of the static cardDetails map — it's handled
+// separately in nav math and rendering.
+const INSTALL_CARD = 'Install & Play'
 
 // Quick Play searches for a joinable lobby for a full minute (polling the
 // servers table every 5 s) before giving up and showing the no-match modal.
@@ -75,7 +87,7 @@ export default function JupiterInterface({ mod = 'jupiter', ...props }) {
 // modal over the join modal).
 function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, isEntering = false, isLeaving = false }) {
   const { user } = useAuth()
-  const { settings } = useSettings()
+  const { settings, setSetting } = useSettings()
   const session = useJupiterSession() // null without a provider (IW8 content)
   const isJupiterContent = mod === 'jupiter'
   const displayName = user ? getDisplayName(user) : ''
@@ -87,19 +99,35 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
     ? ['Play', 'RTM', 'Account', 'Social', 'Help', 'Options']
     : ['Play', 'Account', 'Social', 'Help', 'Options']
 
+  // The install/launch card only exists for Jupiter content. Nav math and the
+  // card row below iterate this (rather than the static cardKeys) so the
+  // controller can reach the extra tile and the quit button still follows it.
+  const cardKeysWithInstall = isJupiterContent ? [...cardKeys, INSTALL_CARD] : cardKeys
+
   // While connected to a server (join result / still in-game after the
-  // modal), the three play cards are replaced by the connected panel's
+  // modal), the play cards are replaced by the connected panel's
   // single Leave Server button — the menu shrinks to one slot so controller
   // focus can never land on a hidden card.
   const inServer = Boolean(session?.connected)
   const currentLobby = session?.currentLobby || null
-  const cardCount = inServer ? 1 : cardKeys.length
+  const cardCount = inServer ? 1 : cardKeysWithInstall.length
   const firstCardIdx = tabs.length
   const lastCardIdx = tabs.length + cardCount - 1
   const quitIdx = tabs.length + cardCount
 
   const [activeHeaderTab, setActiveHeaderTab] = useState('Play')
   const [hoveredCard, setHoveredCard] = useState('Quick Play')
+  // Full Jupiter game install/launch lifecycle (driven by the install-path
+  // setting). `installError` surfaces download/extract failures in a themed
+  // dialog.
+  const installGame = useGameInstall(settings?.game_install_path || '')
+  const [installError, setInstallError] = useState(null)
+  const [installModalOpen, setInstallModalOpen] = useState(false)
+  const [uninstallConfirmOpen, setUninstallConfirmOpen] = useState(false)
+  // Bumped when the user hovers / focuses the Launch Game card so the
+  // center divider in its blue bar re-mounts and replays its slide-down.
+  const [installDividerKey, setInstallDividerKey] = useState(0)
+  const { glyphPlatform } = useGlyphPlatform()
   const [isQuitModalOpen, setIsQuitModalOpen] = useState(false)
   const [inputMode, setInputMode] = useState('mouse')
   const [playView, setPlayView] = useState('menu')
@@ -114,7 +142,6 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   // Server button opens it — leaving disconnects and returns to the menu,
   // so it's worth an explicit confirm (same quiet-down gating).
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
-  const [betaWelcomeOpen, setBetaWelcomeOpen] = useState(() => !hasBetaWelcomeAcknowledged())
   // Quick Play auto-matchmaking: finds a Jupiter lobby, runs a 3s
   // countdown, then auto-joins via the session provider. The Quick Play
   // tile pulses (is-quickplay-active) while the flow is active — the image
@@ -351,6 +378,38 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   const handleCardMouseEnter = (cardName) => {
     playSound('jupHover')
     setHoveredCard(cardName)
+    if (cardName === INSTALL_CARD) setInstallDividerKey((key) => key + 1)
+  }
+
+  // The Install tile: if the game is installed it launches; otherwise it opens
+  // the install modal (path field → Install → progress). While an install is
+  // running this still reopens the modal so the user can watch progress or
+  // cancel it after pressing Close.
+  const handleInstallCardClick = () => {
+    playSound('jupSelect')
+    if (installGame.installed) {
+      void installGame.launch().catch((error) => {
+        setInstallError(String(error?.message || error))
+      })
+      return
+    }
+    setInstallModalOpen(true)
+  }
+
+  // Uninstall: opens the confirmation modal, then deletes the game folder.
+  const handleUninstallClick = (e) => {
+    e?.stopPropagation()
+    playSound('jupSelect')
+    setUninstallConfirmOpen(true)
+  }
+
+  const handleUninstallConfirm = async () => {
+    setUninstallConfirmOpen(false)
+    try {
+      await installGame.uninstall()
+    } catch (error) {
+      setInstallError(String(error?.message || error))
+    }
   }
 
   const handleCardClick = (cardName, source = 'mouse') => {
@@ -369,6 +428,8 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       setPlayView('browser')
     } else if (cardName === 'Host a Match') {
       setPlayView('host')
+    } else if (cardName === INSTALL_CARD) {
+      void handleInstallCardClick()
     }
   }
 
@@ -483,7 +544,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       if (direction === 'right') return Math.min(quitIdx, currentIndex + 1)
       return currentIndex
     },
-    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !betaWelcomeOpen && !noMatchModal,
+    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !noMatchModal && !installError && !installModalOpen && !uninstallConfirmOpen,
     bumpersOnly: isInSubView,
     onConfirm: (index, source) => {
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
@@ -498,7 +559,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
           handleRequestLeaveServer()
           return
         }
-        const cardName = quickPlay ? 'Quick Play' : cardKeys[index - firstCardIdx]
+        const cardName = quickPlay ? 'Quick Play' : cardKeysWithInstall[index - firstCardIdx]
         handleCardClick(cardName, source)
         setHoveredCard(cardName)
       } else {
@@ -519,8 +580,26 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       setInputMode('controller')
       handleHover()
       if (activeHeaderTab === 'Play' && index >= firstCardIdx && index <= lastCardIdx) {
-        setHoveredCard(cardKeys[index - firstCardIdx])
+        const cardName = cardKeysWithInstall[index - firstCardIdx]
+        // Replay the divider's slide-down whenever focus first lands on the
+        // Launch Game card (not on every held-stick repeat tick).
+        if (cardName === INSTALL_CARD && hoveredCard !== INSTALL_CARD) {
+          setInstallDividerKey((key) => key + 1)
+        }
+        setHoveredCard(cardName)
       }
+    },
+    // R key (keyboard) / Y / Triangle (gamepad) — opens the Uninstall flow
+    // from the Launch Game card while it is hovered / focused and no modal
+    // is in the way.
+    onAuxAction: (action, source) => {
+      if (action !== 'uninstall') return
+      if (!installGame.installed) return
+      if (hoveredCard !== INSTALL_CARD) return
+      if (activeHeaderTab !== 'Play' || playView !== 'menu') return
+      if (isEntering || isLeaving || isQuitModalOpen || installModalOpen || installError || session?.join || moddingErrorOpen || interfaceModalOpen || leaveConfirmOpen || noMatchModal) return
+      setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
+      handleUninstallClick()
     },
   })
 
@@ -535,7 +614,16 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   }
 
   const focusedQuitIdx = activeHeaderTab === 'Play' ? quitIdx : tabs.length
-  const activeInfo = cardDetails[hoveredCard] || cardDetails['Quick Play']
+  const activeInfo = hoveredCard === INSTALL_CARD
+    ? {
+        title: installGame.installed ? 'Launch Game' : installGame.busy ? 'Installing…' : 'Install',
+        subtitle: installGame.installed
+          ? 'Launch the installed game'
+          : installGame.busy
+            ? 'Downloading & extracting — tap to view progress'
+            : 'Download + install the Jupiter game',
+      }
+    : cardDetails[hoveredCard] || cardDetails['Quick Play']
 
   return (
     <div className={`jupiter-interface-container wallpaper-${mod} ${mod === 'iw8' ? 'content-iw8' : ''} ${isEntering ? 'is-entering' : ''} ${isLeaving ? 'is-leaving' : ''}`} onMouseMove={handleMouseMove}>
@@ -621,24 +709,79 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                 />
               ) : (
                 <div className="jupiter-cards-row">
-                {cardKeys.map((cardName, cardIndex) => {
+                {cardKeysWithInstall.map((cardName, cardIndex) => {
                   // While a Quick Play flow is active (searching or the
                   // found countdown) the other two tiles disappear — only
                   // the Quick Play card stays, wearing the is-quickplay-active
                   // pulse until a lobby is found (then the decal restores,
                   // the pulse continues through the 3s auto-join countdown).
                   if (quickPlay && cardName !== 'Quick Play') return null
+                  // The Install & Play tile is dynamic — same artwork-card
+                  // look as the others, but its title follows install state.
+                  if (cardName === INSTALL_CARD) {
+                    const isControllerFocused = inputMode === 'controller' && focusedControllerIndex === firstCardIdx + cardIndex
+                    const cardLabel = installGame.installed
+                      ? 'LAUNCH GAME'
+                      : installGame.busy
+                        ? 'INSTALLING'
+                        : 'INSTALL'
+                    const cardImage = installGame.installed ? jupPlayImg : jupInstallImg
+                    const cardImageAlt = installGame.installed
+                      ? 'Launch Game — start the installed Jupiter game'
+                      : installGame.busy
+                        ? 'Installing — tap to view progress'
+                        : 'Install — download + install the Jupiter game'
+                    const showDivider = installGame.installed
+                    return (
+                      <div
+                        key={cardName}
+                        className={`jupiter-card-wrapper ${isControllerFocused ? 'controller-focused' : ''}`}
+                        onMouseEnter={() => handleCardMouseEnter(cardName)}
+                        onClick={() => handleCardClick(cardName)}
+                      >
+                        <div className="jupiter-card">
+                          <img
+                            src={cardImage}
+                            alt={cardImageAlt}
+                            className="jupiter-card-image"
+                            draggable="false"
+                          />
+                          <div className="jupiter-card-title">{cardLabel}</div>
+                        </div>
+                        <div className={`jupiter-card-select-bar-below ${isControllerFocused ? 'bar-controller-darken' : ''}`}>
+                          <span className="bar-select-label">
+                            <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'confirm')} alt="" aria-hidden="true" />
+                            Select
+                          </span>
+                          {showDivider && <div key={installDividerKey} className="bar-center-divider" />}
+                          {showDivider && (
+                            <span
+                              className="bar-uninstall-section"
+                              onClick={handleUninstallClick}
+                              onMouseEnter={() => playSound('jupHover')}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleUninstallClick(e) }}
+                            >
+                              <span className="bar-uninstall-label">UNINSTALL</span>
+                              <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'uninstall')} alt="" aria-hidden="true" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  }
                   const card = cardDetails[cardName]
                   // True during the searching phase — drives the image morph
                   // (jup_quick.jpg crossfades into jup_searching.png via the
                   // stacked .jupiter-card-image-quick / -searching layers)
                   // and the searching decal's breathing pulse.
                   const isSearching = quickPlay?.phase === 'searching'
-                  const isControllerFocused = inputMode === 'controller' && focusedControllerIndex === firstCardIdx + cardIndex
+                  const isControllerFocused2 = inputMode === 'controller' && focusedControllerIndex === firstCardIdx + cardIndex
                   return (
                     <div
                       key={cardName}
-                      className={`jupiter-card-wrapper ${quickPlay ? 'is-quickplay-active' : ''} ${isControllerFocused ? 'controller-focused' : ''}`}
+                      className={`jupiter-card-wrapper ${quickPlay ? 'is-quickplay-active' : ''} ${isControllerFocused2 ? 'controller-focused' : ''}`}
                       onMouseEnter={() => handleCardMouseEnter(cardName)}
                       onClick={() => handleCardClick(cardName)}
                     >
@@ -697,8 +840,11 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
                           <span className="jupiter-card-badge-text">{cardName}</span>
                         </div>
                       )}
-                      <div className="jupiter-card-select-bar-below">
-                        <span>Select</span>
+                      <div className={`jupiter-card-select-bar-below ${isControllerFocused2 ? 'bar-controller-darken' : ''}`}>
+                        <span className="bar-select-label">
+                          <img className="glyph-img bar-glyph-img" src={glyphSrc(glyphPlatform, 'confirm')} alt="" aria-hidden="true" />
+                          Select
+                        </span>
                       </div>
                     </div>
                   )
@@ -747,6 +893,16 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
         </button>
       </div>
 
+      {/* Bottom Left Controller Hint — platform glyph next to Select */}
+      {inputMode === 'controller' && (
+        <div className="jupiter-controller-hint-bar" aria-label="Controller controls">
+          <span className="jupiter-controller-hint">
+            <img className="glyph-img hint-glyph-img" src={glyphSrc(glyphPlatform, 'confirm')} alt="" aria-hidden="true" />
+            Select
+          </span>
+        </div>
+      )}
+
       <JupiterQuitModal
         isOpen={isQuitModalOpen}
         onClose={() => setIsQuitModalOpen(false)}
@@ -768,10 +924,30 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
         onCancel={handleNoMatchCancel}
       />
 
-      <BetaWelcomeModal
+      <JupiterInstallModal
         theme="jupiter"
-        isOpen={betaWelcomeOpen}
-        onAcknowledge={() => setBetaWelcomeOpen(false)}
+        isOpen={installModalOpen}
+        onClose={() => setInstallModalOpen(false)}
+        installPath={settings?.game_install_path || ''}
+        onPathChange={(path) => setSetting('game_install_path', path)}
+        installState={installGame}
+        onError={(message) => setInstallError(message)}
+      />
+
+      <JupiterErrorModal
+        theme="jupiter"
+        isOpen={Boolean(installError)}
+        title="GAME INSTALL FAILED"
+        message={installError}
+        onClose={() => setInstallError(null)}
+      />
+
+      <GameUninstallModal
+        theme="jupiter"
+        isOpen={uninstallConfirmOpen}
+        onConfirm={handleUninstallConfirm}
+        onCancel={() => setUninstallConfirmOpen(false)}
+        installPath={settings?.game_install_path || ''}
       />
 
       <AuthRequiredNotice

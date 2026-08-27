@@ -41,6 +41,7 @@ export function useControllerNavigation({
   onMove,
   onBumper,
   onTrigger,
+  onAuxAction,
   onControllerActivity,
   onNavigate,
   allowedDirections = ['up', 'down', 'left', 'right'],
@@ -64,6 +65,7 @@ export function useControllerNavigation({
   const onMoveRef = useRef(onMove)
   const onBumperRef = useRef(onBumper)
   const onTriggerRef = useRef(onTrigger)
+  const onAuxActionRef = useRef(onAuxAction)
   const onControllerActivityRef = useRef(onControllerActivity)
   const onNavigateRef = useRef(onNavigate)
 
@@ -74,6 +76,7 @@ export function useControllerNavigation({
   onMoveRef.current = onMove
   onBumperRef.current = onBumper
   onTriggerRef.current = onTrigger
+  onAuxActionRef.current = onAuxAction
   onControllerActivityRef.current = onControllerActivity
   onNavigateRef.current = onNavigate
 
@@ -187,6 +190,19 @@ export function useControllerNavigation({
         return
       }
 
+      // Auxiliary action key — R on the keyboard mirrors the Y / Triangle
+      // gamepad button. Only hooks that provide onAuxAction respond (the
+      // Jupiter interface uses it to open the Uninstall flow from the
+      // Launch Game card); held-key deduped like the others.
+      if (onAuxActionRef.current && event.key.toLowerCase() === 'r') {
+        event.preventDefault()
+        if (!heldKeys.has(event.key)) {
+          heldKeys.add(event.key)
+          onAuxActionRef.current('uninstall', 'keyboard')
+        }
+        return
+      }
+
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         if (!heldKeys.has(event.key)) {
@@ -274,6 +290,14 @@ export function useControllerNavigation({
             if (justPressed(1)) {
               onControllerActivityRef.current?.('back')
               onBackRef.current?.('gamepad')
+            }
+
+            // Y / Triangle (button 3) — the auxiliary action (e.g. Uninstall
+            // from the Launch Game card). Only hooks that provided onAuxAction
+            // respond.
+            if (onAuxActionRef.current && justPressed(3)) {
+              onControllerActivityRef.current?.('aux')
+              onAuxActionRef.current('uninstall', 'gamepad')
             }
 
             if (direction !== previousDirection) {

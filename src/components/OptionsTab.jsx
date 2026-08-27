@@ -25,6 +25,27 @@ const SILENT_MODE_OPTIONS = [
   { value: true, label: 'On' },
 ]
 
+// Controller/keyboard glyph packs — 'auto' detects the connected controller.
+const GLYPH_OPTIONS = [
+  { value: 'auto', label: 'Auto (Detect)' },
+  { value: 'keyboard', label: 'Keyboard & Mouse' },
+  { value: 'xbox', label: 'Xbox' },
+  { value: 'playstation', label: 'PlayStation' },
+  { value: 'switch', label: 'Nintendo Switch' },
+  { value: 'steam', label: 'Steam Controller' },
+  { value: 'steamdeck', label: 'Steam Deck' },
+]
+
+// {value,label} option lists keyed by setting — single source for the select
+// rows' labels ↔ stored values (display_monitor is special-cased below).
+const OPTION_LISTS = {
+  display_mode: DISPLAY_MODE_OPTIONS,
+  silent_mode: SILENT_MODE_OPTIONS,
+  dynamic_sounds: DYNAMIC_OPTIONS,
+  dynamic_interfaces: DYNAMIC_OPTIONS,
+  glyph_platform: GLYPH_OPTIONS,
+}
+
 // Theme accent color presets — each shell gets its own palette.
 const JUPITER_ACCENT_PRESETS = [
   '#028fcc', // default cyan
@@ -161,12 +182,15 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
   const navItems = useMemo(() => {
     const items = []
     if (section === 'general') {
-      items.push({ kind: 'toggle', key: 'silent_mode', label: 'Silent Mode' })
-      items.push({ kind: 'select', key: 'dynamic_sounds', label: 'Dynamic Sound Effects' })
+      // ORDER MUST MATCH THE DOM: THEME card → SOUND card → INTERFACE card.
       items.push({ kind: 'accent', key: 'accent_jupiter', label: 'Jupiter Accent' })
       items.push({ kind: 'accent', key: 'accent_iw8', label: 'IW8 Accent' })
-      items.push({ kind: 'toggle', key: 'auto_load_savedata', label: 'Auto-Load Save Data' })
+      items.push({ kind: 'toggle', key: 'silent_mode', label: 'Silent Mode' })
+      items.push({ kind: 'select', key: 'dynamic_sounds', label: 'Dynamic Sound Effects' })
       items.push({ kind: 'select', key: 'dynamic_interfaces', label: 'Dynamic Interfaces' })
+      items.push({ kind: 'select', key: 'glyph_platform', label: 'Controller Glyphs' })
+      items.push({ kind: 'toggle', key: 'auto_load_savedata', label: 'Auto-Load Save Data' })
+      items.push({ kind: 'select', key: 'glyph_platform', label: 'Controller Glyphs' })
     } else if (section === 'display') {
       items.push({ kind: 'select', key: 'display_mode', label: 'Display Mode' })
       items.push({ kind: 'select', key: 'display_monitor', label: 'Display Monitor' })
@@ -194,10 +218,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
   // Monitor picker stores the OS monitor NAME — the label is derived from
   // ordinal/primary, so the two map through the in-memory monitor list.
   const selectOptions = (key) => {
-    if (key === 'display_mode') return DISPLAY_MODE_OPTIONS.map((option) => option.label)
     if (key === 'display_monitor') return ['Default', ...monitors.map(monitorLabel)]
-    if (key === 'silent_mode') return SILENT_MODE_OPTIONS.map((option) => option.label)
-    if (key === 'dynamic_sounds' || key === 'dynamic_interfaces') return DYNAMIC_OPTIONS.map((option) => option.label)
+    if (OPTION_LISTS[key]) return OPTION_LISTS[key].map((option) => option.label)
     if (key === 'dev_server_map') return JUPITER_MAPS
     if (key === 'dev_server_mode') return JUPITER_MODES
     return []
@@ -207,10 +229,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
       const monitor = monitors.find((item) => monitorLabel(item) === display)
       return monitor ? monitor.name : ''
     }
-    const opts = key === 'display_mode'
-      ? DISPLAY_MODE_OPTIONS
-      : (key === 'dynamic_sounds' || key === 'dynamic_interfaces') ? DYNAMIC_OPTIONS : null
-    return opts?.find((option) => option.label === display)?.value ?? display
+    return OPTION_LISTS[key]?.find((option) => option.label === display)?.value ?? display
   }
   const selectDisplay = (key) => {
     const stored = valueOf(key)
@@ -219,11 +238,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
       const monitor = monitors.find((item) => item.name === stored)
       return monitor ? monitorLabel(monitor) : String(stored)
     }
-    const opts = key === 'display_mode'
-      ? DISPLAY_MODE_OPTIONS
-      : (key === 'silent_mode') ? SILENT_MODE_OPTIONS
-        : (key === 'dynamic_sounds' || key === 'dynamic_interfaces') ? DYNAMIC_OPTIONS : null
-    return opts?.find((option) => option.value === stored)?.label ?? stored
+    return OPTION_LISTS[key]?.find((option) => option.value === stored)?.label ?? stored
   }
 
   const openOptions = openSelect ? selectOptions(openSelect) : []
@@ -233,6 +248,12 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
   // dropdown, a toggle flips, a text field hands off to the on-screen
   // keyboard. The TRIGGERS (LT/RT, [ ]) switch sub-tabs — the bumpers stay
   // owned by the interface hook for top-level tabs.
+  //
+  // The Reset button sits outside the section cards in the DOM but is the
+  // last item in navItems. Custom onNavigate makes it a terminal node:
+  // Down from the last setting row → Reset; Up from Reset → last setting;
+  // Down from Reset / Up from first row → stay (no wrap-around to the
+  // opposite end, which would jump past the visual card boundary).
   const focusedIndex = useControllerNavigation({
     itemCount: navItems.length,
     allowedDirections: ['up', 'down'],
@@ -241,7 +262,25 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
       setInputMode('controller')
       playSound(hoverSound)
     },
+    onNavigate: (direction, currentIndex) => {
+      const count = navItems.length
+      if (count < 2) return currentIndex
+      const lastSettingIdx = navItems.findIndex((item) => item.kind === 'reset') - 1
+      const resetIdx = lastSettingIdx + 1
+      if (direction === 'down') {
+        if (currentIndex === resetIdx) return currentIndex // already on Reset
+        if (currentIndex >= lastSettingIdx) return resetIdx // last setting → Reset
+        return currentIndex + 1
+      }
+      if (direction === 'up') {
+        if (currentIndex === 0) return currentIndex // first row — don't wrap to Reset
+        if (currentIndex === resetIdx) return lastSettingIdx // Reset → last setting
+        return currentIndex - 1
+      }
+      return currentIndex
+    },
     onTrigger: (direction) => {
+      setInputMode('controller')
       const index = subTabIndex(section)
       const next = OPTIONS_SUB_TABS[(index + (direction === 'right' ? 1 : -1) + OPTIONS_SUB_TABS.length) % OPTIONS_SUB_TABS.length]
       switchSection(next.key)
@@ -461,6 +500,24 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
                 />
               </label>
 
+              <label className={`options-row ${isRowFocused('glyph_platform') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
+                <div className="options-row-label">
+                  <strong>Controller Glyphs</strong>
+                  <span>Which button style the launcher shows. Auto uses the connected controller (keyboard when none).</span>
+                </div>
+                <CustomSelect
+                  value={selectDisplay('glyph_platform')}
+                  options={selectOptions('glyph_platform')}
+                  onSelect={(display) => handleChange('glyph_platform', selectStoredValue('glyph_platform', display))}
+                  isOpen={openSelect === 'glyph_platform'}
+                  onToggle={() => setOpenSelect(openSelect === 'glyph_platform' ? null : 'glyph_platform')}
+                  onClose={() => setOpenSelect(null)}
+                  focusIndex={openSelect === 'glyph_platform' ? optionFocusedIndex : null}
+                  theme={theme}
+                  ariaLabel="Controller Glyphs"
+                />
+              </label>
+
               <label className={`options-row ${isRowFocused('auto_load_savedata') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
                   <strong>Auto-Load Save Data</strong>
@@ -481,6 +538,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange }) {
                 </span>
               </label>
             </div>
+
           </>
         )}
 

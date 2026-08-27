@@ -27,7 +27,7 @@ const regions = ['All Regions', 'North America', 'Europe', 'Asia Pacific']
 // are listed and whether the join flow is the Jupiter RTM sequence or the
 // IW8 stub). They're decoupled so Dynamic Interfaces can swap the shell
 // without changing the content.
-export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, initialInputMode = 'mouse' }) {
+export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW8Join, initialInputMode = 'mouse' }) {
   const isJupiterStyle = theme === 'jupiter'
   const isJupiterContent = mod === 'jupiter'
   const hoverSound = isJupiterStyle ? 'jupHover' : 'iw8Hover'
@@ -189,10 +189,11 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, init
     setInputMode('mouse')
     setHoveredIndex(null)
 
-    // IW8 content has no Jupiter session provider — its join is a stub line.
+    // IW8 content has no Jupiter session provider — its join opens the
+    // IW8 join modal (shows the console command with a copy button).
     if (!isJupiterContent) {
-      setStatus(`Joining ${server.name} — ${server.lanSession ? 'LAN session' : 'online'}…`)
       playSound(selectSound)
+      onIW8Join?.(server)
       return
     }
 

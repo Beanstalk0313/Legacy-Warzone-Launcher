@@ -59,6 +59,10 @@ fn default_accent_iw8() -> String {
     "#d92323".to_string()
 }
 
+fn default_glyph_platform() -> String {
+    "auto".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AppSettings {
@@ -110,6 +114,15 @@ pub struct AppSettings {
     /// player's classes / operator / settings from savedata.
     #[serde(default)]
     pub auto_load_savedata: bool,
+    /// Where the Jupiter game is installed / should be installed. Empty until
+    /// the user sets it in Options — a blank value means "not installed yet".
+    #[serde(default)]
+    pub game_install_path: String,
+    /// Which controller/keyboard glyph pack the UI shows — "auto" detects the
+    /// connected controller (keyboard fallback), otherwise one of
+    /// keyboard / xbox / playstation / switch / steam / steamdeck.
+    #[serde(default = "default_glyph_platform")]
+    pub glyph_platform: String,
 }
 
 impl Default for AppSettings {
@@ -130,12 +143,15 @@ impl Default for AppSettings {
             dev_server_mode: default_dev_server_mode(),
             dev_server_lan_session: default_dev_server_lan_session(),
             auto_load_savedata: false,
+            game_install_path: String::new(),
+            glyph_platform: default_glyph_platform(),
         }
     }
 }
 
 const SETTING_VALUES: [&str; 3] = ["enabled", "iw8", "jupiter"];
 const DISPLAY_MODE_VALUES: [&str; 2] = ["fullscreen", "windowed"];
+const GLYPH_PLATFORM_VALUES: [&str; 7] = ["auto", "keyboard", "xbox", "playstation", "switch", "steam", "steamdeck"];
 
 /// Validate a hex color string (#rrggbb). Falls back to `default` when
 /// the value is missing or not exactly seven characters (# + six hex).
@@ -218,6 +234,12 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         dev_server_map: normalize_setting_text(&settings.dev_server_map, &defaults.dev_server_map, 64),
         dev_server_mode: normalize_setting_text(&settings.dev_server_mode, &defaults.dev_server_mode, 64),
         dev_server_lan_session: lan_session,
+        game_install_path: normalize_setting_text(&settings.game_install_path, "", 512),
+        glyph_platform: if GLYPH_PLATFORM_VALUES.contains(&settings.glyph_platform.as_str()) {
+            settings.glyph_platform
+        } else {
+            defaults.glyph_platform
+        },
     }
 }
 

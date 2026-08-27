@@ -10,7 +10,6 @@ dist/
 .env.*
 !.env.example
 !.env.jupiter
-info.txt
 
 # Tauri / Rust build artifacts
 src-tauri/target/
@@ -19,7 +18,7 @@ src-tauri/gen/
 # Local tooling data
 .freebuff/
 
-# Private notes (personal docs — never committed)
+# Private notes
 .notes/
 .vscode/
 .idea/
@@ -34,3 +33,9 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# UnRAR
+/src-tauri/resources/unrar.exe
+
+# Custom Font
+/src/assets/font

@@ -1,4 +1,6 @@
 mod commands;
+mod game_install;
+mod game_input;
 
 use tauri::Manager;
 
@@ -40,6 +42,13 @@ pub fn run() {
             commands::list_monitors_command,
             commands::apply_display_monitor_command,
             commands::get_resource_dir_command,
+            game_install::install_jupiter_game_command,
+            game_install::cancel_game_install_command,
+            game_install::launch_jupiter_game_command,
+            game_install::game_install_status_command,
+            game_install::uninstall_jupiter_game_command,
+            game_input::focus_game_window_command,
+            game_input::send_game_key_command,
             commands::minimize_window_command,
             commands::request_window_close_command,
             commands::exit_app_command,
