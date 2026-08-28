@@ -42,12 +42,12 @@ const socialCache = {
 }
 const SOCIAL_CACHE_TTL_MS = 30000
 
-export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
+export default function SocialTab({ theme = 'jupiter', onSwitchToAccount }) {
   const { user } = useAuth()
   const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const myId = user?.id
   const configured = SUPABASE_CONFIGURED && supabase
 
@@ -680,7 +680,7 @@ export default function SocialTab({ theme = 'iw8', onSwitchToAccount }) {
     return Boolean(item && predicate(item))
   }
 
-  const themeClass = isJupiter ? 'jupiter-theme' : 'iw8-theme'
+  const themeClass = 'jupiter-theme'
 
   // ── Locked state (not signed in) ────────────────────────────────────────
   if (!user) {

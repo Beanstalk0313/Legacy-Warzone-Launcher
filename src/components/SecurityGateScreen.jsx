@@ -1,20 +1,10 @@
-import React, { useState } from 'react'
+import React from 'react'
 import AccountTab from './AccountTab'
 import { exitApp } from '../utils/serverPresence'
 import { playSound } from '../utils/audio'
 
-function getInitialTheme() {
-  try {
-    return window.localStorage.getItem('lwz-last-mod') === 'jupiter' ? 'jupiter' : 'iw8'
-  } catch {
-    return 'iw8'
-  }
-}
-
 export default function SecurityGateScreen({ state, onRetry }) {
-  const [theme] = useState(getInitialTheme)
-  const isJupiter = theme === 'jupiter'
-  const prefix = isJupiter ? 'jupiter' : 'iw8'
+  const prefix = 'jupiter'
 
   const handleQuit = async () => {
     try {
@@ -25,7 +15,7 @@ export default function SecurityGateScreen({ state, onRetry }) {
   }
 
   const handleRetry = () => {
-    playSound(isJupiter ? 'jupSelect' : 'iw8Select')
+    playSound('jupSelect')
     onRetry?.()
   }
 
@@ -33,19 +23,19 @@ export default function SecurityGateScreen({ state, onRetry }) {
     return (
       <div className={`security-gate security-gate-${prefix}`}>
         <header className="security-gate-header">
-          <span className="security-gate-kicker">LEGACY WARZONE LAUNCHER</span>
+          <span className="security-gate-kicker">LEGACY MODERN WARFARE III LAUNCHER</span>
           <h1>ACCOUNT SETUP</h1>
           <p>
-            A signed-in account with a complete Discord username is required during the open beta.
+            A signed-in account with a complete Discord username is required.
           </p>
         </header>
         <main className="security-gate-account">
-          <AccountTab theme={theme} onIdentitySaved={onRetry} />
+          <AccountTab theme="jupiter" onIdentitySaved={onRetry} />
         </main>
         <button
           type="button"
           className="security-gate-quit"
-          onMouseEnter={() => playSound(isJupiter ? 'jupHover' : 'iw8Hover')}
+          onMouseEnter={() => playSound('jupHover')}
           onClick={handleQuit}
         >
           Quit
@@ -74,7 +64,7 @@ export default function SecurityGateScreen({ state, onRetry }) {
         <h1>{isBanned ? 'ACCESS BLOCKED' : 'SECURITY CHECK UNAVAILABLE'}</h1>
         <p>
           {isBanned
-            ? 'This device and account have been banned from the Legacy Warzone Launcher open beta. The launcher cannot continue.'
+            ? 'This device and account have been banned from the Legacy Modern Warfare III Launcher. The launcher cannot continue.'
             : 'The launcher could not complete its account security verification. For your protection, it will not continue while verification is unavailable.'}
         </p>
         <div className="security-gate-actions">
@@ -82,7 +72,7 @@ export default function SecurityGateScreen({ state, onRetry }) {
             <button
               type="button"
               className="security-gate-action"
-              onMouseEnter={() => playSound(isJupiter ? 'jupHover' : 'iw8Hover')}
+              onMouseEnter={() => playSound('jupHover')}
               onClick={handleRetry}
             >
               Try Again
@@ -91,7 +81,7 @@ export default function SecurityGateScreen({ state, onRetry }) {
           <button
             type="button"
             className="security-gate-action"
-            onMouseEnter={() => playSound(isJupiter ? 'jupHover' : 'iw8Hover')}
+            onMouseEnter={() => playSound('jupHover')}
             onClick={handleQuit}
           >
             Quit

@@ -9,7 +9,7 @@
 // the only behavioral difference lives in JupiterSessionProvider, which
 // skips the map/mode config cbuf (and the -join) when no LAN session is
 // configured, since there is nothing to send or connect to.
-export function buildDevServer(settings) {
+export function buildDevServer(settings, gameMode = 'warzone') {
   if (!settings || !settings.testing_server) return null
   return {
     id: 'dev-server',
@@ -17,6 +17,10 @@ export function buildDevServer(settings) {
     host: 'LOCAL DEV',
     region: '—',
     version: 'DEV',
+    // The dev server belongs to the CURRENT mode (its map/mode selects in
+    // Options follow the same per-mode lists), so the join flow knows
+    // whether the exec-hash config cbuf applies (warzone only).
+    gameMode,
     map: settings.dev_server_map || 'Rebirth Island',
     mode: settings.dev_server_mode || 'Resurgence',
     players: '—',

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { playSound } from './audio'
+import { duckModeMusic, restoreModeMusic } from './music'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import { useAuth } from '../components/AuthProvider'
 import { useSettings } from '../components/SettingsProvider'
@@ -14,8 +15,7 @@ import {
   writeJupiterLuaCommand,
   wait,
 } from './jupiterRtm'
-import { getJupiterConfigCommand } from './jupiterCommands'
-import { CREATE_LOCAL_GAME_STEPS, focusGameWindow, runGameKeyNav } from './gameInput'
+import { getJupiterConfigCommand, modeNeedsConfig } from './jupiterCommands'
 import JupiterJoinModal from '../components/JupiterJoinModal'
 import JupiterErrorModal from '../components/JupiterErrorModal'
 
@@ -24,11 +24,14 @@ import JupiterErrorModal from '../components/JupiterErrorModal'
 //
 // Owns everything an active Jupiter game session needs while the launcher is
 // open:
-//   • The join flow:  -lua "MainMenuOffline" → 2s → -lua "WarzonePrivateMatchLobby"
-//     → 2s → -lua "MainMenuOffline" → guided PHA-Client modal → Continue runs
-//     -cbuf "<config>" → 2s → connect (-join "<session>" — the
-//     tool writes the trigger files itself: req_execcmd.ntc, command.txt,
-//     cbufcmd).
+//   • The join flow: warzone runs the lua prep sequence
+//     (-lua MainMenuOffline → 2 s → -lua WarzonePrivateMatchLobby → 2 s →
+//     -lua MainMenuOffline) then shows the guided PHA-Client modal —
+//     Continue runs the config cbuf → 2 s → connect (-join "<session>";
+//     the tool writes the trigger files itself: req_execcmd.ntc,
+//     command.txt, cbufcmd). Zombies and multiplayer skip the prep and go
+//     straight to the modal (click Local Play, don't create yet); zombies
+//     writes -setzombies before connecting, and neither pushes a config cbuf.
 //   • server_members registration + heartbeat so the host sees who is in
 //     their lobby.
 //   • A watcher on the joined server row: if the host changes map/mode the
@@ -77,11 +80,11 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     })
     return () => { active = false }
   }, [settings?.auto_load_savedata])
-  // `theme` is the SHELL style the provider renders its modals with (an IW8
-  // shell — Dynamic Interfaces = IW8 Mod — wears IW8 accents + sounds).
+
+  // `theme` selects the modal styling + sound set.
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [join, setJoin] = useState(null)
   const [errorModal, setErrorModal] = useState(null)
   const [toasts, setToasts] = useState([])
@@ -246,6 +249,8 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     joinAbortRef.current = null
     joinTokenRef.current += 1 // invalidate any in-flight stage transitions
     setJoin(null)
+    // The join never happened — bring the launcher music back up.
+    restoreModeMusic()
   }, [])
 
   const beginJoin = useCallback(async (server, source = 'browser') => {
@@ -269,6 +274,9 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
       lanSession: server.lanSession,
       memberId: null,
       memberCode: null,
+      // The lobby's game mode — decides whether the exec-hash config cbuf
+      // applies (warzone only; multiplayer/zombies need just the LAN join).
+      gameMode: server.gameMode || server.game_mode || 'multiplayer',
       // Dev-server joins (Developer Mode test server) are fully local: no
       // server_members registration, no host watcher, no party broadcast.
       isDevServer: Boolean(server.isDevServer),
@@ -278,31 +286,28 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     // roster is discarded.
     setLobbyMembers([])
     playSound(selectSound)
+    // Joining a match: duck the launcher soundtrack so the game's audio is
+    // unobstructed. It fades back in on leaveServer (or a cancelled join).
+    duckModeMusic()
 
+    // Zombies and multiplayer matches are configured natively by the game's
+    // own lobby, so their join flow goes straight to a guided modal ("click
+    // Local Play — don't create the game yet") with NO prep sequence. The
+    // switch to zombies mode (-setzombies) and/or the LAN join happen when
+    // the user presses Continue.
+    const isSimplyGuided = session.gameMode === 'zombies' || session.gameMode === 'multiplayer'
+    if (isSimplyGuided) {
+      if (joinTokenRef.current !== token) return
+      setJoin((current) => current ? { ...current, stage: 'guided' } : current)
+      return
+    }
+
+    // Warzone still runs the prep sequence (drive the PHA Client menus) so
+    // the user ends up in the Create Local Game screen. No keyboard auto-
+    // navigation — the guided modal walks the user through it instead.
     try {
       await runJupiterPrepSequence(PREP_GAP_MS, controller.signal)
       joinAbortRef.current = null
-
-      // Auto-drive the PHA Client → Local Play → Create Local Game menu with
-      // keyboard input (SendInput) so the user doesn't click through the
-      // guided steps by hand. Falls back to the manual modal when the game
-      // window can't be focused (game not running yet, etc.) or the user
-      // cancels mid-navigation.
-      if (joinTokenRef.current === token && !controller.signal.aborted) {
-        const gameFocused = await focusGameWindow()
-        if (gameFocused && !controller.signal.aborted) {
-          try {
-            await runGameKeyNav(CREATE_LOCAL_GAME_STEPS, controller.signal)
-          } catch (navError) {
-            // AbortError = the user cancelled (handled by the token check
-            // below); anything else just means the manual guided steps still
-            // apply, so the modal is shown as usual.
-            if (navError?.name !== 'AbortError') {
-              console.warn('[session] auto game-nav failed', navError)
-            }
-          }
-        }
-      }
 
       if (joinTokenRef.current !== token) return
       setJoin((current) => current ? { ...current, stage: 'guided' } : current)
@@ -312,6 +317,8 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
       // AbortError means the user cancelled — no error modal.
       if (error?.name === 'AbortError') { setJoin(null); return }
       setJoin(null)
+      // The prep failed — no match was reached, so the music comes back.
+      restoreModeMusic()
       showError(`COULDN'T PREPARE ${server.name}`, error?.message || String(error) || 'RTM trigger write failed.')
     }
   }, [selectSound, showError])
@@ -332,8 +339,22 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
       // modal, result, HUD) runs exactly like a real lobby either way.
       const hasLanSession = typeof current.lanSession === 'string' && current.lanSession.trim() !== ''
       if (!current.isDevServer || hasLanSession) {
-        const configCommand = getJupiterConfigCommand({ map: current.map, mode: current.mode })
-        await writeJupiterCbufCommand(configCommand)
+        // Zombies: the user clicks Local Play (guided modal), then Continue
+        // switches the game client into zombies mode before connecting. This
+        // is the mode-switch the user asked for at the point of action, not
+        // on mounting the mode menu.
+        if (current.gameMode === 'zombies') {
+          await runRtm(['-setzombies'])
+          await wait(CBUF_TO_JOIN_GAP_MS)
+          if (joinTokenRef.current !== token) return
+        }
+        // Only Warzone lobbies push the exec-hash config cbuf (documented in
+        // wz commands.txt). Multiplayer and zombies matches are configured
+        // natively by the game's own lobby — NO cbuf, just the LAN join.
+        if (modeNeedsConfig(current.gameMode)) {
+          const configCommand = getJupiterConfigCommand({ map: current.map, mode: current.mode })
+          await writeJupiterCbufCommand(configCommand)
+        }
         // Give the game a moment to consume the config before connecting.
         await wait(CBUF_TO_JOIN_GAP_MS)
         if (joinTokenRef.current !== token) return
@@ -395,6 +416,8 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     } catch (error) {
       if (joinTokenRef.current !== token) return
       setJoin(null)
+      // The connect failed — no match was reached, so the music comes back.
+      restoreModeMusic()
       showError(`COULDN'T JOIN ${current.serverName}`, error?.message || String(error) || 'RTM trigger write failed.')
     }
   }, [getDisplayName, setLeaderServer, showError, user?.id])
@@ -477,11 +500,15 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
         console.warn('[session] leave cleanup failed', error)
       }
     }
+    // Back in the launcher — bring the soundtrack back up.
+    restoreModeMusic()
   }, [leaveMembership])
 
   const abortJoin = useCallback(() => {
     joinTokenRef.current += 1
     setJoin(null)
+    // The join was abandoned — no match was reached, so the music comes back.
+    restoreModeMusic()
   }, [])
 
   // ── Dev-server watcher: settings map/mode changes → client update ──────
@@ -492,7 +519,7 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
   // configured — without one the HUD updates but no map/mode commands run.
   useEffect(() => {
     if (!join?.isDevServer || join?.stage !== 'result') return undefined
-    const dev = buildDevServer(settings)
+    const dev = buildDevServer(settings, join?.gameMode)
     if (!dev) return undefined
     if (dev.map === join.map && dev.mode === join.mode) return undefined
 
@@ -503,7 +530,9 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
       // revert to the original map after Finish.
       setLastLobby({ name: dev.name, map: dev.map, mode: dev.mode, isDevServer: true })
     }
-    if (hasLanSession) {
+    // Same rule as the join flow: only Warzone dev servers push the
+    // exec-hash config cbuf — multiplayer/zombies update the HUD only.
+    if (hasLanSession && modeNeedsConfig(join?.gameMode)) {
       writeJupiterCbufCommand(getJupiterConfigCommand({ map: dev.map, mode: dev.mode }))
         .then(() => {
           apply()
@@ -872,6 +901,7 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
         theme={theme}
         stage={join?.stage || null}
         serverName={join?.serverName}
+        mode={join?.gameMode || 'warzone'}
         onContinue={continueJoin}
         onFinish={() => void finishJoin()}
         onRetry={() => void retryJoin()}
@@ -891,7 +921,7 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
           live via `join` / `lastLobby`. */}
 
       {toasts.length > 0 && (
-        <div className={`jupiter-session-toasts ${isJupiter ? '' : 'iw8-styled'}`} role="status" aria-live="polite">
+        <div className={`jupiter-session-toasts `} role="status" aria-live="polite">
           {toasts.map((toast) => (
             <div key={toast.id} className={`jupiter-session-toast jupiter-session-toast-${toast.kind}`}>
               <div className="jupiter-session-toast-title">{toast.title}</div>

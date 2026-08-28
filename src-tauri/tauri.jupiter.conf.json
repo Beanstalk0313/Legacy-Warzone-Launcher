@@ -1,6 +1,0 @@
-{
-  "build": {
-    "beforeDevCommand": "vite --mode jupiter",
-    "beforeBuildCommand": "vite build --mode jupiter"
-  }
-}

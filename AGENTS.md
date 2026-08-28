@@ -1,5 +1,17 @@
 # AGENTS.md
 
+> **REBRAND NOTICE (read before trusting details below):** The app was
+> rebranded to the **Legacy Modern Warfare III Launcher**. IW8 Mod, the
+> split-screen launcher, Dynamic Interfaces, and Dynamic Sound Effects were
+> **completely removed** — there is a single game interface
+> (`JupiterInterface.jsx`, internal `jupiter-*` class names are kept), three
+> launch modes (`multiplayer | warzone | zombies`), and no IW8 assets, cues,
+> settings, or migrations. All `jup_*` assets were renamed without the
+> prefix (e.g. `assets/bg.jpg`, `assets/logo.png`); the launcher main menu is
+> full-screen (`logo_big.png` + Warzone/Zombies/Multiplayer buttons). The
+> rest of this file predates the rebrand — treat IW8/Dynamic-* mentions and
+> the old "Legacy Warzone Launcher" name as historical.
+
 Project guide for the **Legacy Warzone Launcher** (a.k.a. "IW8 Mod–Jupiter Mod LFG Tool").
 Read this file first — it explains what the app does, how it's built, and the conventions
 the codebase follows so you don't have to dig through every file.

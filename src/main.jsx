@@ -3,8 +3,8 @@ import { createRoot } from 'react-dom/client'
 import Launcher from './components/Launcher'
 import SecurityGateScreen from './components/SecurityGateScreen'
 import UpdateModal from './components/UpdateModal'
-import IW8Interface from './components/IW8Interface'
 import JupiterInterface from './components/JupiterInterface'
+import JupiterQuitModal from './components/JupiterQuitModal'
 import WindowControls from './components/WindowControls'
 import { checkForUpdates } from './utils/updater'
 import AuthProvider from './components/AuthProvider'
@@ -12,7 +12,7 @@ import SettingsProvider, { useSettings } from './components/SettingsProvider'
 import './styles.css'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useAuth } from './components/AuthProvider'
-import { cleanupStaleOwnedServers, cleanupStalePartyMemberships, deleteMyServerMemberships, deleteOwnedServers, exitApp } from './utils/serverPresence'
+import { cleanupStaleOwnedServers, cleanupStalePartyMemberships, destroyAppWithServerCleanup, exitApp } from './utils/serverPresence'
 import { checkIdentityBan, isTauriRuntime, loadUserIdentity } from './utils/userIdentity'
 import { runRtm } from './utils/jupiterRtm'
 
@@ -53,33 +53,21 @@ function UiCanvas({ children }) {
   )
 }
 
-// Render the chosen mod interface. Options > Dynamic Interfaces can decouple
-// the SHELL (which mod's UI chrome is drawn) from the CONTENT (which mod's
-// features run): with the setting 'enabled' (default) the shell follows the
-// content mod; otherwise the shell is forced to the chosen mod and the
-// content mod is passed through as `mod`. The background artwork ALWAYS
-// follows the content mod (each interface paints `wallpaper-${mod}`), so a
-// swapped shell keeps the content's native background.
-function ModStage({ mod, isEntering, isLeaving, onSwitchMod, onGoLauncher, gameMode }) {
+// Render the game interface after a mode is chosen on the launcher.
+function ModStage({ isEntering, isLeaving, onGoLauncher, gameMode }) {
   const { settings, loaded } = useSettings()
   // Wait for the startup settings read (a few ms file read) so the correct
   // shell renders from the first frame of the launch transition.
   if (!loaded || !settings) return null
 
-  const shell = settings.dynamic_interfaces === 'enabled' ? mod : settings.dynamic_interfaces
-  const commonProps = {
-    mod,
-    isEntering,
-    isLeaving,
-    onSwitchMod,
-    onGoLauncher,
-    gameMode,
-  }
-
-  if (shell === 'jupiter') {
-    return <JupiterInterface {...commonProps} />
-  }
-  return <IW8Interface {...commonProps} />
+  return (
+    <JupiterInterface
+      isEntering={isEntering}
+      isLeaving={isLeaving}
+      onGoLauncher={onGoLauncher}
+      gameMode={gameMode}
+    />
+  )
 }
 
 function App() {
@@ -179,30 +167,21 @@ function App() {
   // the release/signing setup.
   const [updateInfo, setUpdateInfo] = useState(null)
 
-  const [currentView, setCurrentView] = useState('launcher') // 'launcher' | 'iw8' | 'jupiter'
-  // Drives the .is-entering class on the ModStage and the .is-expanding-*
+  const [currentView, setCurrentView] = useState('launcher') // 'launcher' | 'game'
+  // Drives the .is-entering class on the ModStage and the .is-expanding
   // class on the Launcher so .css keyframe animations fire.
   //
-  //   t=0 ms : user clicks Play → setLaunchingInto(mod)
+  //   t=0 ms : user clicks a mode button → setLaunchingInto(mode)
   //   t=480  : launcher unmounts (currentView flips), ModStage mounts with
   //            .is-entering → UI elements start animating in
   //   t=1100 : setLaunchingInto(null) clears the classes so steady state
   //            re-renders are animation-free.
-  //
-  // Crucially, ModStage is NOT rendered while launchingInto is the only
-  // reason a mod would render. Previously the App kept both the Launcher
-  // and the ModStage rendered at the same time with `modInView`, and the
-  // ModStage's full-screen `jup_bg.jpg`/`iw8_bg.jpg` background painted
-  // *over* the launcher's expanding tile — the user just saw a hard snap
-  // to the mod view and never the half-screen expansion. We now render the
-  // Launcher solo during the 0-480 ms window so the user sees its tile
-  // expand visibly into the full background.
-  const [launchingInto, setLaunchingInto] = useState(null) // null | 'iw8' | 'jupiter'
+  const [launchingInto, setLaunchingInto] = useState(null)
   const [gameMode, setGameMode] = useState('multiplayer') // 'multiplayer' | 'warzone' | 'zombies'
 
   // The reverse signal for the Return Home button. While set, the
   // .is-leaving class drives the ModStage UI exit animations and the
-  //    .is-collapsing-{mod} class drives the Launcher tile collapse. The
+  //    .is-collapsing class drives the Launcher collapse. The
   //    timeline mirrors `beginLaunch`:
   //
   //   t=0 ms : user clicks Return Home → setReturningHome(currentView).
@@ -212,14 +191,16 @@ function App() {
   //            corresponding exit keyframe (header slides up, body fades,
   //            menu/cards slide down, quit slides down).
   //   t=620  : setCurrentView('launcher'). ModStage unmounts. Launcher
-  //            mounts with .is-collapsing-{mod} — its chosen split
-  //            shrinks from flex:6 → flex:1 (full → half viewport), the
-  //            other split grows back from flex:0 + opacity:0 → flex:1
-  //            + opacity:1, and the chosen split's children (logo + Play
-  //            button) fade back from opacity 0 → 1.
+  //            mounts with .is-collapsing — the transition settles back
+  //            into the steady launcher layout.
   //   t=1100 : setReturningHome(null) clears the class so steady state
   //            re-renders are animation-free.
-  const [returningHome, setReturningHome] = useState(null) // null | 'iw8' | 'jupiter'
+  const [returningHome, setReturningHome] = useState(null)
+  // The shared "Quit to Desktop?" confirmation. Opened by the launcher's
+  // quit button AND the window's X (the Tauri close-request handler below
+  // just opens this modal — the actual cleanup + exit only runs when the
+  // user confirms).
+  const [quitModalOpen, setQuitModalOpen] = useState(false)
 
   const timersRef = useRef([])
 
@@ -255,32 +236,19 @@ function App() {
   }, [user?.id])
 
   useEffect(() => {
-    if (!window.__TAURI_INTERNALS__ || !user?.id) return undefined
+    if (!window.__TAURI_INTERNALS__) return undefined
 
     let active = true
-    let closing = false
     let unlisten
 
-    const handleCloseRequested = async (event) => {
-      if (closing) return
+    // The window's X (and any OS close request) opens the quit
+    // confirmation instead of exiting — the cleanup + `exit_app` sequence
+    // runs only when the user confirms the modal (see handleQuitDesktop
+    // below). `exitApp()` intentionally bypasses this close-request event,
+    // so a confirmed quit never re-opens the modal.
+    const handleCloseRequested = (event) => {
       event.preventDefault()
-      closing = true
-      try {
-        await deleteOwnedServers(user.id)
-      } catch (error) {
-        console.warn('[servers] close cleanup failed', error)
-      }
-      // Leave/dissolve the user's parties on quit too — parties are
-      // session-scoped. Both cleanup helpers catch their own errors and
-      // never throw, so a cleanup failure can't strand the user in the app.
-      await cleanupStalePartyMemberships(user.id)
-      await deleteMyServerMemberships(user.id)
-      // `exitApp()` invokes `exit_app` (a clean `app.exit(0)` on the Rust
-      // side) which terminates the whole process and intentionally
-      // bypasses the close-request event, so it will not recurse into this
-      // handler. The old `window.destroy()` was blocked by the capability
-      // ACL and could leave a white window on Windows.
-      await exitApp()
+      setQuitModalOpen(true)
     }
 
     getCurrentWindow().onCloseRequested(handleCloseRequested)
@@ -302,7 +270,32 @@ function App() {
       active = false
       unlisten?.()
     }
-  }, [user?.id])
+  }, [])
+
+  // Confirmed quit (quit modal on the launcher or via the window X):
+  // remove anything this session left on the backend — lobbies, lobby
+  // memberships, and parties (parties are session-scoped) — then exit.
+  // `destroyAppWithServerCleanup` ends with `exit_app` (a clean
+  // `app.exit(0)` on the Rust side) which terminates the whole process and
+  // intentionally bypasses the close-request handler, so there is no
+  // recursion. The old `window.destroy()` was blocked by the capability
+  // ACL and could leave a white window on Windows.
+  const handleQuitDesktop = async () => {
+    setQuitModalOpen(false)
+    if (user?.id) {
+      try {
+        await cleanupStalePartyMemberships(user.id)
+      } catch (error) {
+        console.warn('[servers] quit party cleanup failed', error)
+      }
+    }
+    try {
+      await destroyAppWithServerCleanup(user?.id)
+    } catch (error) {
+      console.warn('[quit] cleanup failed; forcing exit', error)
+      await exitApp()
+    }
+  }
 
   if (securityState.kind !== 'ready') {
     return (
@@ -320,9 +313,6 @@ function App() {
     timersRef.current = []
   }
 
-  const handleSwitchMod = (mod) => {
-    setCurrentView(mod)
-  }
   const handleGoLauncher = () => {
     setCurrentView('launcher')
     setLaunchingInto(null)
@@ -330,21 +320,20 @@ function App() {
     clearTimers()
   }
 
-  const beginLaunch = (mod, mode) => {
+  const beginLaunch = (mode) => {
     if (launchingInto || returningHome) return // ignore double-clicks while a transition is in flight
-    setLaunchingInto(mod)
+    setLaunchingInto('game')
     if (mode) setGameMode(mode)
     clearTimers()
-    // T = ~480 ms: launcher's chosen tile has finished expanding and now
-    // occupies the entire viewport. The launcher's ::before bg fills the
-    // viewport at cover-fit scale = 1.0. Swap currentView so the Launcher
-    // unmounts cleanly and the ModStage replaces it. The ModStage's
-    // .jupiter-interface-container / .iw8-interface-container paints the
-    // same image at the same cover-fit scale on the same full-viewport
-    // surface, so the cutover is pixel-identical (no visible snap).
+    // T = ~480 ms: the launcher's mode button has finished its press
+    // animation. Swap currentView so the Launcher unmounts cleanly and the
+    // ModStage replaces it — the ModStage's .jupiter-interface-container
+    // paints the same background at the same cover-fit scale on the same
+    // full-viewport surface, so the cutover is pixel-identical (no visible
+    // snap).
     timersRef.current.push(
       window.setTimeout(() => {
-        setCurrentView(mod)
+        setCurrentView('game')
       }, 480)
     )
     // T = ~1100 ms: every entrance animation in the ModStage has settled
@@ -360,16 +349,13 @@ function App() {
 
   const beginReturnHome = () => {
     if (returningHome || launchingInto) return
-    const mod = currentView
-    if (mod === 'launcher') return
-    setReturningHome(mod)
+    if (currentView === 'launcher') return
+    setReturningHome('game')
     clearTimers()
     // T = ~620 ms: UI exit animations on the ModStage have settled. Swap
     // currentView so the ModStage unmounts (the launcher takes its place).
-    // The Launcher mounts fresh with its .is-collapsing-{mod} class which
-    // animates the chosen split's flex-grow from 6 → 1 (full → half
-    // viewport) and the other split's flex/opacity back to their steady
-    // state.
+    // The Launcher mounts fresh with its .is-collapsing class which
+    // animates the launcher layout back to its steady state.
     timersRef.current.push(
       window.setTimeout(() => {
         setCurrentView('launcher')
@@ -393,7 +379,8 @@ function App() {
             onSelectMod={beginLaunch}
             expandingMod={launchingInto}
             collapsingMod={returningHome}
-            navDisabled={Boolean(updateInfo)}
+            navDisabled={Boolean(updateInfo) || quitModalOpen}
+            onQuitClick={() => setQuitModalOpen(true)}
           />
         )}
 
@@ -403,15 +390,27 @@ function App() {
             className={`mod-stage ${launchingInto ? 'is-entering' : ''} ${returningHome ? 'is-leaving' : ''}`}
           >
             <ModStage
-              mod={currentView}
               isEntering={!!launchingInto}
               isLeaving={!!returningHome}
-              onSwitchMod={handleSwitchMod}
               onGoLauncher={beginReturnHome}
               gameMode={gameMode}
             />
           </div>
         )}
+
+        {/* Shared "Quit to Desktop?" confirmation — opened by the launcher's
+            quit button and the window's X (from any view). On the launcher
+            there is no "Return to Launcher Menu" action to offer. */}
+        <JupiterQuitModal
+          isOpen={quitModalOpen}
+          showReturnToLauncher={currentView !== 'launcher'}
+          onClose={() => setQuitModalOpen(false)}
+          onGoLauncher={() => {
+            setQuitModalOpen(false)
+            beginReturnHome()
+          }}
+          onQuitDesktop={() => void handleQuitDesktop()}
+        />
       </UiCanvas>
       <WindowControls />
       {/* Zombies mode rough accent bar clip path */}

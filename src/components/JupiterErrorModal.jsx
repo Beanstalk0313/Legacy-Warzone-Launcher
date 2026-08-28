@@ -7,8 +7,8 @@ import { useTranslation } from '../utils/i18n'
 export default function JupiterErrorModal({ theme = 'jupiter', isOpen, title = 'REQUEST FAILED', message, onClose }) {
   const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [inputMode, setInputMode] = useState('mouse')
   const inputModeRef = useRef('mouse')
 
@@ -48,22 +48,22 @@ export default function JupiterErrorModal({ theme = 'jupiter', isOpen, title = '
   return createPortal(
     <div className="modal-overlay" onClick={handleClose} onMouseMove={handleMouseMove}>
       <div
-        className={`${isJupiter ? 'jupiter' : 'iw8'}-error-modal`}
+        className={`${'jupiter'}-error-modal`}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="jupiter-error-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className={`${isJupiter ? 'jupiter' : 'iw8'}-error-accent-bar`} />
-        <div className={`${isJupiter ? 'jupiter' : 'iw8'}-error-content`}>
-          <div className={`${isJupiter ? 'jupiter' : 'iw8'}-error-copy`}>
-            <span className={`${isJupiter ? 'jupiter' : 'iw8'}-error-kicker`}>{t('error.kicker')}</span>
+        <div className={`${'jupiter'}-error-accent-bar`} />
+        <div className={`${'jupiter'}-error-content`}>
+          <div className={`${'jupiter'}-error-copy`}>
+            <span className={`${'jupiter'}-error-kicker`}>{t('error.kicker')}</span>
             <h2 id="jupiter-error-title">{title}</h2>
             <p>{message || t('error.default')}</p>
           </div>
           <button
             type="button"
-            className={`${isJupiter ? 'jupiter' : 'iw8'}-error-acknowledge ${inputMode === 'controller' && focusedIndex === 0 ? 'controller-focused' : ''}`}
+            className={`${'jupiter'}-error-acknowledge ${inputMode === 'controller' && focusedIndex === 0 ? 'controller-focused' : ''}`}
             onMouseEnter={() => playSound(hoverSound)}
             onClick={handleClose}
           >

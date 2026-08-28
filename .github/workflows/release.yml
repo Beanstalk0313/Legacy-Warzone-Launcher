@@ -66,8 +66,6 @@ jobs:
           # import.meta.env.VITE_*). Add two repo secrets with the Copy
           # Webhook URL from each mod's community channel; unset secrets just
           # disable the announcements.
-          VITE_DISCORD_WEBHOOK_JUPITER: ${{ secrets.VITE_DISCORD_WEBHOOK_JUPITER }}
-          VITE_DISCORD_WEBHOOK_IW8: ${{ secrets.VITE_DISCORD_WEBHOOK_IW8 }}
           # Device identity path — baked into the binary at compile time
           # (src-tauri/src/commands.rs reads env!("LWZ_IDENTITY_DIR") /
           # env!("LWZ_IDENTITY_FILE")). The build FAILS without them, so add
@@ -81,7 +79,7 @@ jobs:
           LWZ_IDENTITY_FILE: ${{ secrets.LWZ_IDENTITY_FILE }}
         with:
           tagName: v__VERSION__
-          releaseName: 'Legacy Warzone Launcher v__VERSION__'
+          releaseName: 'Legacy Modern Warfare III Launcher v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: true
           prerelease: false

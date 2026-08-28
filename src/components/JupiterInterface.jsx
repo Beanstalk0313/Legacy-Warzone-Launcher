@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import JupiterQuitModal from './JupiterQuitModal'
 import JupiterQuickPlayModal from './JupiterQuickPlayModal'
 import GameUninstallModal from './GameUninstallModal'
 import SocialTab from './SocialTab'
@@ -19,34 +18,34 @@ import JupiterErrorModal from './JupiterErrorModal'
 import { getDisplayName } from '../utils/displayName'
 import { buildDevServer } from '../utils/devServer'
 import { playSound } from '../utils/audio'
+import { playModeMusic } from '../utils/music'
 import { useControllerNavigation } from '../utils/controller'
 import { useGlyphPlatform, glyphSrc } from '../utils/glyphs'
 import { useGameInstall } from '../utils/gameInstall'
-import { destroyAppWithServerCleanup, isServerLeaseFresh } from '../utils/serverPresence'
+import { isServerLeaseFresh } from '../utils/serverPresence'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import JupiterSessionProvider, { useJupiterSession } from '../utils/jupiterSession'
 import JupiterInstallModal from './JupiterInstallModal'
+import MusicNoticeModal from './MusicNoticeModal'
 import TutorialOverlay, { hasTutorialBeenSeen, markTutorialSeen } from './TutorialOverlay'
 import { useTranslation } from '../utils/i18n'
-import jupLogo from '../assets/jup_logo.png'
-import jupWarzoneLogo from '../assets/jup_warzone_logo.png'
-import jupZombiesLogo from '../assets/jup_zombies_logo.png'
-import iw8Logo from '../assets/iw8_logo.png'
-import { runRtm, runJupiterPrepSequence, isTauriRuntime } from '../utils/jupiterRtm'
-import jupQuickImg from '../assets/jup_quick.jpg'
-import jupQuickIcon from '../assets/jup_quick_icon.png'
-import jupQuickIconWarzone from '../assets/jup_quick_icon_warzone.png'
-import jupQuickIconZombies from '../assets/jup_zombies_quick_icon.png'
-import jupSearchingImg from '../assets/jup_searching.png'
+import jupLogo from '../assets/logo.png'
+import jupWarzoneLogo from '../assets/warzone_logo.png'
+import jupZombiesLogo from '../assets/zombies_logo.png'
+import jupQuickImg from '../assets/quick.jpg'
+import jupQuickIcon from '../assets/quick_icon.png'
+import jupQuickIconWarzone from '../assets/quick_icon_warzone.png'
+import jupQuickIconZombies from '../assets/zombies_quick_icon.png'
+import jupSearchingImg from '../assets/searching.png'
 import jupFoundImg from '../assets/quick_play_found.jpg'
-import jupBrowseImg from '../assets/jup_browse.jpg'
-import jupHostImg from '../assets/jup_host.jpg'
-import jupWarzoneBrowseImg from '../assets/jup_warzone_browse.jpg'
-import jupWarzoneHostImg from '../assets/jup_warzone_host.jpg'
-import jupZombiesBrowseImg from '../assets/jup_zombies_browse.jpg'
-import jupZombiesHostImg from '../assets/jup_zombies_host.jpg'
-import jupInstallImg from '../assets/jup_install.jpg'
-import jupPlayImg from '../assets/jup_play.jpg'
+import jupBrowseImg from '../assets/browse.jpg'
+import jupHostImg from '../assets/host.jpg'
+import jupWarzoneBrowseImg from '../assets/warzone_browse.jpg'
+import jupWarzoneHostImg from '../assets/warzone_host.jpg'
+import jupZombiesBrowseImg from '../assets/zombies_browse.jpg'
+import jupZombiesHostImg from '../assets/zombies_host.jpg'
+import jupInstallImg from '../assets/install.jpg'
+import jupPlayImg from '../assets/play.jpg'
 
 // Card images and icons vary by game mode (multiplayer / warzone / zombies).
 // Quick Play always uses the same background image; only its badge icon
@@ -64,10 +63,9 @@ function getCardDetailsForMode(gameMode) {
 
 
 
-// Fourth Play-card slot, only shown for Jupiter content (installing/launching
-// the Jupiter game is a Jupiter-only feature). Its label + progress are
-// dynamic, so it isn't part of the static cardDetails map — it's handled
-// separately in nav math and rendering.
+// Fourth Play-card slot (installing/launching the game). Its label +
+// progress are dynamic, so it isn't part of the static cardDetails map —
+// it's handled separately in nav math and rendering.
 const INSTALL_CARD = 'Install & Play'
 
 // Quick Play searches for a joinable lobby for a full minute (polling the
@@ -80,20 +78,12 @@ const QUICK_PLAY_POLL_STEP_S = 5
 // entirely, because both state updates land in the same render batch.
 const QUICK_PLAY_MIN_SEARCH_MS = 1200
 
-// `mod` is the CONTENT mod the shell renders. Normally it matches the shell
-// (Jupiter shell + Jupiter content), but Options > Dynamic Interfaces can
-// swap the shell independently (e.g. IW8 content inside the Jupiter shell —
-// no Modding tab, no RTM session provider, IW8 logo, with Jupiter styling).
-export default function JupiterInterface({ mod = 'jupiter', ...props }) {
-  if (mod === 'jupiter') {
-    return (
-      <JupiterSessionProvider theme="jupiter">
-        <JupiterInterfaceContent {...props} mod={mod} />
-      </JupiterSessionProvider>
-    )
-  }
-  // IW8 content doesn't need the RTM session provider.
-  return <JupiterInterfaceContent {...props} mod={mod} />
+export default function JupiterInterface(props) {
+  return (
+    <JupiterSessionProvider theme="jupiter">
+      <JupiterInterfaceContent {...props} />
+    </JupiterSessionProvider>
+  )
 }
 
 // The inner content lives INSIDE JupiterSessionProvider so it can read the
@@ -101,12 +91,11 @@ export default function JupiterInterface({ mod = 'jupiter', ...props }) {
 // controller nav must go quiet, otherwise Enter/Esc double-fire on both the
 // modal and the menu behind it (e.g. a party auto-join can open the quit
 // modal over the join modal).
-function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, isEntering = false, isLeaving = false, gameMode = 'multiplayer' }) {
+function JupiterInterfaceContent({ onGoLauncher, isEntering = false, isLeaving = false, gameMode = 'multiplayer' }) {
   const { user } = useAuth()
   const { settings, setSetting } = useSettings()
   const { t } = useTranslation()
-  const session = useJupiterSession() // null without a provider (IW8 content)
-  const isJupiterContent = mod === 'jupiter'
+  const session = useJupiterSession()
   const displayName = user ? getDisplayName(user) : ''
 
   // ── Game mode: logo + accent + RTM auto-trigger ──────────────────────
@@ -119,39 +108,20 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   const cardDetails = getCardDetailsForMode(gameMode)
   const cardKeys = Object.keys(cardDetails)
 
-  // Auto-run RTM command on mount when entering with a specific mode
-  const autoRanRef = useRef(false)
-  useEffect(() => {
-    if (!isJupiterContent || autoRanRef.current || !isTauriRuntime()) return
-    if (gameMode === 'multiplayer') return
-    autoRanRef.current = true
-    ;(async () => {
-      try {
-        if (gameMode === 'zombies') {
-          await runRtm(['-setzombies'])
-        } else if (gameMode === 'warzone') {
-          await runJupiterPrepSequence(1500)
-        }
-      } catch (err) {
-        console.warn('[jupiter] auto mode switch failed', err)
-      }
-    })()
-  }, [isJupiterContent, gameMode])
+  // NOTE: the game client is deliberately NOT switched on interface mount
+  // anymore. Mode switching (e.g. -setzombies for zombies) happens at the
+  // point of action instead — when the user joins or hosts a match — so the
+  // game isn't yanked around just by opening a mode menu.
 
   // Zombies accent override
   const zombiesAccentOverride = isZombiesMode ? { '--jupiter-accent': '#601212', '--jupiter-accent-hover': '#7a1818' } : null
-  // Six tabs with Jupiter content (RTM tab is Jupiter-specific UI); five
-  // without (IW8 content). Discord merged into Help (one "Help" tab lists
-  // the mod's community servers + support cards):
-  // Play | RTM | Account | Social | Help | Options
-  const tabs = isJupiterContent
-    ? ['Play', 'RTM', 'Account', 'Social', 'Help', 'Options']
-    : ['Play', 'Account', 'Social', 'Help', 'Options']
+  // Six tabs: Play | RTM | Account | Social | Help | Options.
+  const tabs = ['Play', 'RTM', 'Account', 'Social', 'Help', 'Options']
 
-  // The install/launch card only exists for Jupiter content. Nav math and the
-  // card row below iterate this (rather than the static cardKeys) so the
-  // controller can reach the extra tile and the quit button still follows it.
-  const cardKeysWithInstall = isJupiterContent ? [...cardKeys, INSTALL_CARD] : cardKeys
+  // The install/launch card. Nav math and the card row below iterate
+  // cardKeysWithInstall (rather than the static cardKeys) so the controller
+  // can reach the extra tile and the quit button still follows it.
+  const cardKeysWithInstall = [...cardKeys, INSTALL_CARD]
 
   // While connected to a server (join result / still in-game after the
   // modal), the play cards are replaced by the connected panel's
@@ -177,18 +147,22 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   // center divider in its blue bar re-mounts and replays its slide-down.
   const [installDividerKey, setInstallDividerKey] = useState(0)
   const { glyphPlatform } = useGlyphPlatform()
-  const [isQuitModalOpen, setIsQuitModalOpen] = useState(false)
   const [inputMode, setInputMode] = useState('mouse')
   // Tutorial: shown once per user after first sign-in in this interface.
   const [tutorialOpen, setTutorialOpen] = useState(false)
   const tutorialShownRef = useRef(false)
+  // First-launch music notice: opens once (ever) when the interface mounts
+  // and the mode soundtrack starts playing, explaining how to avoid doubled
+  // audio. Gates the interface nav while open (like the tutorial).
+  const [musicNoticeOpen, setMusicNoticeOpen] = useState(false)
   const [playView, setPlayView] = useState('menu')
   // True while the Modding tab's error modal is open — its own controller
   // hook handles the keys, so the interface hook must go quiet (mirrors
   // the `!session?.join` gating).
   const [moddingErrorOpen, setModdingErrorOpen] = useState(false)
-  // True while the Options tab's interface-reload confirmation is open —
-  // same quiet-down reasoning as moddingErrorOpen.
+  // True while the Options tab has an open dropdown (its controller hook
+  // owns the keys then) — the interface hook must go quiet, same
+  // quiet-down reasoning as moddingErrorOpen.
   const [interfaceModalOpen, setInterfaceModalOpen] = useState(false)
   // Leave-server confirmation: Esc on the in-game screen or the Leave
   // Server button opens it — leaving disconnects and returns to the menu,
@@ -224,15 +198,59 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
 
   const handleHover = () => playSound('jupHover')
 
+  // ── Mode soundtrack ───────────────────────────────────────────────────
+  // Play the active mode's music, honoring the Music toggle and the zombies
+  // classic-soundtrack toggle. The soundtrack is GLOBAL — it deliberately
+  // keeps playing when the interface unmounts (returning to the launcher),
+  // so there is no cleanup here. Entering a different mode re-runs this
+  // effect and the music manager crossfades: the old track fades out over
+  // 5 s while the new one fades in over the same window. Repeat calls with
+  // the same track are no-ops, so settings re-renders never restart the song.
+  useEffect(() => {
+    playModeMusic({
+      mode: gameMode,
+      enabled: settings?.music_enabled !== false,
+      zombiesClassic: Boolean(settings?.zombies_classic_ost),
+    })
+  }, [gameMode, settings?.music_enabled, settings?.zombies_classic_ost])
+
+  // ── First-launch music notice ─────────────────────────────────────────
+  // The first time a mode launches (and its soundtrack begins playing),
+  // show the "disable in-game audio" notice once — persisted to localStorage
+  // (WebView appdata on desktop, so wiping appdata brings it back). Skipped
+  // entirely when the user has already turned Music off.
+  useEffect(() => {
+    if (isEntering || isLeaving) return
+    if (settings?.music_enabled === false) return
+    let seen = false
+    try {
+      seen = window.localStorage.getItem('lwz-music-notice-seen') === '1'
+    } catch {
+      // storage unavailable — still show the notice this once
+    }
+    if (seen) return
+    try {
+      window.localStorage.setItem('lwz-music-notice-seen', '1')
+    } catch {
+      // storage unavailable — fine
+    }
+    // Give the interface entrance animation time to finish before the overlay.
+    const id = window.setTimeout(() => setMusicNoticeOpen(true), 1200)
+    return () => window.clearTimeout(id)
+  }, [isEntering, isLeaving, settings?.music_enabled])
+
   // Open the tutorial once per user, after the entrance animation completes.
+  // If the first-launch music notice is still up, wait for it to close so
+  // two overlays never stack on top of each other.
   useEffect(() => {
     if (!user?.id || isEntering || isLeaving || tutorialShownRef.current) return
+    if (musicNoticeOpen) return
     if (hasTutorialBeenSeen(user.id)) return
     tutorialShownRef.current = true
     // Give the interface entrance animation 1.2s to finish before the overlay.
     const id = window.setTimeout(() => setTutorialOpen(true), 1200)
     return () => window.clearTimeout(id)
-  }, [user?.id, isEntering, isLeaving])
+  }, [user?.id, isEntering, isLeaving, musicNoticeOpen])
 
   const handleTutorialClose = () => {
     if (user?.id) markTutorialSeen(user.id)
@@ -275,7 +293,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   // joinable, and it sits at the top of the pool so dev mode finds it
   // first (it's also the only candidate when the backend is unreachable).
   const pollForJoinableLobby = useCallback(async () => {
-    const dev = buildDevServer(settings)
+    const dev = buildDevServer(settings, gameMode)
     if (dev && dev.lanSession !== '') return dev
     if (!SUPABASE_CONFIGURED || !supabase) return null
     const { data, error } = await supabase
@@ -335,6 +353,10 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       name: row.name,
       map: row.map,
       mode: row.mode,
+      // Dev rows carry camelCase `gameMode` (buildDevServer); Supabase
+      // rows use `game_mode` — normalize so the join flow knows whether
+      // the config cbuf applies (warzone only).
+      gameMode: row.gameMode || row.game_mode || 'multiplayer',
       lanSession: (row.lanSession || row.lan_session || '').trim(),
       isDevServer: Boolean(row.isDevServer),
     }
@@ -351,8 +373,8 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   }, [showFound])
 
   const startQuickPlay = useCallback(async () => {
-    // Jupiter content only — IW8 content renders without the session
-    // provider, so there is no join flow to hand the server to.
+    // The session provider owns the join flow;
+    // provider runs the guided modal and result stages.
     if (!session || session.join || quickPlayBusyRef.current) return
     quickPlayBusyRef.current = true
     setQuickPlay({ phase: 'searching', remaining: QUICK_PLAY_SEARCH_S })
@@ -363,7 +385,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
     // minute searching; go straight to the no-match modal. Exception: a
     // joinable dev server (Developer Mode + LAN session) is local and
     // still works, so the search proceeds and finds it immediately.
-    const devJoinable = Boolean(buildDevServer(settings)?.lanSession)
+    const devJoinable = Boolean(buildDevServer(settings, gameMode)?.lanSession)
     if ((!SUPABASE_CONFIGURED || !supabase) && !devJoinable) {
       quickPlayBusyRef.current = false
       setQuickPlay(null)
@@ -533,15 +555,19 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
     setPlayView('menu')
   }
 
-  const handleOpenQuitModal = () => {
-    playSound('jupQuit')
-    setIsQuitModalOpen(true)
+  // Back from the game's main menu returns straight to the launcher main
+  // menu (App runs the animated return) — no confirmation modal. Quitting
+  // the app lives on the launcher's quit button and the window X, which
+  // share the App-level "Quit to Desktop?" dialog.
+  const handleGoLauncher = () => {
+    playSound('jupSelect')
+    onGoLauncher?.()
   }
 
   // Esc / controller-Back: on any non-Play tab, jump back to the Play tab
   // (landing on the Play MENU, not whatever subview was open — so the next
-  // press opens the quit modal as expected); only on the Play tab does a
-  // further press open the quit modal.
+  // press returns to the launcher); only on the Play tab does a further
+  // press return to the launcher.
   const handleBack = () => {
     // On a non-Play tab, Esc / controller-Back jumps back to the Play tab
     // WITHOUT interrupting a running Quick Play search.
@@ -551,24 +577,24 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       return
     }
     // On the Play tab while connected, Esc / controller-Back asks whether
-    // to leave the server instead of quitting the app.
+    // to leave the server instead of returning to the launcher.
     if (inServer) {
       handleRequestLeaveServer()
       return
     }
     // On the Play tab, Esc / controller-Back while matchmaking cancels the
-    // search — it must not open the quit modal mid-search.
+    // search — it must not navigate away mid-search.
     if (quickPlay) {
       cancelQuickPlay()
       return
     }
-    handleOpenQuitModal()
+    handleGoLauncher()
   }
 
   const isInSubView = activeHeaderTab === 'Play' && playView !== 'menu'
   // The top-left back arrow is context-aware: inside a Play subview it
   // returns to the Play main menu; on any non-Play tab it jumps back to the
-  // Play tab's main menu; everywhere else it opens the quit modal.
+  // Play tab's main menu; on the Play menu it returns to the launcher.
   const handleQuitArrowClick = () => {
     if (isInSubView) {
       playSound('jupSelect')
@@ -580,14 +606,14 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       handleTabClick('Play')
     } else if (inServer) {
       // While connected the back arrow asks whether to leave the server
-      // (return to the menu), not quit to desktop.
+      // (return to the menu), not leave the interface.
       handleRequestLeaveServer()
     } else if (quickPlay) {
-      // On the Play tab the back arrow means quit — cancel the search
-      // instead of opening the quit modal mid-search.
+      // On the Play tab the back arrow leaves — cancel the search first
+      // instead of navigating away mid-search.
       cancelQuickPlay()
     } else {
-      handleOpenQuitModal()
+      handleGoLauncher()
     }
   }
 
@@ -618,7 +644,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       if (direction === 'right') return Math.min(quitIdx, currentIndex + 1)
       return currentIndex
     },
-    enabled: !isEntering && !isLeaving && !isQuitModalOpen && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !noMatchModal && !installError && !installModalOpen && !uninstallConfirmOpen && !tutorialOpen,
+    enabled: !isEntering && !isLeaving && !session?.join && !moddingErrorOpen && !interfaceModalOpen && !leaveConfirmOpen && !noMatchModal && !installError && !installModalOpen && !uninstallConfirmOpen && !tutorialOpen && !musicNoticeOpen,
     bumpersOnly: isInSubView,
     onConfirm: (index, source) => {
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
@@ -671,21 +697,11 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       if (!installGame.installed) return
       if (hoveredCard !== INSTALL_CARD) return
       if (activeHeaderTab !== 'Play' || playView !== 'menu') return
-      if (isEntering || isLeaving || isQuitModalOpen || installModalOpen || installError || session?.join || moddingErrorOpen || interfaceModalOpen || leaveConfirmOpen || noMatchModal) return
+      if (isEntering || isLeaving || installModalOpen || installError || session?.join || moddingErrorOpen || interfaceModalOpen || leaveConfirmOpen || noMatchModal) return
       setInputMode(source === 'gamepad' ? 'controller' : 'mouse')
       handleUninstallClick()
     },
   })
-
-  const handleQuitDesktop = async () => {
-    setIsQuitModalOpen(false)
-    try {
-      await destroyAppWithServerCleanup(user?.id)
-    } catch (err) {
-      console.warn('[quit] destroy() failed; falling back to window.close()', err)
-      try { window.close() } catch { /* nothing more we can do */ }
-    }
-  }
 
   const focusedQuitIdx = activeHeaderTab === 'Play' ? quitIdx : tabs.length
   const getCardInfo = (cardName) => {
@@ -713,15 +729,22 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
   const activeInfo = getCardInfo(hoveredCard)
 
   return (
-    <div className={`jupiter-interface-container wallpaper-${mod} ${mod === 'iw8' ? 'content-iw8' : ''} ${isEntering ? 'is-entering' : ''} ${isLeaving ? 'is-leaving' : ''} ${isZombiesMode ? 'zombies-mode' : ''}`} style={zombiesAccentOverride} onMouseMove={handleMouseMove}>
+    <div className={`jupiter-interface-container ${isEntering ? 'is-entering' : ''} ${isLeaving ? 'is-leaving' : ''} ${isZombiesMode ? 'zombies-mode' : ''}`} style={zombiesAccentOverride} onMouseMove={handleMouseMove}>
       {/* Top Header Bar */}
       <header className="jupiter-header">
-        {/* Logo Left — with IW8 content the logo swaps to IW8's (the Jupiter
-            shell stays, per Options > Dynamic Interfaces). The logo class
-            follows the ASSET (not the shell) — each header sizes both assets
-            for its own context in styles.css. */}
+        {/* Logo Left — swaps with the selected game mode. The logo class
+            follows the ASSET — each header sizes the assets for its own
+            context in styles.css. */}
         <div className="jupiter-logo">
-          <img src={isJupiterContent ? modeLogo : iw8Logo} alt={isJupiterContent ? modeAlt : 'Warzone 1'} className={isJupiterContent ? (isZombiesMode ? 'header-logo-img-jup header-logo-img-jup-zombies' : 'header-logo-img-jup') : 'header-logo-img-iw8'} />
+          <img
+            src={modeLogo}
+            alt={modeAlt}
+            className={isZombiesMode
+              ? 'header-logo-img-jup header-logo-img-jup-zombies'
+              : isWarzoneMode
+                ? 'header-logo-img-jup header-logo-img-jup-warzone'
+                : 'header-logo-img-jup'}
+          />
         </div>
 
         {/* Centered Navigation Tabs */}
@@ -767,11 +790,11 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
       <main className="jupiter-main-body">
         <div key={`${activeHeaderTab}-${playView}`} className="tab-slide-container">
           {activeHeaderTab === 'Play' && playView === 'browser' && !inServer && (
-            <ServerBrowser theme="jupiter" mod={mod} initialInputMode={inputMode} onBack={handleBackToMenu} gameMode={gameMode} />
+            <ServerBrowser theme="jupiter" initialInputMode={inputMode} onBack={handleBackToMenu} gameMode={gameMode} />
           )}
 
           {activeHeaderTab === 'Play' && playView === 'host' && !inServer && (
-            <HostMatch theme="jupiter" mod={mod} initialInputMode={inputMode} onBack={handleBackToMenu} gameMode={gameMode} />
+            <HostMatch theme="jupiter" initialInputMode={inputMode} onBack={handleBackToMenu} gameMode={gameMode} />
           )}
 
           {activeHeaderTab === 'Play' && playView === 'menu' && (
@@ -953,9 +976,9 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
               onSwitchToAccount={() => handleTabClick('Account')}
             />
           )}
-          {activeHeaderTab === 'RTM' && isJupiterContent && <ModdingTab theme="jupiter" onModalChange={setModdingErrorOpen} />}
-          {activeHeaderTab === 'Help' && <HelpTab theme="jupiter" mod={mod} />}
-          {activeHeaderTab === 'Options' && <OptionsTab theme="jupiter" onModalChange={setInterfaceModalOpen} onRetakeTutorial={handleRetakeTutorial} />}
+          {activeHeaderTab === 'RTM' && <ModdingTab theme="jupiter" onModalChange={setModdingErrorOpen} />}
+          {activeHeaderTab === 'Help' && <HelpTab theme="jupiter" />}
+          {activeHeaderTab === 'Options' && <OptionsTab theme="jupiter" onModalChange={setInterfaceModalOpen} onRetakeTutorial={handleRetakeTutorial} gameMode={gameMode} />}
         </div>
       </main>
 
@@ -963,7 +986,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
           (party members tagged PARTY) or the party squad when not in a
           lobby, with a LEAVE SERVER button while connected. Pinned below
           the header's user chip; persists across tabs. Renders nothing
-          for IW8 content (no session provider). */}
+          always. */}
       <PlayerRoster theme="jupiter" />
 
       {/* Top Left Quit Trigger (back arrow) */}
@@ -972,7 +995,7 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
           className={`jupiter-quit-btn ${inputMode === 'controller' && focusedControllerIndex === focusedQuitIdx ? 'controller-focused' : ''}`}
           onMouseEnter={handleHover}
           onClick={handleQuitArrowClick}
-          aria-label={isInSubView ? 'Back to main menu' : activeHeaderTab !== 'Play' ? 'Back to Play tab' : 'Quit to Desktop'}
+          aria-label={isInSubView ? 'Back to main menu' : activeHeaderTab !== 'Play' ? 'Back to Play tab' : 'Return to launcher'}
         >
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points="15 18 9 12 15 6" />
@@ -989,13 +1012,6 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
           </span>
         </div>
       )}
-
-      <JupiterQuitModal
-        isOpen={isQuitModalOpen}
-        onClose={() => setIsQuitModalOpen(false)}
-        onGoLauncher={onGoLauncher}
-        onQuitDesktop={handleQuitDesktop}
-      />
 
       <LeaveServerConfirmModal
         theme="jupiter"
@@ -1047,6 +1063,11 @@ function JupiterInterfaceContent({ mod = 'jupiter', onSwitchMod, onGoLauncher, i
         isOpen={tutorialOpen}
         theme="jupiter"
         onClose={handleTutorialClose}
+      />
+
+      <MusicNoticeModal
+        isOpen={musicNoticeOpen}
+        onClose={() => setMusicNoticeOpen(false)}
       />
     </div>
   )

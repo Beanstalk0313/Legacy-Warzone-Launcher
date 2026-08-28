@@ -33,8 +33,8 @@ export default function ModdingFlowModal({
   onCancel, // working Cancel / Esc → abandon the flow
 }) {
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [inputMode, setInputMode] = useState('mouse')
   const isAsk = stage === 'ask'
   const isWorking = stage === 'working'
@@ -87,7 +87,7 @@ export default function ModdingFlowModal({
   return createPortal(
     <div className="modal-overlay" role="presentation">
       <div
-        className={`jupiter-host-prompt-modal ${isJupiter ? '' : 'iw8-styled'}`}
+        className={`jupiter-host-prompt-modal `}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modding-flow-title"

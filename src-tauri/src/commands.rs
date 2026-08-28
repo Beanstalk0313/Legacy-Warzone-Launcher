@@ -21,16 +21,7 @@ const CBUF_CREATE_LOBBY: &str = "xstartlobby";
 
 /// Launcher settings, persisted to Documents\retdonetskmod\settings.json so
 /// users can share configs (or override them by hand) without touching the
-/// bundle. Values are the dropdown labels' internal ids:
-///
-///   dynamic_sounds / dynamic_interfaces: "enabled" | "iw8" | "jupiter"
-///     "enabled"  → default behavior (follow the active mod's theme)
-///     "iw8"      → always use the IW8 Mod sound/interface treatment
-///     "jupiter"  → always use the Jupiter Mod sound/interface treatment
-///
-/// There is intentionally NO wallpaper setting: the background artwork
-/// always follows the CONTENT mod (see ModStage in main.jsx), so a swapped
-/// shell keeps the content's native background.
+/// bundle. Values are the dropdown labels' internal ids.
 fn default_display_mode() -> String {
     "fullscreen".to_string()
 }
@@ -55,19 +46,19 @@ fn default_accent_jupiter() -> String {
     "#028fcc".to_string()
 }
 
-fn default_accent_iw8() -> String {
-    "#d92323".to_string()
-}
-
 fn default_glyph_platform() -> String {
     "auto".to_string()
+}
+
+/// serde default for the Music toggle — the soundtrack defaults to ON so a
+/// settings.json written before the field existed still plays music.
+fn default_music_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AppSettings {
-    pub dynamic_sounds: String,
-    pub dynamic_interfaces: String,
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
     /// Which monitor the launcher window is shown on — the raw monitor
@@ -78,11 +69,9 @@ pub struct AppSettings {
     /// Silent Mode: muting gate for every launcher sound effect.
     #[serde(default)]
     pub silent_mode: bool,
-    /// Theme accent colors — user-customizable hex values (e.g. "#028fcc").
+    /// Theme accent color — user-customizable hex value (e.g. "#028fcc").
     #[serde(default = "default_accent_jupiter")]
     pub accent_jupiter: String,
-    #[serde(default = "default_accent_iw8")]
-    pub accent_iw8: String,
     /// Testing Server: lists a LOCAL-ONLY synthetic test server in the
     /// Server Browser / Quick Play (never touched by Supabase, invisible to
     /// other clients). Metadata comes from the dev_server_* fields below.
@@ -114,6 +103,15 @@ pub struct AppSettings {
     /// player's classes / operator / settings from savedata.
     #[serde(default)]
     pub auto_load_savedata: bool,
+    /// Launcher music: plays the current game mode's soundtrack while the
+    /// launcher is open. Independent of Silent Mode (which only mutes
+    /// launcher SFX) — its own Music toggle lives in Options > SOUND.
+    #[serde(default = "default_music_enabled")]
+    pub music_enabled: bool,
+    /// Zombies mode only: use the classic Black Ops soundtrack
+    /// (zombies_bo1.mp3) instead of the default zombies track.
+    #[serde(default)]
+    pub zombies_classic_ost: bool,
     /// Where the Jupiter game is installed / should be installed. Empty until
     /// the user sets it in Options — a blank value means "not installed yet".
     #[serde(default)]
@@ -128,13 +126,10 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            dynamic_sounds: "enabled".to_string(),
-            dynamic_interfaces: "enabled".to_string(),
             display_mode: default_display_mode(),
             display_monitor: String::new(),
             silent_mode: false,
             accent_jupiter: default_accent_jupiter(),
-            accent_iw8: default_accent_iw8(),
             testing_server: false,
             rtm_mode: false,
             legacy_developer_mode: None,
@@ -143,13 +138,14 @@ impl Default for AppSettings {
             dev_server_mode: default_dev_server_mode(),
             dev_server_lan_session: default_dev_server_lan_session(),
             auto_load_savedata: false,
+            music_enabled: true,
+            zombies_classic_ost: false,
             game_install_path: String::new(),
             glyph_platform: default_glyph_platform(),
         }
     }
 }
 
-const SETTING_VALUES: [&str; 3] = ["enabled", "iw8", "jupiter"];
 const DISPLAY_MODE_VALUES: [&str; 2] = ["fullscreen", "windowed"];
 const GLYPH_PLATFORM_VALUES: [&str; 7] = ["auto", "keyboard", "xbox", "playstation", "switch", "steam", "steamdeck"];
 
@@ -198,16 +194,6 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         lan_session
     };
     AppSettings {
-        dynamic_sounds: if SETTING_VALUES.contains(&settings.dynamic_sounds.as_str()) {
-            settings.dynamic_sounds
-        } else {
-            defaults.dynamic_sounds
-        },
-        dynamic_interfaces: if SETTING_VALUES.contains(&settings.dynamic_interfaces.as_str()) {
-            settings.dynamic_interfaces
-        } else {
-            defaults.dynamic_interfaces
-        },
         display_mode: if DISPLAY_MODE_VALUES.contains(&settings.display_mode.as_str()) {
             settings.display_mode
         } else {
@@ -216,11 +202,12 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         display_monitor: normalize_setting_text(&settings.display_monitor, "", 128),
         silent_mode: settings.silent_mode,
         accent_jupiter: normalize_hex_color(&settings.accent_jupiter, &defaults.accent_jupiter),
-        accent_iw8: normalize_hex_color(&settings.accent_iw8, &defaults.accent_iw8),
         testing_server: settings.testing_server || migrated_developer_mode,
         rtm_mode: settings.rtm_mode || migrated_developer_mode,
         legacy_developer_mode: None,
         auto_load_savedata: settings.auto_load_savedata,
+        music_enabled: settings.music_enabled,
+        zombies_classic_ost: settings.zombies_classic_ost,
         // The old default test-server name was retired — anyone still on it
         // gets the new default.
         dev_server_name: {

@@ -1,13 +1,10 @@
 import React from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useAuth } from './AuthProvider'
 import { useSettings } from './SettingsProvider'
-import { destroyAppWithServerCleanup } from '../utils/serverPresence'
 
 export default function WindowControls() {
   const { settings, loaded } = useSettings()
-  const { user } = useAuth()
 
   if (!loaded || settings?.display_mode !== 'windowed' || !window.__TAURI_INTERNALS__) {
     return null
@@ -30,10 +27,14 @@ export default function WindowControls() {
   }
 
   const handleClose = async () => {
-    // Reuse the same cleanup-aware path as the themed Quit confirmation.
-    // Calling appWindow.close() directly can race the close-requested
-    // listener; this path deletes owned servers and parties before exiting.
-    await destroyAppWithServerCleanup(user?.id)
+    // Route the X through the window's close-request event: main.jsx's
+    // listener preventDefaults it and opens the shared "Quit to Desktop?"
+    // modal — the confirmed quit (cleanup + `exit_app`) runs from there.
+    try {
+      await appWindow.close()
+    } catch (error) {
+      console.warn('[window] close request failed', error)
+    }
   }
 
   return (

@@ -87,7 +87,7 @@ export default function AuthProvider({ children }) {
 
     const trimmedGamertag = typeof gamertag === 'string' ? gamertag.trim() : ''
     const trimmedDiscordUsername = typeof discordUsername === 'string' ? discordUsername.trim() : ''
-    if (!trimmedDiscordUsername) throw new Error('A complete Discord username is required during the open beta.')
+    if (!trimmedDiscordUsername) throw new Error('A complete Discord username is required.')
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,

@@ -4,32 +4,8 @@ import { useControllerNavigation } from '../utils/controller'
 import { openExternal } from '../utils/openExternal'
 import { useTranslation } from '../utils/i18n'
 
-// Community Discord servers. Each interface only lists its own mod's cards:
-//   Jupiter content → Hina Warzone Mods
-//   IW8 content     → IW8 Mod + The 187
-// Filtering follows the CONTENT mod (`mod`, not the shell `theme`), so a
-// Dynamic Interfaces swap keeps the content's own servers: Jupiter mod under
-// an IW8 shell still shows Hina, and IW8 content under a Jupiter shell still
-// shows the IW8 / 187 cards.
+// Community Discord servers.
 const DISCORD_SERVERS = [
-  {
-    name: 'IW8 Mod Discord',
-    url: 'https://discord.gg/demonware',
-    displayUrl: 'discord.gg/demonware',
-    note: 'Note: The IW8 Mod Discord is full of incompetent staff, but it has more people—making it better for LFG.',
-    badge: 'LFG Volume',
-    highlight: false,
-    mods: ['iw8'],
-  },
-  {
-    name: 'The 187 Discord',
-    url: 'https://discord.gg/eGqkmJ38d',
-    displayUrl: 'discord.gg/eGqkmJ38d',
-    note: 'Recommended: The 187 Discord has people that will actually try to help you and are much nicer.',
-    badge: 'Helpful Staff & Community',
-    highlight: true,
-    mods: ['iw8'],
-  },
   {
     name: 'Hina Warzone Mods Discord',
     url: 'https://discord.gg/wtNPKvmGt',
@@ -37,23 +13,20 @@ const DISCORD_SERVERS = [
     note: 'Official Hina Warzone Mods community hub.',
     badge: 'Mod Support',
     highlight: false,
-    mods: ['jupiter'],
   },
 ]
 
-// Merged Discord + Help tab. The Discord cards come first (filtered to the
-// content mod), then the game-mod support card, and the launcher-help card
-// sits at the BOTTOM of everything.
-export default function HelpTab({ theme = 'iw8', mod = theme }) {
+// Merged Discord + Help tab. The Discord cards come first, then the
+// game-mod support card, and the launcher-help card sits at the BOTTOM of
+// everything.
+export default function HelpTab({ theme = 'jupiter' }) {
   const { t } = useTranslation()
-  const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
-  const isJupiterContent = mod === 'jupiter'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [lastOpened, setLastOpened] = useState(null)
   const [inputMode, setInputMode] = useState('mouse')
 
-  const discords = DISCORD_SERVERS.filter((disc) => disc.mods.includes(mod))
+  const discords = DISCORD_SERVERS
 
   const handleCardEnter = () => playSound(hoverSound)
 
@@ -91,7 +64,7 @@ export default function HelpTab({ theme = 'iw8', mod = theme }) {
   const isFocused = (index) => inputMode === 'controller' && focusedIndex === index
 
   return (
-    <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+    <div className={`tab-content-panel ${'jupiter-theme'}`}>
       <div className="tab-header-title">
         <h2>{t('help.title')}</h2>
 
@@ -130,9 +103,9 @@ export default function HelpTab({ theme = 'iw8', mod = theme }) {
         )}
 
         <div className="help-card">
-          <h3>🎮 {t('help.gamemod.support')} ({isJupiterContent ? 'Hina WZ Mod' : 'IW8 & Hina WZ Mod'})</h3>
+          <h3>🎮 {t('help.gamemod.support')} (Hina WZ Mod)</h3>
           <p>
-            Support for the {isJupiterContent ? 'Hina WZ Mod' : 'IW8 Mod or the Hina WZ Mod'} {t('help.gamemod.best')} {isJupiterContent ? 'the Hina Warzone Mods Discord' : 'one of the community Discords'}.
+            Support for the Hina WZ Mod {t('help.gamemod.best')} the Hina Warzone Mods Discord.
           </p>
           <div className="help-tip-box">
             <span>💡 <strong>{t('help.gamemod.protip')}</strong> {t('help.gamemod.protip.desc')}</span>

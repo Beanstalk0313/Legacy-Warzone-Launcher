@@ -40,8 +40,8 @@ export default function JupiterInstallModal({
 }) {
   const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [inputMode, setInputMode] = useState('mouse')
   const [stage, setStage] = useState('choice') // 'choice'|'setup'|'local'|'progress'|'done'
   const [fieldValue, setFieldValue] = useState('')
@@ -185,7 +185,7 @@ export default function JupiterInstallModal({
 
   if (!isOpen) return null
 
-  const modalPrefix = isJupiter ? 'jupiter' : 'iw8'
+  const modalPrefix = 'jupiter'
   const phaseLabel = installState.phase === 'extract'
     ? t('install.phase.extract')
     : installState.phase === 'finalize'

@@ -4,10 +4,9 @@ import { useAuth } from './AuthProvider'
 import { useTranslation } from '../utils/i18n'
 
 // Theme-aware toast that warns the user friends + parties are locked until they
-// sign in. Mounted by the two interface containers (IW8Interface,
-// JupiterInterface). Sits in the top-right of the viewport via position:
-// fixed so it doesn't fight the layout or the entrance/exit animations on
-// the parent container — it overlays them.
+// sign in. Mounted by JupiterInterface. Sits in the top-right of the viewport
+// via position: fixed so it doesn't fight the layout or the entrance/exit
+// animations on the parent container — it overlays them.
 //
 // Behavior summary:
 //   - Won't render at all when Supabase isn't configured (.env empty): the
@@ -83,7 +82,7 @@ function writeSuppressPreference(suppress) {
   }
 }
 
-export default function AuthRequiredNotice({ theme = 'iw8', entranceActive = false, onSwitchToAccount }) {
+export default function AuthRequiredNotice({ theme = 'jupiter', entranceActive = false, onSwitchToAccount }) {
   const { user, configured } = useAuth()
   const { t } = useTranslation()
   const [visible, setVisible] = useState(false)
@@ -91,10 +90,10 @@ export default function AuthRequiredNotice({ theme = 'iw8', entranceActive = fal
   // we set localStorage and the toast never appears again on this device.
   const [persistentlySuppressed, setPersistentlySuppressed] = useState(() => readSuppressPreference())
 
-  // Theme-aware feedback SFX. Same pattern as IW8/JupiterInterface's other
+  // Theme-aware feedback SFX. Same pattern as JupiterInterface's other
   // interactive widgets — the notice shouldn't feel silent.
   const isJupiter = theme === 'jupiter'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const selectSound = 'jupSelect'
 
   useEffect(() => {
     // Gate conditions: any of these keeps the toast hidden.
@@ -130,7 +129,7 @@ export default function AuthRequiredNotice({ theme = 'iw8', entranceActive = fal
 
   if (!visible) return null
 
-  const variantClass = theme === 'jupiter' ? 'jupiter-auth-notice' : 'iw8-auth-notice'
+  const variantClass = 'jupiter-auth-notice'
 
   // Send the user to the Account tab and let them pick the provider they
   // actually want (Discord, Google, or magic-link email). Play the theme's

@@ -11,7 +11,7 @@ import { useTranslation } from '../utils/i18n'
  *
  * Props:
  *   isOpen     — controls rendering
- *   theme      — 'jupiter' | 'iw8' (for styling)
+ *   theme      — 'jupiter' (for styling)
  *   onConfirm  — called when the user confirms the uninstall
  *   onCancel   — called when the user cancels / presses Esc
  *   installPath — the game install folder path (shown in the message)
@@ -25,8 +25,8 @@ export default function GameUninstallModal({
 }) {
   const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [inputMode, setInputMode] = useState('mouse')
   const inputModeRef = useRef('mouse')
 
@@ -68,7 +68,7 @@ export default function GameUninstallModal({
 
   if (!isOpen) return null
 
-  const modalPrefix = isJupiter ? 'jupiter' : 'iw8'
+  const modalPrefix = 'jupiter'
   const isFocused = (index) => inputMode === 'controller' && focusedIndex === index
 
   return createPortal(

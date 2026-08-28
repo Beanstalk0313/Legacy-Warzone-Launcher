@@ -144,8 +144,8 @@ const DEV_TOGGLE_FEATURES = [
 export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const { settings } = useSettings()
   // Advanced RTM Mode (Options > TESTING & RTM): shows the raw RTM DEV
   // TOOL panel on the right side of this tab. The guided tools above are
@@ -515,7 +515,7 @@ export default function ModdingTab({ theme = 'jupiter', onModalChange }) {
   }
 
   return (
-    <div className={`tab-content-panel modding-tab-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+    <div className={`tab-content-panel modding-tab-panel ${'jupiter-theme'}`}>
       <div className="tab-header-title">
         <h2>{t('modding.title')}</h2>
       </div>

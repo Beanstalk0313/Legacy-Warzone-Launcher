@@ -119,10 +119,174 @@ const MODE_SETTINGS = {
   'POI Resurgence': ['poiresurgence', 'poiresurgence'],
 }
 
-// The available Jupiter maps / modes — single source of truth for the
+// The available Warzone (BR) maps / modes — the ones documented in
+// wz commands.txt with real exec hashes. Single source of truth for the
 // Settings dev-server selects and the Host a Match / join flows.
-export const JUPITER_MAPS = Object.keys(MAP_IDS)
-export const JUPITER_MODES = Object.keys(MODE_SETTINGS)
+export const WARZONE_MAPS = Object.keys(MAP_IDS)
+export const WARZONE_MODES = Object.keys(MODE_SETTINGS)
+
+// ── Multiplayer / zombies lists ──────────────────────────────────────────
+// These are UI-only lists: the game's own lobby handles multiplayer and
+// zombies matches natively, so they need NO exec-hash config cbuf — only
+// the LAN session matters (see modeNeedsConfig below). Names are displayed
+// verbatim in the Host a Match / Server Browser dropdowns.
+//
+// Multiplayer modes — hardcore variants are separate entries (per spec).
+export const MULTIPLAYER_MODES = [
+  'Team Death Match',
+  'Hardcore Team Death Match',
+  'Domination',
+  'Hardcore Domination',
+  'Search and Destroy',
+  'Hardcore Search and Destroy',
+  'Kill Confirmed',
+  'Hardcore Kill Confirmed',
+  'Free For All',
+  'Hardcore Free For All',
+  'Hardpoint',
+  'Hardcore Hardpoint',
+  'Capture the Flag',
+  'Demolition',
+  'Gunfight',
+  'Cyber Attack',
+  'Hardcore Cyber Attack',
+  'Headquarters',
+  'Hardcore Headquarters',
+  'Control',
+  'Hardcore Control',
+  'Escort',
+  'Havoc',
+  'COD Warrior',
+  'War',
+  'Cutthroat',
+  'Bounty',
+  'Hyper Cranked',
+  'Minefield',
+  'Vortex',
+  'Hordepoint',
+  'Snipers Only Team Death Match',
+  'G3T_H1GH3R',
+  'Defuse or Destroy',
+  'Hardcore Defuse or Destroy',
+  'Infected',
+  'Gun Game',
+  'Ground War',
+  'Invasion',
+  'One in the Chamber',
+  'All or Nothing',
+  'Team Gun Game',
+  'Infectious Holiday',
+  'Fishfection',
+  'CDL Hardpoint',
+  'CDL Search and Destroy',
+  'CDL Control',
+]
+
+// Multiplayer maps.
+export const MULTIPLAYER_MAPS = [
+  '6 Star',
+  'Afghan',
+  'Airborne',
+  'Alley',
+  'Arena Shipment',
+  'Bait',
+  'Bit-ment',
+  'Bitvela',
+  'Blacksite',
+  'Bloody Meat',
+  'Breenbergh Hotel',
+  'Celship',
+  'Checkpoint',
+  'Crown Raceway',
+  'Das Gross',
+  'Das Haus',
+  'Departures',
+  'Derail',
+  'Dome',
+  'Drive Thru',
+  'Emergency',
+  'Estate',
+  'Exhbit',
+  'Farm 18',
+  'Favela',
+  'G3T_H1GH',
+  'Ghost Ship',
+  'Greece',
+  'Grime',
+  'Growhouse',
+  'Hang Over',
+  'Highrise',
+  'Incline',
+  'Ink House',
+  'Karachi',
+  'Meant',
+  'Mercado Las Almas',
+  'Paris',
+  'Quarry',
+  'Rio',
+  'Rundown',
+  'Rust',
+  "Satan's Quarry",
+  'Scrapyard',
+  'Shipmas',
+  'Shipment',
+  'Shoot House',
+  'Skidgrow',
+  'Sporeyard',
+  'Stash House',
+  'Stay High',
+  'Sub Base',
+  'Sunny Shipment',
+  'Tanked',
+  'Terminal',
+  'Tetanus',
+  'Tokyo',
+  'Toonoxide',
+  'Training Facility',
+  'Underpass',
+  'Vista',
+  'Wasteland',
+  'Yard',
+]
+
+// Zombies maps — zombies has NO mode toggle (single fixed mode).
+export const ZOMBIES_MAPS = [
+  'Confront Zakhaev',
+  'Dark Aether',
+  'Exfil Dr. Janse',
+  'Test Site',
+  'Urzikstan',
+]
+
+// The zombie lobby's fixed mode (zombies has no mode toggle).
+export const ZOMBIES_MODE = 'Zombies'
+
+/** The map list shown for a given game mode. */
+export function mapsForMode(gameMode) {
+  if (gameMode === 'zombies') return ZOMBIES_MAPS
+  if (gameMode === 'warzone') return WARZONE_MAPS
+  return MULTIPLAYER_MAPS
+}
+
+/**
+ * The mode list shown for a given game mode. Zombies returns [] — the
+ * mode is fixed (see ZOMBIES_MODE), so no mode dropdown renders.
+ */
+export function modesForMode(gameMode) {
+  if (gameMode === 'zombies') return []
+  if (gameMode === 'warzone') return WARZONE_MODES
+  return MULTIPLAYER_MODES
+}
+
+/**
+ * Whether the join/host flow pushes an exec-hash config cbuf for this game
+ * mode. Only the Warzone (BR) modes are documented in wz commands.txt with
+ * real hashes — multiplayer and zombies matches are configured natively by
+ * the game's own lobby, so their flows only need the LAN session join.
+ */
+export function modeNeedsConfig(gameMode) {
+  return gameMode === 'warzone'
+}
 
 /** Coerce a user-entered plunder cash amount; empty/invalid → file default. */
 export function normalizePlunderCash(value) {

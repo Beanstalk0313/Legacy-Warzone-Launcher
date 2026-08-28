@@ -25,13 +25,13 @@ export default function CustomSelect({
   onToggle,
   onClose,
   focusIndex = null,
-  theme = 'iw8',
+  theme = 'jupiter',
   className = '',
   ariaLabel,
 }) {
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const rootRef = useRef(null)
 
   // Mouse: click anywhere outside the dropdown closes it.

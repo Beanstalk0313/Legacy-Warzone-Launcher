@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { playSound } from '../utils/audio'
+import { duckModeMusic, restoreModeMusic } from '../utils/music'
 import { useTranslation } from '../utils/i18n'
 import { useControllerNavigation } from '../utils/controller'
 import { focusTextInput } from '../utils/keyboard'
 import { useAuth } from './AuthProvider'
 import { supabase, SUPABASE_CONFIGURED } from '../lib/supabase'
 import { isTauriRuntime, runJupiterPrepSequence, runRtm, writeJupiterCbufCommand } from '../utils/jupiterRtm'
-import { focusGameWindow, runGameKeyNav, CREATE_LOCAL_GAME_STEPS } from '../utils/gameInput'
 import { useJupiterSession } from '../utils/jupiterSession'
-import { getJupiterConfigCommand, JUPITER_MAPS, JUPITER_MODES, PLUNDER_DEFAULT_CASH } from '../utils/jupiterCommands'
+import { getJupiterConfigCommand, WARZONE_MAPS, WARZONE_MODES, PLUNDER_DEFAULT_CASH, mapsForMode, modesForMode, modeNeedsConfig, ZOMBIES_MODE } from '../utils/jupiterCommands'
 import JupiterErrorModal from './JupiterErrorModal'
 import JupiterHostPromptModal from './JupiterHostPromptModal'
 import JupiterMapBadge from './JupiterMapBadge'
@@ -16,17 +16,6 @@ import CustomSelect from './CustomSelect'
 import { getDisplayName } from '../utils/displayName'
 import { appInstanceId, registerOwnedServer, unregisterOwnedServer } from '../utils/serverPresence'
 
-const IW8_VERSIONS = ['1.44', '1.64', 'Other']
-const IW8_MAPS = {
-  '1.44': ['Verdansk', 'Rebirth Island'],
-  '1.64': ['Rebirth Island', "Fortune's Keep", 'Caldera'],
-  Other: ['Verdansk', 'Rebirth Island'],
-}
-const IW8_MODES = {
-  '1.44': ['Plunder', 'Battle Royal', 'Better Plunder', 'Ressurgence'],
-  '1.64': ['Plunder', 'Battle Royal', 'Better Plunder', 'Ressurgence', 'Vanguard Royal'],
-  Other: ['Plunder', 'Battle Royal', 'Better Plunder', 'Ressurgence'],
-}
 // Jupiter maps/modes come from jupiterCommands.js — the single source of
 // truth synced to wz commands.txt (broken modes are not exposed there).
 const REGIONS = ['North America', 'Europe', 'Asia Pacific']
@@ -41,15 +30,13 @@ const first = (items) => items[0]
 // mod's maps/modes, prep flow, publish pipeline and dashboard apply). They're
 // decoupled so Dynamic Interfaces can swap the shell without changing the
 // content.
-export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialInputMode = 'mouse', gameMode = 'multiplayer' }) {
+export default function HostMatch({ theme = 'jupiter', onBack, initialInputMode = 'mouse', gameMode = 'multiplayer' }) {
   const { t } = useTranslation()
-  const isJupiterStyle = theme === 'jupiter'
-  const isJupiterContent = mod === 'jupiter'
-  const hoverSound = isJupiterStyle ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiterStyle ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const { user } = useAuth()
   // Jupiter content only: the session provider owns the party system (party
-  // auto-join broadcast). IW8 content renders without a provider → null.
+  // auto-join broadcast).
   const session = useJupiterSession()
   const [inputMode, setInputMode] = useState(initialInputMode)
   const [status, setStatus] = useState('Configure your lobby, then deploy it.')
@@ -57,9 +44,13 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   const [errorModal, setErrorModal] = useState(null)
   const [form, setForm] = useState({
     serverName: '',
-    version: '1.44',
+    version: 'Jupiter',
     map: 'Verdansk',
-    mode: 'Battle Royal',
+    // Zombies has no mode toggle — the mode is fixed (the dropdown only
+    // renders for modes that have a real list). Warzone/multiplayer start
+    // on the sentinel below and get coerced to the first valid option on
+    // mount (see the normalize effect).
+    mode: gameMode === 'zombies' ? ZOMBIES_MODE : 'Battle Royal',
     gameType: 'Multiplayer',
     region: 'North America',
     // LAN Session — a text field where the host pastes the LAN session
@@ -98,8 +89,10 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // a leave + rejoin chimes again.
   const knownDashboardMembersRef = useRef(null)
 
-  const availableMaps = isJupiterContent ? JUPITER_MAPS : IW8_MAPS[form.version]
-  const availableModes = isJupiterContent ? JUPITER_MODES : IW8_MODES[form.version]
+  // Per-mode lists: multiplayer/warzone/zombies each expose their own maps
+  // (and modes — zombies has none). These drive the form + dashboard selects.
+  const availableMaps = mapsForMode(gameMode)
+  const availableModes = modesForMode(gameMode)
 
   // Re-attach to a live lobby from THIS app instance (e.g. the user navigated
   // away from Host a Match and came back — the lobby is still up). Also gates
@@ -184,11 +177,17 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
 
   // ── Jupiter host-entry prompt (once per mount, after re-attach settles) ─
   useEffect(() => {
-    if (!isJupiterContent || promptStartedRef.current || hosted || !recheckDone || partyBlock) return
+    if (promptStartedRef.current || hosted || !recheckDone || partyBlock) return
     if (!isTauriRuntime()) return // browser dev mode has no RTM trigger folder
     promptStartedRef.current = true
-    setHostPrompt('ask')
-  }, [isJupiterContent, hosted, recheckDone, partyBlock])
+    // Warzone drives the PHA Client prep (the ask → prep → instructions
+    // machine). Zombies/multiplayer matches are configured natively by the
+    // game's OWN lobby — no PHA prep. Zombies still shows a light modal
+    // asking the user to click Local Play; Continue switches the game to
+    // zombies mode before publishing. Multiplayer goes straight to the form.
+    if (gameMode === 'warzone') setHostPrompt('ask')
+    else if (gameMode === 'zombies') setHostPrompt('localplay')
+  }, [hosted, recheckDone, partyBlock, gameMode])
 
   // "Prep PHA Client?" → Yes: run the -lua prep sequence, then show the
   // PHA Client instructions.
@@ -202,35 +201,10 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       await runJupiterPrepSequence(1500, controller.signal)
       if (controller.signal.aborted) return
 
-      // Auto-drive the PHA Client → Local Play → Create Local Game menu
-      // with keyboard input so the user doesn't click through manually.
-      // Falls back to the manual instructions modal when the game window
-      // can't be focused or the user cancels mid-navigation.
-      let autoNavOk = false
-      if (isTauriRuntime()) {
-        const gameFocused = await focusGameWindow()
-        if (gameFocused && !controller.signal.aborted) {
-          try {
-            await runGameKeyNav(CREATE_LOCAL_GAME_STEPS, controller.signal)
-            autoNavOk = true
-          } catch (navError) {
-            if (navError?.name !== 'AbortError') {
-              console.warn('[host] auto game-nav failed', navError)
-            }
-          }
-        }
-      }
-
-      if (controller.signal.aborted) return
-      if (autoNavOk) {
-        // Auto-nav reached Create Local Game — skip the manual instructions.
-        setHostPrompt(null)
-        setStatus('Configure your lobby below — paste the LAN session code, then create the lobby.')
-      } else {
-        // Fallback: show the manual instructions modal.
-        setHostPrompt('instructions')
-        setStatus('Create the local game in the PHA Client, then return to the launcher.')
-      }
+      // No keyboard auto-navigation — the manual instructions modal walks
+      // the user through clicking into Create Local Game.
+      setHostPrompt('instructions')
+      setStatus('Create the local game in the PHA Client, then return to the launcher.')
     } catch (error) {
       if (controller.signal.aborted) return // cancelled — state already reset
       setHostPrompt(null)
@@ -246,6 +220,21 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // → No: skip the prep (already in the lobby), straight to the form.
   const handlePromptNo = () => {
     playSound(selectSound)
+    setHostPrompt(null)
+    setStatus('Configure your lobby below — paste the LAN session code, then create the lobby.')
+  }
+
+  // Zombies host prompt → Continue: switch the game client into zombies
+  // mode, then drop to the form. The lobby is published when the user
+  // presses Create Lobby (publish path below) — no exec-hash cbuf.
+  const handlePromptZombiesContinue = async () => {
+    playSound(selectSound)
+    setStatus('Switching the game to zombies mode…')
+    try {
+      await runRtm(['-setzombies'])
+    } catch (error) {
+      console.warn('[host] zombies mode switch failed', error)
+    }
     setHostPrompt(null)
     setStatus('Configure your lobby below — paste the LAN session code, then create the lobby.')
   }
@@ -326,19 +315,20 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     setForm((current) => ({
       ...current,
       map: availableMaps.includes(current.map) ? current.map : first(availableMaps),
-      mode: availableModes.includes(current.mode) ? current.mode : first(availableModes),
+      // Zombies is fixed — never coerce the mode away from ZOMBIES_MODE.
+      mode: gameMode === 'zombies' ? ZOMBIES_MODE : (availableModes.includes(current.mode) ? current.mode : first(availableModes)),
     }))
-  }, [form.version, isJupiterContent, availableMaps, availableModes])
+  }, [form.version, gameMode, availableMaps, availableModes])
 
   const isBotMode = form.gameType === 'Play Against Bots'
   const fields = useMemo(() => {
-    const baseFields = isJupiterContent
-      ? ['serverName', 'map', 'mode', ...(form.mode === 'Plunder' ? ['plunderCash'] : []), 'gameType', 'region']
-      : ['serverName', 'version', 'map', 'mode', 'gameType', 'region']
+    // The mode field only exists for modes that have a mode list — zombies
+    // has none (fixed mode), so the field is omitted from the form grid.
+    const baseFields = ['serverName', 'map', ...(availableModes.length > 0 ? ['mode'] : []), ...(form.mode === 'Plunder' ? ['plunderCash'] : []), 'gameType', 'region']
     // Bot mode is local-only: no LAN session needed, no publish.
     if (!isBotMode) baseFields.push('lanSession')
     return [...baseFields, 'deploy']
-  }, [isBotMode, form.mode, isJupiterContent])
+  }, [isBotMode, form.mode, availableModes])
 
   // ── Grid navigation for the host form ──────────────────────────────────
   // The form is a 2-column CSS grid (serverName spans the full first row;
@@ -346,7 +336,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // mirrors the grid instead of treating the fields as a plain vertical
   // stack: right from Map lands on Mode (they sit side by side), and
   // up/down stay in the same visual column. Each field's grid position is
-  // recomputed whenever the visible fields change (Plunder cash, password).
+  // recomputed whenever the visible fields change (e.g. the Plunder cash row).
   const fieldGrid = useMemo(() => {
     const positions = []
     let row = 0
@@ -402,8 +392,8 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     playSound(selectSound)
   }
 
-  // Text inputs (serverName / password) update state per keystroke silently,
-  // then play the select cue when the value is "committed" (Enter or blur).
+  // Text inputs update state per keystroke silently, then play the select
+  // cue when the value is "committed" (Enter or blur).
   const updateTextField = (field, value) => {
     setInputMode('mouse')
     setForm((current) => ({ ...current, [field]: value }))
@@ -436,7 +426,10 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // applies the selected map/mode (works once the local game exists).
   // Plunder lobbies carry the cash-to-win amount from the form.
   const applyHostConfig = async (map, mode) => {
-    if (!isJupiterContent) return
+    // Only Warzone modes use the exec-hash config cbuf (documented in
+    // wz commands.txt). Multiplayer and zombies matches are configured
+    // natively by the game's own lobby — no config to push.
+    if (!modeNeedsConfig(gameMode)) return
     try {
       await writeJupiterCbufCommand(getJupiterConfigCommand({ map, mode, plunderCash: form.plunderCash }))
     } catch (error) {
@@ -466,7 +459,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
         const { data: createdServer, error } = await supabase.from('servers').insert({
           host_user_id: user.id,
           name: lobbyName,
-          version: isJupiterContent ? 'Jupiter' : form.version,
+          version: 'Jupiter',
           map: form.map,
           mode: form.mode,
           region: form.region,
@@ -477,16 +470,16 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
           // renews this timestamp while the app is alive.
           last_heartbeat_at: new Date().toISOString(),
           // Mod filter (migration 0007) + game mode filter (0017) + stale-host cleanup instance id.
-          mod: isJupiterContent ? 'jupiter' : 'iw8',
-          game_mode: isJupiterContent ? gameMode : 'multiplayer',
+          mod: 'jupiter',
+          game_mode: gameMode,
           instance_id: appInstanceId,
         }).select('*').single()
         if (error) throw error
         registerOwnedServer(createdServer?.id, user.id)
         // If we lead a party, broadcast the new lobby so every member's
         // client auto-runs the join flow (the party watcher in
-        // JupiterSessionProvider picks up leader_server_id). IW8 content has
-        // no provider — skip.
+        // JupiterSessionProvider picks up leader_server_id).
+        //
         if (createdServer?.id) {
           try {
             await session?.broadcastLeaderServer?.(createdServer.id)
@@ -525,6 +518,9 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
     const created = await publishLobby(null)
     if (created) {
       setHosted(created)
+      // A lobby is live — duck the launcher soundtrack so the game's audio
+      // is unobstructed while hosting. It fades back in on Close Server.
+      duckModeMusic()
     }
     playSound(selectSound)
   }
@@ -579,6 +575,8 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       setHosted(null)
       setPlayers([])
       setStatus('Lobby closed and removed from the server browser.')
+      // Hosting is over — bring the launcher soundtrack back up.
+      restoreModeMusic()
     } catch (err) {
       setErrorModal({
         title: `COULDN'T CLOSE ${hosted.name}`,
@@ -663,11 +661,10 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // flipped them. Works for the host form AND the dashboard's map/mode.
   const [openSelect, setOpenSelect] = useState(null)
 
-  const SELECT_FIELDS = ['version', 'map', 'mode', 'gameType', 'region']
+  const SELECT_FIELDS = ['map', 'mode', 'gameType', 'region']
   const isSelectField = (field) => SELECT_FIELDS.includes(field)
 
   const selectFieldOptions = (field) => {
-    if (field === 'version') return IW8_VERSIONS
     if (field === 'map') return availableMaps
     if (field === 'mode') return availableModes
     if (field === 'gameType') return ['Multiplayer', 'Play Against Bots']
@@ -698,7 +695,6 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       playSound(hoverSound)
       const field = fields[index]
       if (field === 'deploy') setStatus('Press select to create this lobby.')
-      else if (field === 'password') setStatus('Private lobby password — press select to create.')
       else if (field) {
         const label = { serverName: 'server name', lanSession: 'LAN session', plunderCash: 'plunder cash' }[field] || field
         setStatus(`Editing ${label}.`)
@@ -732,9 +728,8 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // LAN Session rows, then the Return PHA Client Lobby + Close Server
   // buttons side by side at the bottom. Left/right hop between the pairs;
   // up/down walk the column.
-  const dashboardItems = isJupiterContent
-    ? ['map', 'mode', 'name', 'lanSession', 'return', 'close']
-    : ['map', 'mode', 'name', 'lanSession', 'close']
+  // Zombies has no mode dropdown, so its dashboard grid skips the mode slot.
+  const dashboardItems = ['map', ...(availableModes.length > 0 ? ['mode'] : []), 'name', 'lanSession', 'return', 'close']
   const dashboardFocusedIndex = useControllerNavigation({
     itemCount: hosted ? dashboardItems.length : 0,
     allowedDirections: ['up', 'down', 'left', 'right'],
@@ -824,7 +819,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // ══════════════════════════════════════════════════════════════════════
   if (hosted) {
     return (
-      <section className={`host-match ${isJupiterStyle ? 'host-match-jupiter' : 'host-match-iw8'}`}>
+      <section className={`host-match ${'host-match-jupiter'}`}>
         <div className="host-match-heading">
           <div>
             <span className="host-match-kicker">{t('host.dashboard.kicker')}</span>
@@ -874,7 +869,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                   <span>Map</span>
                   <CustomSelect
                     value={hosted.map}
-                    options={isJupiterContent ? JUPITER_MAPS : IW8_MAPS[hosted.version] || IW8_MAPS['1.44']}
+                    options={availableMaps}
                     onSelect={(value) => void handleDashboardMapModeChange('map', value)}
                     isOpen={openSelect === 'map'}
                     onToggle={() => toggleSelect('map')}
@@ -884,22 +879,24 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                     ariaLabel="Map"
                   />
                 </label>
-                <label className={dashboardIsFocused('mode') ? 'controller-focused' : ''} onMouseEnter={handleHostHover}>
-                  <span>Mode</span>
-                  <CustomSelect
-                    value={hosted.mode}
-                    options={isJupiterContent ? JUPITER_MODES : IW8_MODES[hosted.version] || IW8_MODES['1.44']}
-                    onSelect={(value) => void handleDashboardMapModeChange('mode', value)}
-                    isOpen={openSelect === 'mode'}
-                    onToggle={() => toggleSelect('mode')}
-                    onClose={() => setOpenSelect(null)}
-                    focusIndex={openSelect === 'mode' ? optionFocusedIndex : null}
-                    theme={theme}
-                    ariaLabel="Mode"
-                  />
-                </label>
+                {availableModes.length > 0 && (
+                  <label className={dashboardIsFocused('mode') ? 'controller-focused' : ''} onMouseEnter={handleHostHover}>
+                    <span>Mode</span>
+                    <CustomSelect
+                      value={hosted.mode}
+                      options={availableModes}
+                      onSelect={(value) => void handleDashboardMapModeChange('mode', value)}
+                      isOpen={openSelect === 'mode'}
+                      onToggle={() => toggleSelect('mode')}
+                      onClose={() => setOpenSelect(null)}
+                      focusIndex={openSelect === 'mode' ? optionFocusedIndex : null}
+                      theme={theme}
+                      ariaLabel="Mode"
+                    />
+                  </label>
+                )}
               </div>
-              <p className="host-dashboard-hint">{isJupiterContent ? 'Changing the map or mode updates your client and every joined player\'s client automatically.' : 'Changing the map or mode updates the lobby listing. Players\' clients update when they refresh the server browser.'}</p>
+              <p className="host-dashboard-hint">Changing the map or mode updates your client and every joined player's client automatically.</p>
             </div>
 
             {/* Right column: the live player list with the big CURRENT MAP
@@ -923,7 +920,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
                   ))}
                 </div>
               </div>
-              {isJupiterContent && <JupiterMapBadge map={hosted.map} mode={hosted.mode} theme={theme} />}
+              {<JupiterMapBadge map={hosted.map} mode={hosted.mode} theme={theme} />}
             </div>
           </div>
 
@@ -937,7 +934,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             >
               {submitting ? 'Closing…' : 'Close Server'}
             </button>
-            {isJupiterContent && (
+            {(
               <button
                 type="button"
                 className={`host-dashboard-return ${dashboardIsFocused('return') ? 'controller-focused' : ''}`}
@@ -967,18 +964,12 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
   // HOST FORM
   // ══════════════════════════════════════════════════════════════════════
   return (
-    <section className={`host-match ${isJupiterStyle ? 'host-match-jupiter' : 'host-match-iw8'}`}>
+    <section className={`host-match ${'host-match-jupiter'}`}>
       <div className="host-match-heading">
         <div>              <span className="host-match-kicker">{t('host.kicker')}</span>
           <h1>{t('host.title')}</h1>
-          <p>{isJupiterContent ? 'Jupiter prepares a local game — create it in the PHA Client, then deploy the lobby.' : 'Build a lobby for your squad and set the rules before launch.'}</p>
+          <p>Jupiter prepares a local game — create it in the PHA Client, then deploy the lobby.</p>
         </div>
-        {/* Jupiter shells hide the in-view Back button — the header back
-            arrow returns to the main menu instead. IW8 shells keep it. Esc /
-            controller Back still works on both. */}
-        {!isJupiterStyle && (
-          <button type="button" className="host-match-back" onMouseEnter={handleHostHover} onClick={() => handleBrowserBack('mouse')}>Back</button>
-        )}
       </div>
 
       {partyBlock ? (
@@ -1010,23 +1001,6 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             />
           </label>
 
-          {!isJupiterContent && (
-            <label className={`host-match-field ${isFocused('version') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
-              <span>IW8 Version</span>
-              <CustomSelect
-                value={form.version}
-                options={IW8_VERSIONS}
-                onSelect={(value) => updateSelectField('version', value)}
-                isOpen={openSelect === 'version'}
-                onToggle={() => toggleSelect('version')}
-                onClose={() => setOpenSelect(null)}
-                focusIndex={openSelect === 'version' ? optionFocusedIndex : null}
-                theme={theme}
-                ariaLabel="IW8 Version"
-              />
-            </label>
-          )}
-
           <label className={`host-match-field ${isFocused('map') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>              <span>{t('host.form.map')}</span>
               <CustomSelect
                 value={form.map}
@@ -1041,23 +1015,27 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
             />
           </label>
 
-          <label className={`host-match-field ${isFocused('mode') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>              <span>{t('host.form.mode')}</span>
+          {/* Zombies has no mode toggle — the mode dropdown only renders
+              for modes that have a real list (multiplayer / warzone). */}
+          {availableModes.length > 0 && (
+            <label className={`host-match-field ${isFocused('mode') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>              <span>{t('host.form.mode')}</span>
               <CustomSelect
                 value={form.mode}
-              options={availableModes}
-              onSelect={(value) => updateSelectField('mode', value)}
-              isOpen={openSelect === 'mode'}
-              onToggle={() => toggleSelect('mode')}
-              onClose={() => setOpenSelect(null)}
-              focusIndex={openSelect === 'mode' ? optionFocusedIndex : null}
-              theme={theme}
-              ariaLabel="Mode"
-            />
-          </label>
+                options={availableModes}
+                onSelect={(value) => updateSelectField('mode', value)}
+                isOpen={openSelect === 'mode'}
+                onToggle={() => toggleSelect('mode')}
+                onClose={() => setOpenSelect(null)}
+                focusIndex={openSelect === 'mode' ? optionFocusedIndex : null}
+                theme={theme}
+                ariaLabel="Mode"
+              />
+            </label>
+          )}
 
           {/* Plunder-only: cash amount required to win. Left blank → the
               file's default (2000000000) is used in the config command. */}
-          {isJupiterContent && form.mode === 'Plunder' && (
+          {form.mode === 'Plunder' && (
             <label className={`host-match-field ${isFocused('plunderCash') ? 'controller-focused' : ''}`} onMouseEnter={handleFieldHover}>
               <span>Plunder Cash</span>
               <input
@@ -1124,7 +1102,7 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
         <aside className="host-match-summary" onMouseEnter={handleFieldHover}>
           <span className="host-match-summary-label">LOBBY PREVIEW</span>
           <h2>{form.serverName.trim() || 'Unnamed Lobby'}</h2>
-          <div className="host-match-summary-line"><span>Version</span><strong>{isJupiterContent ? 'JUPITER' : form.version}</strong></div>
+          <div className="host-match-summary-line"><span>Version</span><strong>{'JUPITER'}</strong></div>
           <div className="host-match-summary-line"><span>Map</span><strong>{form.map}</strong></div>
           <div className="host-match-summary-line"><span>Mode</span><strong>{form.mode}</strong></div>
           <div className="host-match-summary-line"><span>Game Type</span><strong>{form.gameType}</strong></div>
@@ -1136,14 +1114,16 @@ export default function HostMatch({ theme = 'iw8', mod = theme, onBack, initialI
       )}
 
       {/* Host entry prompt (Jupiter content): "Prep PHA Client?" → prep + instructions */}
-      {isJupiterContent && (
+      {(
         <JupiterHostPromptModal
           theme={theme}
           prompt={hostPrompt}
+          gameMode={gameMode}
           onYes={handlePromptYes}
           onNo={() => void handlePromptNo()}
           onOk={handleInstructionsOk}
           onCancel={handlePromptCancel}
+          onZombiesContinue={() => void handlePromptZombiesContinue()}
         />
       )}
       <JupiterErrorModal

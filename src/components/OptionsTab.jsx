@@ -3,20 +3,13 @@ import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
 import { focusTextInput } from '../utils/keyboard'
 import { useSettings } from './SettingsProvider'
-import { JUPITER_MAPS, JUPITER_MODES } from '../utils/jupiterCommands'
+import { mapsForMode, modesForMode } from '../utils/jupiterCommands'
 import { listMonitors } from '../utils/displayMode'
-import InterfaceReloadModal from './InterfaceReloadModal'
 import CustomSelect from './CustomSelect'
 import { useAuth } from './AuthProvider'
 import { resetTutorialSeen } from './TutorialOverlay'
 import { LANGUAGES, useTranslation } from '../utils/i18n'
 import { version as APP_VERSION } from '../../package.json'
-
-const DYNAMIC_OPTIONS = [
-  { value: 'enabled', label: 'Enabled' },
-  { value: 'iw8', label: 'IW8 Mod' },
-  { value: 'jupiter', label: 'Jupiter Mod' },
-]
 
 const DISPLAY_MODE_OPTIONS = [
   { value: 'fullscreen', label: 'Fullscreen' },
@@ -44,28 +37,18 @@ const GLYPH_OPTIONS = [
 const OPTION_LISTS = {
   display_mode: DISPLAY_MODE_OPTIONS,
   silent_mode: SILENT_MODE_OPTIONS,
-  dynamic_sounds: DYNAMIC_OPTIONS,
-  dynamic_interfaces: DYNAMIC_OPTIONS,
   glyph_platform: GLYPH_OPTIONS,
   language: LANGUAGES,
 }
 
-// Theme accent color presets — each shell gets its own palette.
-const JUPITER_ACCENT_PRESETS = [
+// Theme accent color presets.
+const ACCENT_PRESETS = [
   '#028fcc', // default cyan
   '#00e5ff', // bright cyan
   '#7c4dff', // purple
   '#00e676', // green
   '#ffea00', // gold
   '#ff6d00', // orange
-]
-const IW8_ACCENT_PRESETS = [
-  '#d92323', // default red
-  '#ff5252', // bright red
-  '#ff6d00', // orange
-  '#ffea00', // gold
-  '#7c4dff', // purple
-  '#00e676', // green
 ]
 
 // Options sub-tabs. Switched by the controller TRIGGERS (LT/RT, or [ / ] on
@@ -78,21 +61,12 @@ const OPTIONS_SUB_TABS = [
   { key: 'about', label: 'ABOUT' },
 ]
 
-export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutorial }) {
-  const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+export default function OptionsTab({ theme = 'jupiter', onModalChange, onRetakeTutorial, gameMode = 'multiplayer' }) {
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const { user } = useAuth()
-  const { settings, setSetting, resetSettings, getResetDefaults } = useSettings()
+  const { settings, setSetting, resetSettings } = useSettings()
   const { t } = useTranslation()
-  // Options > Dynamic Interfaces (and Reset, when it would swap the shell)
-  // re-renders the WHOLE interface — the old screen disappears on the spot.
-  // Instead of snapping mid-click, the change is deferred behind a themed
-  // confirmation modal. pendingInterface holds the target shell value;
-  // isResetPending remembers whether confirm should run resetSettings()
-  // rather than setSetting('dynamic_interfaces', …).
-  const [pendingInterface, setPendingInterface] = useState(null)
-  const [isResetPending, setIsResetPending] = useState(false)
   // Controller mode + the dropdown that's expanded (null = closed). The
   // dropdown's option list becomes the controller nav target while open
   // (the options hook below) — same pattern as Host a Match.
@@ -114,19 +88,18 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
     return () => { mounted = false }
   }, [])
 
-  // While the interface-reload confirmation OR a settings dropdown is open,
-  // the parent interface's controller nav must go quiet (mirrors the modal
-  // gating ModdingTab uses) — Esc/B would otherwise jump back to Play mid-
+  // While a settings dropdown is open the parent interface's controller
+  // nav must go quiet — Esc/B would otherwise jump back to Play mid-
   // interaction. Released on unmount.
   useEffect(() => {
-    onModalChange?.(Boolean(pendingInterface || openSelect))
+    onModalChange?.(Boolean(openSelect))
     return () => onModalChange?.(false)
-  }, [onModalChange, pendingInterface, openSelect])
+  }, [onModalChange, openSelect])
 
   const handleHover = () => playSound(hoverSound)
 
   const switchSection = (next) => {
-    if (next === section || pendingInterface || openSelect) return
+    if (next === section || openSelect) return
     playSound(selectSound)
     setOpenSelect(null)
     setSection(next)
@@ -136,45 +109,11 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
 
   const handleChange = (key, value) => {
     playSound(selectSound)
-    if (key === 'dynamic_interfaces') {
-      setPendingInterface(value)
-      setIsResetPending(false)
-      return
-    }
     setSetting(key, value)
-  }
-
-  const confirmInterfaceReload = () => {
-    // The modal already played the select cue on button press — don't
-    // double-play here.
-    const wasReset = isResetPending
-    const target = pendingInterface
-    setPendingInterface(null)
-    setIsResetPending(false)
-    if (wasReset) {
-      resetSettings()
-    } else if (target) {
-      setSetting('dynamic_interfaces', target)
-    }
-  }
-
-  const cancelInterfaceReload = () => {
-    setPendingInterface(null)
-    setIsResetPending(false)
   }
 
   const handleReset = () => {
     playSound(selectSound)
-    const defaults = getResetDefaults()
-    // A reset that would swap the interface shell gets the same
-    // confirmation modal as the dropdown — otherwise the whole screen
-    // snaps without warning. (The select value stays on the current
-    // settings until the reset is actually committed.)
-    if (defaults.dynamic_interfaces !== settings.dynamic_interfaces) {
-      setPendingInterface(defaults.dynamic_interfaces)
-      setIsResetPending(true)
-      return
-    }
     resetSettings()
   }
 
@@ -196,10 +135,12 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
     if (section === 'general') {
       // ORDER MUST MATCH THE DOM: THEME card → SOUND card → INTERFACE card.
       items.push({ kind: 'accent', key: 'accent_jupiter', label: t('options.accent.jup') })
-      items.push({ kind: 'accent', key: 'accent_iw8', label: t('options.accent.iw8') })
       items.push({ kind: 'toggle', key: 'silent_mode', label: t('options.silentmode') })
-      items.push({ kind: 'select', key: 'dynamic_sounds', label: t('options.dynamicsounds') })
-      items.push({ kind: 'select', key: 'dynamic_interfaces', label: t('options.dynamicinterfaces') })
+      items.push({ kind: 'toggle', key: 'music_enabled', label: t('options.music') })
+      // The zombies classic-soundtrack toggle is zombies-mode only.
+      if (gameMode === 'zombies') {
+        items.push({ kind: 'toggle', key: 'zombies_classic_ost', label: t('options.zombiesclassic') })
+      }
       items.push({ kind: 'select', key: 'glyph_platform', label: t('options.glyphplatform') })
       items.push({ kind: 'toggle', key: 'auto_load_savedata', label: t('options.autoloadsavedata') })
       items.push({ kind: 'button', key: 'retake_tutorial', label: t('options.tutorial') })
@@ -214,14 +155,18 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
       if (testingServerOn) {
         items.push({ kind: 'text', key: 'dev_server_name', label: t('options.devserver.name') })
         items.push({ kind: 'select', key: 'dev_server_map', label: t('options.devserver.map') })
-        items.push({ kind: 'select', key: 'dev_server_mode', label: t('options.devserver.mode') })
+        // The dev-server mode select follows the current mode's list —
+        // zombies has no modes, so the row is omitted there.
+        if (modesForMode(gameMode).length > 0) {
+          items.push({ kind: 'select', key: 'dev_server_mode', label: t('options.devserver.mode') })
+        }
         items.push({ kind: 'text', key: 'dev_server_lan_session', label: t('options.devserver.lansession') })
       }
       items.push({ kind: 'toggle', key: 'rtm_mode', label: t('options.advancedrtm') })
     }
     items.push({ kind: 'reset', label: t('options.reset') })
     return items
-  }, [section, testingServerOn, rtmModeOn])
+  }, [section, testingServerOn, rtmModeOn, gameMode, modesForMode(gameMode).length])
 
   const monitorLabel = (monitor) =>
     `Display ${monitor.ordinal}${monitor.primary ? ' (Primary)' : ''}`
@@ -233,8 +178,8 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
   const selectOptions = (key) => {
     if (key === 'display_monitor') return ['Default', ...monitors.map(monitorLabel)]
     if (OPTION_LISTS[key]) return OPTION_LISTS[key].map((option) => option.label)
-    if (key === 'dev_server_map') return JUPITER_MAPS
-    if (key === 'dev_server_mode') return JUPITER_MODES
+    if (key === 'dev_server_map') return mapsForMode(gameMode)
+    if (key === 'dev_server_mode') return modesForMode(gameMode)
     return []
   }
   const selectStoredValue = (key, display) => {
@@ -318,10 +263,9 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
       }
       if (item.kind === 'accent') {
         playSound(selectSound)
-        const presets = item.key === 'accent_jupiter' ? JUPITER_ACCENT_PRESETS : IW8_ACCENT_PRESETS
         const current = valueOf(item.key)
-        const idx = presets.indexOf(current)
-        setSetting(item.key, presets[(idx + 1) % presets.length])
+        const idx = ACCENT_PRESETS.indexOf(current)
+        setSetting(item.key, ACCENT_PRESETS[(idx + 1) % ACCENT_PRESETS.length])
         return
       }
       if (item.kind === 'button' && item.key === 'retake_tutorial') {
@@ -330,7 +274,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
       }
       if (item.kind === 'reset') handleReset()
     },
-    enabled: pendingInterface === null && !openSelect,
+    enabled: !openSelect,
   })
 
   // Options hook — while a dropdown is open, up/down moves through OPTIONS
@@ -355,14 +299,14 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
       playSound(selectSound)
       setOpenSelect(null)
     },
-    enabled: Boolean(openSelect) && pendingInterface === null,
+    enabled: Boolean(openSelect),
   })
 
   const isRowFocused = (key) => inputMode === 'controller' && navItems[focusedIndex]?.key === key
   const isResetFocused = () => inputMode === 'controller' && navItems[focusedIndex]?.kind === 'reset'
 
   return (
-    <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+    <div className="tab-content-panel jupiter-theme">
       <div className="tab-header-title">
         <h2>OPTIONS</h2>
 
@@ -377,7 +321,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
             type="button"
             role="tab"
             aria-selected={section === tab.key}
-            className={`options-subtab ${section === tab.key ? 'active' : ''} ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}
+            className={`options-subtab ${section === tab.key ? 'active' : ''} jupiter-theme`}
             onMouseEnter={handleHover}
             onClick={() => switchSection(tab.key)}
           >
@@ -399,7 +343,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
                   <span>{t('options.accent.jup.desc')}</span>
                 </div>
                 <div className="accent-swatches">
-                  {JUPITER_ACCENT_PRESETS.map((hex) => (
+                  {ACCENT_PRESETS.map((hex) => (
                     <button
                       key={hex}
                       type="button"
@@ -417,37 +361,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
                     value={valueOf('accent_jupiter') || '#028fcc'}
                     onChange={(event) => { playSound(selectSound); setSetting('accent_jupiter', event.target.value) }}
                     onMouseEnter={handleHover}
-                    aria-label="Custom Jupiter accent color"
-                    title="Pick a custom color"
-                  />
-                </div>
-              </label>
-
-              <label className={`options-row options-row-accent ${isRowFocused('accent_iw8') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
-                <div className="options-row-label">
-                  <strong>{t('options.accent.iw8')}</strong>
-                  <span>{t('options.accent.iw8.desc')}</span>
-                </div>
-                <div className="accent-swatches">
-                  {IW8_ACCENT_PRESETS.map((hex) => (
-                    <button
-                      key={hex}
-                      type="button"
-                      className={`accent-swatch ${valueOf('accent_iw8') === hex ? 'active' : ''}`}
-                      style={{ backgroundColor: hex }}
-                      onClick={() => { playSound(selectSound); setSetting('accent_iw8', hex) }}
-                      onMouseEnter={handleHover}
-                      aria-label={`Accent ${hex}`}
-                      title={hex}
-                    />
-                  ))}
-                  <input
-                    type="color"
-                    className="accent-picker-input"
-                    value={valueOf('accent_iw8') || '#d92323'}
-                    onChange={(event) => { playSound(selectSound); setSetting('accent_iw8', event.target.value) }}
-                    onMouseEnter={handleHover}
-                    aria-label="Custom IW8 accent color"
+                    aria-label="Custom accent color"
                     title="Pick a custom color"
                   />
                 </div>
@@ -477,45 +391,51 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
                 </span>
               </label>
 
-              <label className={`options-row ${isRowFocused('dynamic_sounds') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
+              <label className={`options-row ${isRowFocused('music_enabled') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
-                  <strong>{t('options.dynamicsounds')}</strong>
-                  <span>{t('options.dynamicsounds.desc')}</span>
+                  <strong>{t('options.music')}</strong>
+                  <span>{t('options.music.desc')}</span>
                 </div>
-                <CustomSelect
-                  value={selectDisplay('dynamic_sounds')}
-                  options={selectOptions('dynamic_sounds')}
-                  onSelect={(display) => handleChange('dynamic_sounds', selectStoredValue('dynamic_sounds', display))}
-                  isOpen={openSelect === 'dynamic_sounds'}
-                  onToggle={() => setOpenSelect(openSelect === 'dynamic_sounds' ? null : 'dynamic_sounds')}
-                  onClose={() => setOpenSelect(null)}
-                  focusIndex={openSelect === 'dynamic_sounds' ? optionFocusedIndex : null}
-                  theme={theme}
-                  ariaLabel="Dynamic Sound Effects"
-                />
+                <span className={`options-toggle ${valueOf('music_enabled') ? 'on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(valueOf('music_enabled'))}
+                    onChange={(event) => {
+                      playSound(selectSound)
+                      setSetting('music_enabled', event.target.checked)
+                    }}
+                    onMouseEnter={handleHover}
+                    aria-label="Music"
+                  />
+                  <span className="options-toggle-track" aria-hidden="true" />
+                </span>
               </label>
+
+              {gameMode === 'zombies' && (
+                <label className={`options-row ${isRowFocused('zombies_classic_ost') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
+                  <div className="options-row-label">
+                    <strong>{t('options.zombiesclassic')}</strong>
+                    <span>{t('options.zombiesclassic.desc')}</span>
+                  </div>
+                  <span className={`options-toggle ${valueOf('zombies_classic_ost') ? 'on' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(valueOf('zombies_classic_ost'))}
+                      onChange={(event) => {
+                        playSound(selectSound)
+                        setSetting('zombies_classic_ost', event.target.checked)
+                      }}
+                      onMouseEnter={handleHover}
+                      aria-label="Zombies Classic Soundtrack"
+                    />
+                    <span className="options-toggle-track" aria-hidden="true" />
+                  </span>
+                </label>
+              )}
             </div>
 
             <div className="options-card">
               <h3>{t('options.interface')}</h3>
-
-              <label className={`options-row ${isRowFocused('dynamic_interfaces') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
-                <div className="options-row-label">
-                  <strong>{t('options.dynamicinterfaces')}</strong>
-                  <span>{t('options.dynamicinterfaces.desc')}</span>
-                </div>
-                <CustomSelect
-                  value={selectDisplay('dynamic_interfaces')}
-                  options={selectOptions('dynamic_interfaces')}
-                  onSelect={(display) => handleChange('dynamic_interfaces', selectStoredValue('dynamic_interfaces', display))}
-                  isOpen={openSelect === 'dynamic_interfaces'}
-                  onToggle={() => setOpenSelect(openSelect === 'dynamic_interfaces' ? null : 'dynamic_interfaces')}
-                  onClose={() => setOpenSelect(null)}
-                  focusIndex={openSelect === 'dynamic_interfaces' ? optionFocusedIndex : null}
-                  theme={theme}
-                  ariaLabel="Dynamic Interfaces"
-                />
-              </label>
 
               <label className={`options-row ${isRowFocused('glyph_platform') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                 <div className="options-row-label">
@@ -710,23 +630,25 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
                   />
                 </label>
 
-                <label className={`options-row ${isRowFocused('dev_server_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
-                  <div className="options-row-label">
-                    <strong>{t('options.devserver.mode')}</strong>
-                    <span>{t('options.devserver.mode.desc')}</span>
-                  </div>
-                  <CustomSelect
-                    value={selectDisplay('dev_server_mode')}
-                    options={selectOptions('dev_server_mode')}
-                    onSelect={(v) => handleChange('dev_server_mode', selectStoredValue('dev_server_mode', v))}
-                    isOpen={openSelect === 'dev_server_mode'}
-                    onToggle={() => setOpenSelect(openSelect === 'dev_server_mode' ? null : 'dev_server_mode')}
-                    onClose={() => setOpenSelect(null)}
-                    focusIndex={openSelect === 'dev_server_mode' ? optionFocusedIndex : null}
-                    theme={theme}
-                    ariaLabel="Test Server Mode"
-                  />
-                </label>
+                {modesForMode(gameMode).length > 0 && (
+                  <label className={`options-row ${isRowFocused('dev_server_mode') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
+                    <div className="options-row-label">
+                      <strong>{t('options.devserver.mode')}</strong>
+                      <span>{t('options.devserver.mode.desc')}</span>
+                    </div>
+                    <CustomSelect
+                      value={selectDisplay('dev_server_mode')}
+                      options={selectOptions('dev_server_mode')}
+                      onSelect={(v) => handleChange('dev_server_mode', selectStoredValue('dev_server_mode', v))}
+                      isOpen={openSelect === 'dev_server_mode'}
+                      onToggle={() => setOpenSelect(openSelect === 'dev_server_mode' ? null : 'dev_server_mode')}
+                      onClose={() => setOpenSelect(null)}
+                      focusIndex={openSelect === 'dev_server_mode' ? optionFocusedIndex : null}
+                      theme={theme}
+                      ariaLabel="Test Server Mode"
+                    />
+                  </label>
+                )}
 
                 <label className={`options-row ${isRowFocused('dev_server_lan_session') ? 'controller-focused' : ''}`} onMouseEnter={handleHover}>
                   <div className="options-row-label">
@@ -775,7 +697,7 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
             <h3>APPLICATION</h3>
 
             <div className="options-about-header">
-              <h2>Legacy Warzone Launcher v{APP_VERSION}</h2>
+              <h2>Legacy Modern Warfare III Launcher v{APP_VERSION}</h2>
             </div>
 
             <div className="options-about-section">
@@ -817,14 +739,6 @@ export default function OptionsTab({ theme = 'iw8', onModalChange, onRetakeTutor
           <span className="options-reset-hint">{t('options.reset.desc')}</span>
         </div>
       </div>
-
-      <InterfaceReloadModal
-        theme={theme}
-        targetMod={pendingInterface}
-        isOpen={pendingInterface !== null}
-        onConfirm={confirmInterfaceReload}
-        onCancel={cancelInterfaceReload}
-      />
     </div>
   )
 }

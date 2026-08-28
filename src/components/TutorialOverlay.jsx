@@ -22,7 +22,7 @@ export function resetTutorialSeen(userId) {
 
 const JUPITER_STEPS = [
   {
-    title: "Welcome to the Legacy Warzone Launcher",
+    title: "Welcome to the Legacy Modern Warfare III Launcher",
     body: "This quick tour will walk you through everything the Warzone III (Jupiter Mod) launcher has to offer.\n\nPress Next to continue, or Skip to jump straight in.",
     anchor: null,
     arrowDir: null,
@@ -112,70 +112,6 @@ const JUPITER_STEPS = [
   },
 ]
 
-const IW8_STEPS = [
-  {
-    title: "Welcome to the Legacy Warzone Launcher",
-    body: "This quick tour will walk you through the Warzone 1 (IW8 Mod) launcher.\n\nPress Next to continue, or Skip to jump straight in.",
-    anchor: null,
-    arrowDir: null,
-  },
-  {
-    title: "The Play Menu",
-    body: "Three options to get into a match:\n\nQuick Play — automatically finds and joins an open IW8 lobby.\nServer Browser — browse and join listed servers manually.\nHost a Match — publish your own lobby for others to join.",
-    anchor: ".iw8-menu-vertical",
-    arrowDir: "left",
-    spotlightPad: 20,
-  },
-  {
-    title: "Header Navigation",
-    body: "These tabs switch between the launcher's main sections:\n\nPlay — the menu you're on now.\nAccount — your profile and gamertag.\nSocial — friends and parties.\nHelp — Discord links and support.\nOptions — launcher settings.\n\nOn a controller, use LB / RB to switch tabs.",
-    anchor: ".iw8-header-tabs",
-    arrowDir: "up",
-    spotlightPad: 14,
-  },
-  {
-    title: "Account Tab",
-    body: "Edit your gamertag, Discord username, and region.\n\nYour gamertag is visible to other players in shared lobbies.",
-    anchor: ".iw8-header-tabs .iw8-tab-btn:nth-child(2)",
-    arrowDir: "up",
-    spotlightPad: 14,
-  },
-  {
-    title: "Social Tab",
-    body: "Add friends by searching for their gamertag, then form or join a party.\n\nWhen your party leader enters a server, you'll be pulled in automatically.",
-    anchor: ".iw8-header-tabs .iw8-tab-btn:nth-child(3)",
-    arrowDir: "up",
-    spotlightPad: 14,
-  },
-  {
-    title: "Help Tab",
-    body: "Community Discord servers and support resources live here. The Hina Warzone Mods server is your best bet for hands-on help.",
-    anchor: ".iw8-header-tabs .iw8-tab-btn:nth-child(4)",
-    arrowDir: "up",
-    spotlightPad: 14,
-  },
-  {
-    title: "Options Tab",
-    body: "Configure sound settings, swap the UI skin with Dynamic Interfaces, change display mode and monitor, or access developer tools.",
-    anchor: ".iw8-header-tabs .iw8-tab-btn:last-child",
-    arrowDir: "up",
-    spotlightPad: 14,
-  },
-  {
-    title: "Quit Button",
-    body: "The Quit button in the bottom-right opens the exit dialog, where you can quit to desktop or switch over to the Warzone III launcher.",
-    anchor: ".iw8-quit-btn-wrapper",
-    arrowDir: "left",
-    spotlightPad: 14,
-  },
-  {
-    title: "You're All Set!",
-    body: "That's everything in the Warzone 1 launcher. Check the Help tab for community links whenever you need a hand. Good luck!",
-    anchor: null,
-    arrowDir: null,
-  },
-]
-
 function getAnchorRect(selector, pad) {
   if (!selector) return null
   const el = document.querySelector(selector)
@@ -207,12 +143,11 @@ function ArrowIndicator({ direction }) {
   )
 }
 
-export default function TutorialOverlay({ isOpen, theme, onClose }) {
+export default function TutorialOverlay({ isOpen, theme = "jupiter", onClose }) {
   const { t } = useTranslation()
-  const isJupiter = theme === "jupiter"
-  const steps = isJupiter ? JUPITER_STEPS : IW8_STEPS
-  const hoverSound = isJupiter ? "jupHover" : "iw8Hover"
-  const selectSound = isJupiter ? "jupSelect" : "iw8Select"
+  const steps = JUPITER_STEPS
+  const hoverSound = "jupHover"
+  const selectSound = "jupSelect"
 
   const [stepIndex, setStepIndex] = useState(0)
   const [spotRect, setSpotRect] = useState(null)
@@ -291,7 +226,7 @@ export default function TutorialOverlay({ isOpen, theme, onClose }) {
 
   if (!isOpen) return null
 
-  const prefix = isJupiter ? "jupiter" : "iw8"
+  const prefix = "jupiter"
   const svgSpot = spotRect
     ? `M${spotRect.x},${spotRect.y} h${spotRect.w} v${spotRect.h} h-${spotRect.w} Z`
     : ""
@@ -313,7 +248,7 @@ export default function TutorialOverlay({ isOpen, theme, onClose }) {
           <rect
             x={spotRect.x} y={spotRect.y} width={spotRect.w} height={spotRect.h}
             fill="none"
-            stroke={isJupiter ? "rgba(2,143,204,0.9)" : "rgba(255,255,255,0.6)"}
+            stroke="rgba(2,143,204,0.9)"
             strokeWidth="2" rx="2"
           />
         </svg>

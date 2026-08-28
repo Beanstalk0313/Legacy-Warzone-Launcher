@@ -29,8 +29,8 @@ export default function UpdateModal({ update, onDismiss }) {
   }
 
   // Theme-neutral cues — this dialog sits on the launcher, pre-mod-choice.
-  const handleHover = () => playSound('mainSlide', 0.4)
-  const handleSelect = () => playSound('mainSlide', 0.4)
+  const handleHover = () => playSound('jupHover')
+  const handleSelect = () => playSound('jupSelect')
 
   const handleInstall = async () => {
     if (!update || stage === 'downloading') return

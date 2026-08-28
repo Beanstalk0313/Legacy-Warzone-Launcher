@@ -56,13 +56,13 @@ function validatePassword(value) {
   return null
 }
 
-export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
+export default function AccountTab({ theme = 'jupiter', onIdentitySaved }) {
   const { user, configured, signUp, signIn, signOut } = useAuth()
   const { t } = useTranslation()
 
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [inputMode, setInputMode] = useState('mouse')
 
   // ── Form state (sign-in / sign-up) ──────────────────────────────────────
@@ -269,7 +269,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
           email: signedInUser?.email || email.trim(),
         }
         if (!identity.discord_username) {
-          throw new Error('This account has no Discord username. Open-beta accounts must provide the complete username.')
+          throw new Error('This account has no Discord username. Accounts must provide the complete username.')
         }
         if (!identity.gamertag) {
           throw new Error('This account has no gamertag metadata. Please contact the launcher administrator.')
@@ -367,7 +367,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
       : '—'
 
     return (
-      <div className={`tab-content-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+      <div className={`tab-content-panel ${'jupiter-theme'}`}>
         <div className="tab-header-title">
           <h2>{t('account.title')}</h2>
         </div>
@@ -377,8 +377,8 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
         )}
 
         {/* ── Profile header ────────────────────────────────────────────── */}
-        <div className={`account-profile-header ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
-          <div className={`account-avatar-lg ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+        <div className={`account-profile-header ${'jupiter-theme'}`}>
+          <div className={`account-avatar-lg ${'jupiter-theme'}`}>
             <span>{(displayName[0] || userEmail[0] || '?').toUpperCase()}</span>
           </div>
           <div className="account-profile-info">
@@ -389,7 +389,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
         </div>
 
         {/* ── Identity card — editable fields ───────────────────────────── */}
-        <div className={`account-editor-card ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+        <div className={`account-editor-card ${'jupiter-theme'}`}>
           <h4 className="account-card-heading">{t('account.profile.identity')}</h4>
 
           <label className={`account-editor-row ${signedInFocused('gamertag') ? 'controller-focused' : ''}`}>
@@ -460,13 +460,13 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
         </div>
 
         {editError && (
-          <div className={`account-edit-error ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`} role="alert">
+          <div className={`account-edit-error ${'jupiter-theme'}`} role="alert">
             {editError}
           </div>
         )}
 
         {/* ── Account actions ───────────────────────────────────────────── */}
-        <div className={`account-editor-card ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+        <div className={`account-editor-card ${'jupiter-theme'}`}>
           <h4 className="account-card-heading">{t('account.profile.session')}</h4>
 
           <div className={`account-editor-row ${signedInFocused('signout') ? 'controller-focused' : ''}`}>
@@ -476,7 +476,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
             </div>
             <button
               type="button"
-              className={`account-signout-btn ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}
+              className={`account-signout-btn ${'jupiter-theme'}`}
               onClick={handleSignOut}
               onMouseEnter={() => playSound(hoverSound)}
             >
@@ -497,7 +497,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
   const gamertagError = touched && mode === 'signup' ? validateGamertag(gamertag) : null
 
   return (
-    <div className={`tab-content-panel account-tab-panel ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+    <div className={`tab-content-panel account-tab-panel ${'jupiter-theme'}`}>
       <div className="tab-header-title">
         <h2>{t('account.title')}</h2>
       </div>
@@ -512,25 +512,25 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
       )}
 
       {successMessage ? (
-        <div className={`account-email-sent ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+        <div className={`account-email-sent ${'jupiter-theme'}`}>
           <h3>{t('account.signin.verifyYourEmail')}</h3>
           <p>{successMessage}</p>
           <button
             type="button"
-            className={`account-email-submit ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}
+            className={`account-email-submit ${'jupiter-theme'}`}
             onClick={() => { switchMode('signin'); setEmail(''); setPassword('') }}
             onMouseEnter={() => playSound(hoverSound)}            >
             {t('account.signin.backToSignIn')}
           </button>
         </div>
       ) : (
-        <div className={`account-editor-card account-signin-card ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+        <div className={`account-editor-card account-signin-card ${'jupiter-theme'}`}>
           <form onSubmit={handleSubmit} className="account-signin-email-form">
             {/* ── Mode toggle ─────────────────────────────────────────── */}
             <div className="account-mode-toggle">
               <button
                 type="button"
-                className={`account-mode-btn ${mode === 'signin' ? 'active' : ''} ${formFocused('mode') ? 'controller-focused' : ''} ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}
+                className={`account-mode-btn ${mode === 'signin' ? 'active' : ''} ${formFocused('mode') ? 'controller-focused' : ''} ${'jupiter-theme'}`}
                 onClick={() => switchMode('signin')}
                 onMouseEnter={() => playSound(hoverSound)}
                 disabled={!configured}
@@ -539,7 +539,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
               </button>
               <button
                 type="button"
-                className={`account-mode-btn ${mode === 'signup' ? 'active' : ''} ${formFocused('mode') ? 'controller-focused' : ''} ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}
+                className={`account-mode-btn ${mode === 'signup' ? 'active' : ''} ${formFocused('mode') ? 'controller-focused' : ''} ${'jupiter-theme'}`}
                 onClick={() => switchMode('signup')}
                 onMouseEnter={() => playSound(hoverSound)}
                 disabled={!configured}
@@ -652,7 +652,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
             {/* ── Submit ────────────────────────────────────────────── */}
             <button
               type="submit"
-              className={`account-email-submit ${isJupiter ? 'jupiter-theme' : 'iw8-theme'} ${formFocused('submit') ? 'controller-focused' : ''}`}
+              className={`account-email-submit ${'jupiter-theme'} ${formFocused('submit') ? 'controller-focused' : ''}`}
               onMouseEnter={() => playSound(hoverSound)}
               disabled={!configured || submitting}
             >
@@ -661,7 +661,7 @@ export default function AccountTab({ theme = 'iw8', onIdentitySaved }) {
           </form>
 
           {signInError && !emailError && !passwordError && !discordUsernameError && !gamertagError && (
-            <div className={`account-signin-error ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`} role="alert">
+            <div className={`account-signin-error ${'jupiter-theme'}`} role="alert">
               {signInError}
             </div>
           )}

@@ -17,8 +17,8 @@ import JupiterMapBadge from './JupiterMapBadge'
 // (onLeaveServer requests it; the actual leave runs in the interface).
 export default function ConnectedServerPanel({ theme = 'jupiter', lobby, players = [], partyMembers = [], onLeaveServer }) {
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const handleHover = () => playSound(hoverSound)
 
   if (!lobby) return null
@@ -26,7 +26,7 @@ export default function ConnectedServerPanel({ theme = 'jupiter', lobby, players
   const partyUserIds = new Set((partyMembers || []).map((member) => member.userId))
 
   return (
-    <section className={`server-browser connected-server-panel ${isJupiter ? 'server-browser-jupiter' : 'server-browser-iw8'}`}>
+    <section className={`server-browser connected-server-panel ${'server-browser-jupiter'}`}>
       <div className="server-browser-topline">
         <div>
           <span className="server-browser-kicker">PLAY / IN GAME</span>

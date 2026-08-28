@@ -9,7 +9,6 @@ import { invoke } from '@tauri-apps/api/core'
  * Field names are snake_case to match the Rust AppSettings struct. Values
  * mirror the Options tab dropdown labels' internal ids:
  *
- *   dynamic_sounds / dynamic_interfaces: 'enabled' | 'iw8' | 'jupiter'
  *   display_mode: 'fullscreen' | 'windowed'
  *   display_monitor: monitor name (from list_monitors) or '' = default
  *     monitor — which monitor the launcher window lives on
@@ -25,16 +24,20 @@ import { invoke } from '@tauri-apps/api/core'
  *     shows; 'auto' detects the connected controller (keyboard fallback)
  */
 export const DEFAULT_SETTINGS = Object.freeze({
-  dynamic_sounds: 'enabled',
-  dynamic_interfaces: 'enabled',
   display_mode: 'fullscreen',
   display_monitor: '',
   silent_mode: false,
   accent_jupiter: '#028fcc',
-  accent_iw8: '#d92323',
   testing_server: false,
   rtm_mode: false,
   auto_load_savedata: false,
+  // Launcher music: plays the current game mode's soundtrack while the
+  // game interface is open. Independent of Silent Mode (which only mutes
+  // launcher SFX) — its own Music toggle lives in Options > SOUND.
+  music_enabled: true,
+  // Zombies mode only: use the classic Black Ops soundtrack
+  // (zombies_bo1.mp3) instead of the default zombies track.
+  zombies_classic_ost: false,
   dev_server_name: 'Local Test Server',
   dev_server_map: 'Rebirth Island',
   dev_server_mode: 'Resurgence',
@@ -45,8 +48,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   language: 'en',
 })
 
-const SETTING_KEYS = ['dynamic_sounds', 'dynamic_interfaces']
-const DYNAMIC_SETTING_VALUES = ['enabled', 'iw8', 'jupiter']
 const DISPLAY_MODE_VALUES = ['fullscreen', 'windowed']
 const GLYPH_PLATFORM_VALUES = ['auto', 'keyboard', 'xbox', 'playstation', 'switch', 'steam', 'steamdeck']
 const LANGUAGE_VALUES = ['en', 'fr', 'ru', 'es', 'zh-CN']
@@ -77,11 +78,6 @@ function cleanSettingText(value, fallback, maxLength = MAX_DEV_TEXT_LENGTH) {
 export function normalizeSettings(raw) {
   const source = raw && typeof raw === 'object' ? raw : {}
   const result = { ...DEFAULT_SETTINGS }
-  for (const key of SETTING_KEYS) {
-    const value = source[key]
-    if (typeof value !== 'string') continue
-    if (DYNAMIC_SETTING_VALUES.includes(value)) result[key] = value
-  }
   if (typeof source.display_mode === 'string' && DISPLAY_MODE_VALUES.includes(source.display_mode)) {
     result.display_mode = source.display_mode
   }
@@ -93,7 +89,6 @@ export function normalizeSettings(raw) {
     result.silent_mode = source.silent_mode
   }
   result.accent_jupiter = cleanHexColor(source.accent_jupiter, DEFAULT_SETTINGS.accent_jupiter)
-  result.accent_iw8 = cleanHexColor(source.accent_iw8, DEFAULT_SETTINGS.accent_iw8)
   if (typeof source.testing_server === 'boolean') {
     result.testing_server = source.testing_server
   }
@@ -111,6 +106,12 @@ export function normalizeSettings(raw) {
   }
   if (typeof source.auto_load_savedata === 'boolean') {
     result.auto_load_savedata = source.auto_load_savedata
+  }
+  if (typeof source.music_enabled === 'boolean') {
+    result.music_enabled = source.music_enabled
+  }
+  if (typeof source.zombies_classic_ost === 'boolean') {
+    result.zombies_classic_ost = source.zombies_classic_ost
   }
   result.dev_server_name = cleanSettingText(source.dev_server_name, DEFAULT_SETTINGS.dev_server_name)
   // The old default test-server name was retired — anyone still on it gets

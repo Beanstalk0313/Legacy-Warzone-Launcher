@@ -12,7 +12,7 @@ import RegionFlag from './RegionFlag'
 //   • Not in a match but in a party → the party squad, pinned just below
 //     the header's user chip on the right edge (persists across tabs).
 // Party data comes from JupiterSessionProvider (which owns the party system
-// and polls `partyMembers` — user_id + name + region per member). IW8
+
 // content renders without a provider, so `useJupiterSession()` returns null
 // there and nothing shows.
 export default function PlayerRoster({ theme = 'jupiter' }) {
@@ -31,7 +31,7 @@ export default function PlayerRoster({ theme = 'jupiter' }) {
   const isJupiter = theme === 'jupiter'
 
   return (
-    <div className={`player-roster ${isJupiter ? 'jupiter-theme' : 'iw8-theme'}`}>
+    <div className={`player-roster ${'jupiter-theme'}`}>
       <div className="player-roster-title">
         {t('roster.squad')}
         <span className="player-roster-count">{partyMembers.length}</span>

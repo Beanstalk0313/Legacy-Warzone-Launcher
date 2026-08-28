@@ -19,25 +19,16 @@ const regions = ['All Regions', 'North America', 'Europe', 'Asia Pacific']
 // username/display_name (no emails, no Discord ids).
 //
 // Each interface only sees its own mod's lobbies: the `mod` column
-// (migration 0007) is 'jupiter' or 'iw8', and this browser filters on it
+// (migration 0007) is always 'jupiter' here, and this browser filters on it
 // client-side so a missing migration degrades to an empty list instead of
 // an API error.
-// `theme` is the SHELL style (which mod's UI chrome is drawn — drives CSS
-// classes, sounds, and whether the in-view Back button is hidden behind the
-// shell's header back arrow). `mod` is the CONTENT mod (which mod's lobbies
-// are listed and whether the join flow is the Jupiter RTM sequence or the
-// IW8 stub). They're decoupled so Dynamic Interfaces can swap the shell
-// without changing the content.
-export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW8Join, initialInputMode = 'mouse', gameMode = 'multiplayer' }) {
+export default function ServerBrowser({ theme = 'jupiter', onBack, initialInputMode = 'mouse', gameMode = 'multiplayer' }) {
   const { t } = useTranslation()
-  const isJupiterStyle = theme === 'jupiter'
-  const isJupiterContent = mod === 'jupiter'
-  const hoverSound = isJupiterStyle ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiterStyle ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const { user } = useAuth()
   const { settings } = useSettings()
-  // Jupiter content only: the session provider owns the join flow + join
-  // modal. IW8 content renders without a provider, so this hook returns null.
+  // The session provider owns the join flow + join modal.
   const session = useJupiterSession()
   const [search, setSearch] = useState('')
   const [region, setRegion] = useState('All Regions')
@@ -52,7 +43,7 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
   const [errorModal, setErrorModal] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
-  const contentMod = isJupiterContent ? 'jupiter' : 'iw8'
+  const contentMod = 'jupiter'
 
   useEffect(() => {
     if (!SUPABASE_CONFIGURED || !supabase) return
@@ -143,7 +134,7 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
   // server row (built by buildDevServer — Quick Play uses the same builder
   // so both entry points treat it identically). It never touches Supabase
   // and no other client can see it.
-  const devServer = isJupiterContent ? buildDevServer(settings) : null
+  const devServer = buildDevServer(settings, gameMode)
 
   // Client-side filtering over the loaded list — the search box matches
   // name / map / mode / host, and the region dropdown is exact-match
@@ -191,14 +182,6 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
   const handleJoinServer = async (server) => {
     setInputMode('mouse')
     setHoveredIndex(null)
-
-    // IW8 content has no Jupiter session provider — its join opens the
-    // IW8 join modal (shows the console command with a copy button).
-    if (!isJupiterContent) {
-      playSound(selectSound)
-      onIW8Join?.(server)
-      return
-    }
 
     if (session?.join) return
 
@@ -273,19 +256,13 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
   }
 
   return (
-    <section className={`server-browser ${isJupiterStyle ? 'server-browser-jupiter' : 'server-browser-iw8'}`}>
+    <section className={`server-browser ${'server-browser-jupiter'}`}>
       <div className="server-browser-topline">
         <div>
           <span className="server-browser-kicker">{t('browser.kicker')}</span>
           <h1>{t('browser.title')}</h1>
           <p>Find a lobby, check the rules, and deploy with your squad.</p>
         </div>
-        {/* Jupiter shells hide the in-view Back button — the header back
-            arrow returns to the main menu instead. IW8 shells keep it. Esc /
-            controller Back still works on both. */}
-        {!isJupiterStyle && (
-          <button type="button" className="server-browser-back" onMouseEnter={handleRegionHover} onClick={() => handleBrowserBack('mouse')}>{t('tut.back')}</button>
-        )}
       </div>
 
       <div className="server-browser-toolbar">
@@ -336,7 +313,6 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
         <div className="server-browser-list" role="listbox" aria-label="Available servers">
           <div className="server-browser-list-header">
             <span>{t('browser.col.server')}</span>
-            {!isJupiterContent && <span>{t('browser.col.version')}</span>}
             <span>{t('browser.col.mapmode')}</span>
             <span>{t('browser.col.players')}</span>
           </div>
@@ -376,7 +352,6 @@ export default function ServerBrowser({ theme = 'iw8', mod = theme, onBack, onIW
                   </strong>
                   <small>{server.host} · {server.region}</small>
                 </span>
-                {!isJupiterContent && <span className="server-browser-version">{server.version}</span>}
                 <span className="server-browser-map-mode">
                   <strong>{server.map}</strong>
                   <small>{server.mode}</small>

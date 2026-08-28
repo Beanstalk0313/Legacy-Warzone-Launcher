@@ -8,12 +8,12 @@ import { useTranslation } from '../utils/i18n'
 // screen or the Leave Server button. "Leave Server" runs the full leave
 // flow (-disconnect + MainMenuOffline + membership cleanup via the session
 // provider); Cancel stays connected. Reuses the jupiter-host-prompt-modal
-// surface (with the iw8-styled variant) so both themes come for free.
+// surface so both themes come for free.
 export default function LeaveServerConfirmModal({ theme = 'jupiter', isOpen, onConfirm, onCancel }) {
   const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [inputMode, setInputMode] = useState('mouse')
 
   const handleHover = () => playSound(hoverSound)
@@ -44,7 +44,7 @@ export default function LeaveServerConfirmModal({ theme = 'jupiter', isOpen, onC
   return createPortal(
     <div className="modal-overlay" role="presentation">
       <div
-        className={`jupiter-host-prompt-modal ${isJupiter ? '' : 'iw8-styled'}`}
+        className={`jupiter-host-prompt-modal `}
         role="dialog"
         aria-modal="true"
         aria-labelledby="leave-server-confirm-title"

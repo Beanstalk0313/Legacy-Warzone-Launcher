@@ -3,27 +3,38 @@ import { playSound } from '../utils/audio'
 import { useControllerNavigation } from '../utils/controller'
 import { useTranslation } from '../utils/i18n'
 
-const guidedSteps = [
-  'join.step1',
-  'join.step2',
-  'join.step3',
-]
+function stepsForMode(mode) {
+  // Zombies and multiplayer sessions are configured natively by the game's
+  // own lobby — the guided modal only asks the user to click Local Play
+  // (NOT create the game yet); Continue does the mode switch (zombies) +
+  // LAN join. Warzone keeps the full walk-through into Create Local Game.
+  if (mode === 'zombies') return ['joinsimple.step1']
+  if (mode === 'multiplayer') return ['joinsimple.step1']
+  return ['join.step1', 'join.step2', 'join.step3']
+}
+
+function introForMode(mode, t) {
+  if (mode === 'zombies') return t('joinsimple.intro.zombies')
+  if (mode === 'multiplayer') return t('joinsimple.intro.mp')
+  return t('join.intro')
+}
 
 export default function JupiterJoinModal({
   theme = 'jupiter',
   stage,
   serverName,
+  mode = 'warzone',
   onContinue,
   onFinish,
   onRetry,
   onCancel,
 }) {
-  // `theme` is the SHELL style: in an IW8 shell (Dynamic Interfaces = IW8
-  // Mod) the modal keeps its layout but wears IW8 accent colors + sounds.
+
+  // `theme` is the shell style for accent colors + sounds.
   const { t } = useTranslation()
   const isJupiter = theme === 'jupiter'
-  const hoverSound = isJupiter ? 'jupHover' : 'iw8Hover'
-  const selectSound = isJupiter ? 'jupSelect' : 'iw8Select'
+  const hoverSound = 'jupHover'
+  const selectSound = 'jupSelect'
   const [inputMode, setInputMode] = useState('mouse')
   const isGuided = stage === 'guided'
   const isSending = stage === 'sending'
@@ -81,10 +92,12 @@ export default function JupiterJoinModal({
         ? t('join.title.sending')
         : t('join.title.result')
 
+  const guidedSteps = stepsForMode(mode)
+
   return (
     <div className="modal-overlay" role="presentation">
       <div
-        className={`jupiter-join-modal ${isJupiter ? '' : 'iw8-styled'}`}
+        className={`jupiter-join-modal `}
         role="dialog"
         aria-modal="true"
         aria-labelledby="jupiter-join-title"
@@ -96,7 +109,7 @@ export default function JupiterJoinModal({
 
           {isGuided && (
             <>
-              <p className="jupiter-join-intro">{t('join.intro')}</p>
+              <p className="jupiter-join-intro">{introForMode(mode, t)}</p>
               <ol className="jupiter-join-steps">
                 {guidedSteps.map((key) => <li key={key}>{t(key)}</li>)}
               </ol>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from '../utils/settings'
-import { setSoundOverride, setSilentMode } from '../utils/audio'
+import { setSilentMode } from '../utils/audio'
 import { applyDisplayMode, applyDisplayMonitor } from '../utils/displayMode'
 
 const SettingsContext = createContext(null)
@@ -12,14 +12,11 @@ const SettingsContext = createContext(null)
  * properties and derive a lighter hover variant by bumping the red/green/blue
  * channels by 20%.
  */
-function applyAccents(accentJupiter, accentIw8) {
+function applyAccents(accentJupiter) {
   const root = document.documentElement
   if (accentJupiter) {
     root.style.setProperty('--jupiter-accent', accentJupiter)
     root.style.setProperty('--jupiter-accent-hover', lightenHex(accentJupiter, 0.2))
-  }
-  if (accentIw8) {
-    root.style.setProperty('--iw8-red-accent', accentIw8)
   }
 }
 
@@ -44,9 +41,9 @@ function lightenHex(hex, amount) {
  * "reset" baseline, so a manually swapped-in settings_default.json (renamed
  * over settings.json) is honored when the user hits Reset to Defaults.
  *
- * `setSetting(key, value)` saves immediately; changing `dynamic_sounds`
- * also rewires every playSound() cue via setSoundOverride(), while
- * `display_mode` is applied to the current Tauri window.
+ * `setSetting(key, value)` saves immediately; `silent_mode` mutes every
+ * playSound() cue, while `display_mode` is applied to the current Tauri
+ * window.
  */
 export default function SettingsProvider({ children }) {
   const [settings, setSettings] = useState(null) // null until the startup load settles
@@ -65,9 +62,8 @@ export default function SettingsProvider({ children }) {
       settingsRef.current = { ...loaded }
       defaultsRef.current = { ...loaded }
       setSettings(loaded)
-      setSoundOverride(loaded.dynamic_sounds)
       setSilentMode(loaded.silent_mode)
-      applyAccents(loaded.accent_jupiter, loaded.accent_iw8)
+      applyAccents(loaded.accent_jupiter)
 
       // Monitor first, then the display mode: the monitor move clears
       // fullscreen, so the mode re-apply is what actually fills the
@@ -88,10 +84,9 @@ export default function SettingsProvider({ children }) {
     settingsRef.current = next
     setSettings(next)
     void saveSettings(next)
-    if (key === 'dynamic_sounds') setSoundOverride(value)
     if (key === 'silent_mode') setSilentMode(value)
-    if (key === 'accent_jupiter' || key === 'accent_iw8') {
-      applyAccents(next.accent_jupiter, next.accent_iw8)
+    if (key === 'accent_jupiter') {
+      applyAccents(next.accent_jupiter)
     }
     if (key === 'display_monitor' || key === 'display_mode') {
       const monitor = key === 'display_monitor' ? value : settingsRef.current.display_monitor
@@ -109,9 +104,8 @@ export default function SettingsProvider({ children }) {
     settingsRef.current = { ...defaults }
     setSettings(defaults)
     void saveSettings(defaults)
-    setSoundOverride(defaults.dynamic_sounds)
     setSilentMode(defaults.silent_mode)
-    applyAccents(defaults.accent_jupiter, defaults.accent_iw8)
+    applyAccents(defaults.accent_jupiter)
     void applyDisplayMonitor(defaults.display_monitor)
       .then(() => applyDisplayMode(defaults.display_mode))
       .catch((error) => {
