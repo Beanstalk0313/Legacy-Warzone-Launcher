@@ -5,6 +5,7 @@ import SecurityGateScreen from './components/SecurityGateScreen'
 import UpdateModal from './components/UpdateModal'
 import JupiterInterface from './components/JupiterInterface'
 import JupiterQuitModal from './components/JupiterQuitModal'
+import StageErrorBoundary from './components/StageErrorBoundary'
 import WindowControls from './components/WindowControls'
 import { checkForUpdates } from './utils/updater'
 import AuthProvider from './components/AuthProvider'
@@ -55,10 +56,11 @@ function UiCanvas({ children }) {
 
 // Render the game interface after a mode is chosen on the launcher.
 function ModStage({ isEntering, isLeaving, onGoLauncher, gameMode }) {
-  const { settings, loaded } = useSettings()
-  // Wait for the startup settings read (a few ms file read) so the correct
-  // shell renders from the first frame of the launch transition.
-  if (!loaded || !settings) return null
+  // SettingsProvider supplies defaults immediately and replaces them with the
+  // persisted values asynchronously. Do not gate the whole stage on the
+  // native settings read: an installed build must still render if that read
+  // is slow or unavailable.
+  useSettings()
 
   return (
     <JupiterInterface
@@ -385,17 +387,24 @@ function App() {
         )}
 
         {currentView !== 'launcher' && (
-          <div
-            key={`${currentView}-mod-stage`}
-            className={`mod-stage ${launchingInto ? 'is-entering' : ''} ${returningHome ? 'is-leaving' : ''}`}
+          // Keyed by the current view + game mode so every fresh entry into a
+          // mode remounts a clean boundary — a previous crash's error state is
+          // discarded the moment the user leaves and re-opens a mode.
+          <StageErrorBoundary
+            key={`${currentView}-${gameMode}`}
+            onReset={handleGoLauncher}
           >
-            <ModStage
-              isEntering={!!launchingInto}
-              isLeaving={!!returningHome}
-              onGoLauncher={beginReturnHome}
-              gameMode={gameMode}
-            />
-          </div>
+            <div
+              className={`mod-stage ${launchingInto ? 'is-entering' : ''} ${returningHome ? 'is-leaving' : ''}`}
+            >
+              <ModStage
+                isEntering={!!launchingInto}
+                isLeaving={!!returningHome}
+                onGoLauncher={beginReturnHome}
+                gameMode={gameMode}
+              />
+            </div>
+          </StageErrorBoundary>
         )}
 
         {/* Shared "Quit to Desktop?" confirmation — opened by the launcher's

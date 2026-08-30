@@ -113,8 +113,18 @@ function JupiterInterfaceContent({ onGoLauncher, isEntering = false, isLeaving =
   // point of action instead — when the user joins or hosts a match — so the
   // game isn't yanked around just by opening a mode menu.
 
-  // Zombies accent override
-  const zombiesAccentOverride = isZombiesMode ? { '--jupiter-accent': '#601212', '--jupiter-accent-hover': '#7a1818' } : null
+  // Zombies accent override — the red itself lives in styles.css on the
+  // `.zombies-mode` class. The container carries that class in its JSX below;
+  // this effect mirrors it onto #ui-portal-root because portaled modals
+  // (host/join prompts, errors, confirms, toasts) are SIBLINGS of the
+  // container inside the scaled canvas and would otherwise keep the default
+  // blue accent while the rest of the interface went red.
+  useEffect(() => {
+    const portalRoot = document.getElementById('ui-portal-root')
+    if (!portalRoot) return undefined
+    portalRoot.classList.toggle('zombies-mode', isZombiesMode)
+    return () => portalRoot.classList.remove('zombies-mode')
+  }, [isZombiesMode])
   // Six tabs: Play | RTM | Account | Social | Help | Options.
   const tabs = ['Play', 'RTM', 'Account', 'Social', 'Help', 'Options']
 
@@ -729,7 +739,7 @@ function JupiterInterfaceContent({ onGoLauncher, isEntering = false, isLeaving =
   const activeInfo = getCardInfo(hoveredCard)
 
   return (
-    <div className={`jupiter-interface-container ${isEntering ? 'is-entering' : ''} ${isLeaving ? 'is-leaving' : ''} ${isZombiesMode ? 'zombies-mode' : ''}`} style={zombiesAccentOverride} onMouseMove={handleMouseMove}>
+    <div className={`jupiter-interface-container ${isEntering ? 'is-entering' : ''} ${isLeaving ? 'is-leaving' : ''} ${isZombiesMode ? 'zombies-mode' : ''}`} onMouseMove={handleMouseMove}>
       {/* Top Header Bar */}
       <header className="jupiter-header">
         {/* Logo Left — swaps with the selected game mode. The logo class

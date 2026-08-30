@@ -108,6 +108,9 @@ export default function GameUninstallModal({
         </div>
       </div>
     </div>,
-    document.body,
+    // Same portal target as every other themed modal — #ui-portal-root keeps
+    // the dialog inside the scaled 16:9 canvas and lets mode-scoped CSS
+    // (e.g. the zombies red accent) reach it.
+    document.getElementById('ui-portal-root') || document.body,
   )
 }

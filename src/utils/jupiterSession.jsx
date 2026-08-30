@@ -17,6 +17,7 @@ import {
 } from './jupiterRtm'
 import { getJupiterConfigCommand, modeNeedsConfig } from './jupiterCommands'
 import JupiterJoinModal from '../components/JupiterJoinModal'
+import JupiterHostPromptModal from '../components/JupiterHostPromptModal'
 import JupiterErrorModal from '../components/JupiterErrorModal'
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -24,12 +25,13 @@ import JupiterErrorModal from '../components/JupiterErrorModal'
 //
 // Owns everything an active Jupiter game session needs while the launcher is
 // open:
-//   • The join flow: warzone runs the lua prep sequence
-//     (-lua MainMenuOffline → 2 s → -lua WarzonePrivateMatchLobby → 2 s →
-//     -lua MainMenuOffline) then shows the guided PHA-Client modal —
-//     Continue runs the config cbuf → 2 s → connect (-join "<session>";
-//     the tool writes the trigger files itself: req_execcmd.ntc,
-//     command.txt, cbufcmd). Zombies and multiplayer skip the prep and go
+//   • The join flow: warzone uses the SAME PHA-prep modal chain as Host a
+//     Match — "Prep PHA Client?" (Yes/No); Yes runs the lua prep sequence
+//     (-lua MainMenuOffline → WarzonePrivateMatchLobby → MainMenuOffline),
+//     No skips straight to instructions; then the Local Play → Create Game
+//     instructions modal. OK runs the config cbuf → 2 s → connect
+//     (-join "<session>"; the tool writes the trigger files itself:
+//     req_execcmd.ntc, command.txt, cbufcmd). Zombies and multiplayer skip the prep and go
 //     straight to the modal (click Local Play, don't create yet); zombies
 //     writes -setzombies before connecting, and neither pushes a config cbuf.
 //   • server_members registration + heartbeat so the host sees who is in
@@ -261,9 +263,6 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     // HUD state is discarded.
     setLastLobby(null)
 
-    const controller = new AbortController()
-    joinAbortRef.current = controller
-
     const session = {
       stage: 'preparing',
       source,
@@ -302,26 +301,15 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
       return
     }
 
-    // Warzone still runs the prep sequence (drive the PHA Client menus) so
-    // the user ends up in the Create Local Game screen. No keyboard auto-
-    // navigation — the guided modal walks the user through it instead.
-    try {
-      await runJupiterPrepSequence(PREP_GAP_MS, controller.signal)
-      joinAbortRef.current = null
-
-      if (joinTokenRef.current !== token) return
-      setJoin((current) => current ? { ...current, stage: 'guided' } : current)
-    } catch (error) {
-      joinAbortRef.current = null
-      if (joinTokenRef.current !== token) return
-      // AbortError means the user cancelled — no error modal.
-      if (error?.name === 'AbortError') { setJoin(null); return }
-      setJoin(null)
-      // The prep failed — no match was reached, so the music comes back.
-      restoreModeMusic()
-      showError(`COULDN'T PREPARE ${server.name}`, error?.message || String(error) || 'RTM trigger write failed.')
-    }
-  }, [selectSound, showError])
+    // Warzone: first ask whether to prep the PHA client with the exact same
+    // "Prep PHA Client?" modal as Host a Match. Yes → run the prep sequence
+    // (-lua MainMenuOffline → WarzonePrivateMatchLobby → MainMenuOffline)
+    // then show the Local Play → Create Game instructions; No → skip the
+    // prep (already in the lobby) and go straight to instructions. Either
+    // way, OK on the instructions modal runs the config cbuf, then the join.
+    if (joinTokenRef.current !== token) return
+    setJoin((current) => current ? { ...current, stage: 'ask' } : current)
+  }, [showError])
 
   // Send the config cbuf + -join, register the member, and land on the
   // 'result' stage. Shared by Continue (guided) and Retry (result) so a
@@ -424,8 +412,10 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
 
   const continueJoin = useCallback(async () => {
     const current = joinRef.current
-    if (!current || current.stage !== 'guided') return
-    await sendAndJoin()
+    if (!current) return
+    if (current.stage === 'guided' || current.stage === 'instructions') {
+      await sendAndJoin()
+    }
   }, [sendAndJoin])
 
   // Retry a failed join from the result modal: re-runs the config + connect
@@ -435,6 +425,65 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     if (!current || current.stage !== 'result') return
     await sendAndJoin()
   }, [sendAndJoin])
+
+  // Warzone prompt handlers — mirror Host a Match's PHA-prep modal chain:
+  // 'ask' → (yes: 'prepping' → run prep) → 'instructions' → OK → sendAndJoin.
+  // Placed AFTER sendAndJoin/retryJoin because handleInstructionsOk depends
+  // on sendAndJoin in its deps array — a useCallback deps array is evaluated
+  // eagerly at render, so referencing sendAndJoin before its const would
+  // throw a temporal dead-zone error on every mount (this class of bug is
+  // exactly the "black screen when opening a mode" regression).
+  const handlePromptYes = useCallback(async () => {
+    const current = joinRef.current
+    if (!current || current.stage !== 'ask') return
+    playSound(selectSound)
+    const token = joinTokenRef.current
+    setJoin((prev) => prev ? { ...prev, stage: 'prepping' } : prev)
+    const controller = new AbortController()
+    joinAbortRef.current = controller
+    try {
+      await runJupiterPrepSequence(PREP_GAP_MS, controller.signal)
+      joinAbortRef.current = null
+      if (joinTokenRef.current !== token) return
+      setJoin((prev) => prev ? { ...prev, stage: 'instructions' } : prev)
+    } catch (error) {
+      joinAbortRef.current = null
+      if (joinTokenRef.current !== token) return
+      // AbortError means the user cancelled (Cancel Prep) — no error modal.
+      if (error?.name === 'AbortError') { setJoin(null); return }
+      setJoin(null)
+      // The prep failed — no match was reached, so the music comes back.
+      restoreModeMusic()
+      showError(`COULDN'T PREPARE ${current.serverName}`, error?.message || String(error) || 'RTM trigger write failed.')
+    }
+  }, [restoreModeMusic, selectSound, showError])
+
+  // → "Prep PHA Client?" No: skip the prep (already in the lobby) and go
+  // straight to the Local Play → Create Game instructions.
+  const handlePromptNo = useCallback(() => {
+    const current = joinRef.current
+    if (!current || current.stage !== 'ask') return
+    playSound(selectSound)
+    setJoin((prev) => prev ? { ...prev, stage: 'instructions' } : prev)
+  }, [selectSound])
+
+  // Cancel Prep during the prepping stage — aborts the sequence and ends
+  // the join (same cleanup as a normal cancel: token bump, music restore).
+  const handlePromptCancel = useCallback(() => {
+    playSound(selectSound)
+    cancelJoin()
+  }, [cancelJoin, selectSound])
+
+  // "SET UP YOUR LOCAL GAME" instructions → OK: face the game, then run the
+  // config cbuf + join (sendAndJoin). This is what the user's requested flow
+  // means by "THEN it does the cbuf command to change the map/mode, THEN the
+  // join" — the prep and instructions all happen before this point.
+  const handleInstructionsOk = useCallback(() => {
+    const current = joinRef.current
+    if (!current || current.stage !== 'instructions') return
+    playSound(selectSound)
+    void sendAndJoin()
+  }, [selectSound, sendAndJoin])
 
   const leaveMembership = useCallback(async (session) => {
     // Dev-server sessions have no Supabase presence — nothing to clean up.
@@ -897,16 +946,29 @@ export default function JupiterSessionProvider({ theme = 'jupiter', children }) 
     >
       {children}
 
-      <JupiterJoinModal
-        theme={theme}
-        stage={join?.stage || null}
-        serverName={join?.serverName}
-        mode={join?.gameMode || 'warzone'}
-        onContinue={continueJoin}
-        onFinish={() => void finishJoin()}
-        onRetry={() => void retryJoin()}
-        onCancel={cancelJoin}
-      />
+      {join && ['ask', 'prepping', 'instructions'].includes(join.stage) && (
+        <JupiterHostPromptModal
+          theme={theme}
+          prompt={join.stage}
+          gameMode={join.gameMode || 'warzone'}
+          onYes={() => void handlePromptYes()}
+          onNo={() => void handlePromptNo()}
+          onOk={handleInstructionsOk}
+          onCancel={handlePromptCancel}
+        />
+      )}
+      {join && !['ask', 'prepping', 'instructions'].includes(join.stage) && (
+        <JupiterJoinModal
+          theme={theme}
+          stage={join.stage}
+          serverName={join.serverName}
+          mode={join.gameMode || 'warzone'}
+          onContinue={continueJoin}
+          onFinish={() => void finishJoin()}
+          onRetry={() => void retryJoin()}
+          onCancel={cancelJoin}
+        />
+      )}
       <JupiterErrorModal
         theme={theme}
         isOpen={Boolean(errorModal)}

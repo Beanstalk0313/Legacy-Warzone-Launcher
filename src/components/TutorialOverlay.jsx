@@ -260,9 +260,9 @@ export default function TutorialOverlay({ isOpen, theme = "jupiter", onClose }) 
         <div className={`tutorial-accent-bar ${prefix}-tutorial-accent`} />
         <div className="tutorial-card-body">
           <span className="tutorial-step-counter">{stepIndex + 1} / {steps.length}</span>
-          <h2 className="tutorial-title">{stepTitle}</h2>
+          <h2 className="tutorial-title">{step.title}</h2>
           <div className="tutorial-body">
-            {stepBody.split("\n").map((line, i) =>
+            {step.body.split("\n").map((line, i) =>
               line.trim() === "" ? <br key={i} /> : <p key={i}>{line}</p>
             )}
           </div>

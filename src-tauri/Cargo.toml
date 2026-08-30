@@ -1,6 +1,6 @@
 [package]
 name = "legacy-warzone-launcher"
-version = "3.2.0"
+version = "3.2.1"
 description = "Legacy Modern Warfare III Launcher - Jupiter Mod (Warzone III)"
 authors = ["beanstalk313_16060"]
 edition = "2021"
@@ -26,8 +26,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # HTTPS client for the GoFile game download (Jupiter install). Uses rustls
 # (no OpenSSL dependency on Windows). `stream` enables chunked body reading
-# for real download progress; `json` for the GoFile API responses.
-reqwest = { version = "0.12", default-features = false, features = ["stream", "json", "rustls-tls"] }
+# for real download progress; `json` for the GoFile API responses; `http2`
+# lets the download negotiate HTTP/2 (with an adaptive stream window) to
+# carry more on a single connection than HTTP/1.1.
+reqwest = { version = "0.12", default-features = false, features = ["stream", "json", "rustls-tls", "http2"] }
 # Stream utility for reading reqwest's chunked download body.
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 # Website-token generation reproduces GoFile's client-side sha256.

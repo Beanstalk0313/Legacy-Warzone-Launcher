@@ -46,7 +46,13 @@ function lightenHex(hex, amount) {
  * window.
  */
 export default function SettingsProvider({ children }) {
-  const [settings, setSettings] = useState(null) // null until the startup load settles
+  // Defaults must be usable synchronously. In an installed Tauri build the
+  // Documents settings read can be delayed by the native side; rendering a
+  // null settings value leaves the mounted game stage as a black screen.
+  // Persisted settings still replace these defaults as soon as the read
+  // completes.
+  const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS }))
+  const [loaded, setLoaded] = useState(false)
   // Mirrors of the latest settings + the startup snapshot (the reset
   // baseline). Kept in refs so setSetting/resetSettings can compute the next
   // value OUTSIDE the state updater — React requires updaters to be pure,
@@ -62,6 +68,7 @@ export default function SettingsProvider({ children }) {
       settingsRef.current = { ...loaded }
       defaultsRef.current = { ...loaded }
       setSettings(loaded)
+      setLoaded(true)
       setSilentMode(loaded.silent_mode)
       applyAccents(loaded.accent_jupiter)
 
@@ -120,7 +127,7 @@ export default function SettingsProvider({ children }) {
 
   return (
     <SettingsContext.Provider
-      value={{ settings, loaded: settings !== null, setSetting, resetSettings, getResetDefaults }}
+      value={{ settings, loaded, setSetting, resetSettings, getResetDefaults }}
     >
       {children}
     </SettingsContext.Provider>

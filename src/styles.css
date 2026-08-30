@@ -21,8 +21,7 @@
   
   /* Jupiter Mod Theme Variables */
   --jupiter-accent: #028fcc;
-  --jupiter-accent-hover: #03a6ed;
-  --jupiter-bg-red: #8b0000;
+  --jupiter-accent-hover: #03a6ed;  --jupiter-bg-red: #8b0000;
   --jupiter-card-bg: #1c1e22;
 
   /* Shared full-screen background scrim. The launcher AND the game
@@ -35,6 +34,19 @@
     rgba(0, 0, 0, 0.35) 45%,
     rgba(0, 0, 0, 0.82) 100%
   );
+}
+
+/* Zombies mode swaps the launcher accent to the zombies red. The class sits
+   on BOTH .jupiter-interface-container and #ui-portal-root: portaled modals
+   (join/host prompts, errors, confirms, toasts) are SIBLINGS of the
+   interface container inside the scaled canvas, so without the portal-root
+   override they would keep the default blue accent while the rest of the
+   interface went red. Being nearer than :root, this rule also wins over a
+   user-customized accent color while in zombies mode — same as the inline
+   override it replaces. */
+.zombies-mode {
+  --jupiter-accent: #601212;
+  --jupiter-accent-hover: #7a1818;
 }
 
 * {
@@ -609,6 +621,79 @@ button, a {
   background-position: center center;
   background-repeat: no-repeat;
   overflow: hidden;
+}
+
+/* ==========================================================================
+   STAGE CRASH FALLBACK (error boundary)
+   The recoverable screen shown when the mounted game interface throws during
+   render — prevents the classic silent-black-window state. Full-screen, uses
+   the same dark scrim so it reads as part of the app, never a naked page.
+   ========================================================================== */
+.stage-crash-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #050505;
+  background-image: var(--lwz-bg-scrim);
+  font-family: var(--font-family);
+}
+
+.stage-crash-panel {
+  max-width: 560px;
+  padding: 44px 52px;
+  text-align: center;
+  background: rgba(12, 13, 16, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.stage-crash-kicker {
+  display: block;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.stage-crash-panel h1 {
+  margin-top: 8px;
+  color: #ffffff;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.stage-crash-panel p {
+  margin-top: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.stage-crash-detail {
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 0.75rem !important;
+  overflow-wrap: anywhere;
+}
+
+.stage-crash-panel button {
+  margin-top: 22px;
+  padding: 13px 26px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background-color: var(--jupiter-accent, #028fcc);
+  background-image: linear-gradient(to bottom, #424141 0%, #252626 100%);
+  font-size: 0.92rem;
+  font-weight: 800;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.stage-crash-panel button:hover {
+  background: var(--jupiter-accent, #028fcc);
 }
 
 /* Top Header Bar with Centered Tabs */
@@ -2981,14 +3066,77 @@ button, a {
 }
 
 /* Jupiter error acknowledgement modal — intentionally mirrors the quit
-   modal's overlay, accent rail, typography, and controller focus behavior. */
-
+   modal's overlay, accent rail, typography, and controller focus behavior.
+   This shell is the shared base for JupiterErrorModal, JupiterInstallModal,
+   and GameUninstallModal (their own blocks below layer on top of it). */
+.jupiter-error-modal {
+  width: 680px;
+  max-width: calc(100vw - 80px);
+  background-color: #111317;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+}
 
 .jupiter-error-accent-bar {
   width: 16px;
   flex: 0 0 16px;
   background-color: var(--jupiter-accent);
   border-radius: 4px 0 0 4px;
+}
+
+.jupiter-error-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 30px 38px;
+}
+
+.jupiter-error-copy {
+  min-width: 0;
+}
+
+.jupiter-error-kicker {
+  display: block;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.jupiter-error-copy h2 {
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 2.1rem;
+  line-height: 1.05;
+}
+
+.jupiter-error-copy p {
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+
+.jupiter-error-acknowledge {
+  padding: 13px 16px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background-color: var(--jupiter-accent);
+  background-image: linear-gradient(to bottom, #424141 0%, #252626 100%);
+  font-size: 0.92rem;
+  font-weight: 800;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .jupiter-error-acknowledge:hover,
@@ -6127,7 +6275,7 @@ button, a {
    stage, then one combined download+extract bar with a live ETA.
    ========================================================================== */
 .jupiter-install-modal {
-  width: 620px;
+  /* Width inherits the 680px shell base, like every compact modal. */
   max-height: 640px;
   overflow: auto;
 }
@@ -6232,6 +6380,9 @@ button, a {
 }
 
 .jupiter-install-btn-primary {
+  /* Flat accent tint instead of the shell's gray gradient so the primary
+     action reads as filled next to the plain buttons. */
+  background-image: none;
   background-color: rgba(2, 143, 204, 0.28);
 }
 
@@ -6460,21 +6611,10 @@ button, a {
 /* ==========================================================================
    GAME UNINSTALL MODAL
    ==========================================================================
-   Follows the Jupiter error-modal shell (accent rail, kicker, stacked
-   buttons) so it reads as part of the same themed family.
+   Inherits the whole `.jupiter-error-modal` shell — size (680px), rail,
+   kicker, title, and message typography — exactly like JupiterErrorModal.
+   Only the danger button and the install-path `code` chip are its own.
    ========================================================================== */
-
-.game-uninstall-modal {
-  max-width: 440px;
-}
-
-.game-uninstall-desc {
-  margin: 0 0 18px;
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.82);
-  text-align: center;
-}
 
 .game-uninstall-desc code {
   background: rgba(255, 255, 255, 0.08);
@@ -6495,6 +6635,7 @@ button, a {
 }
 
 .game-uninstall-btn-danger {
+  background-image: none !important;
   background-color: #c0392b !important;
   border-color: #c0392b !important;
   color: #ffffff !important;

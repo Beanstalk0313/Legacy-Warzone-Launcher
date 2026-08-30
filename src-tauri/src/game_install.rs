@@ -1,9 +1,9 @@
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use reqwest::header::{ACCEPT, AUTHORIZATION, COOKIE, ORIGIN, RANGE, REFERER, USER_AGENT};
 use serde::Serialize;
@@ -14,6 +14,10 @@ use tauri::{AppHandle, Emitter, Manager};
 /// The content id comes from the GoFile share URL the app is built around.
 const CONTENT_ID: &str = "84e6a980-efbd-4994-9518-d2e496ba1b79";
 const FILE_NAME: &str = "Steam_JUP_S6_Haunting.rar";
+
+/// Download-write buffer: coalesces the CDN's network chunks (~16-64 KB)
+/// into large sequential disk writes instead of one syscall per chunk.
+const DOWNLOAD_WRITE_BUFFER: usize = 1024 * 1024;
 
 /// Global cancel flag for an in-flight install. Set by the frontend via
 /// `cancel_game_install`; checked by the download loop and the extractor so
@@ -224,12 +228,15 @@ async fn download_file(
         return Ok(InstallOutcome::Done);
     }
 
-    let mut file = fs::OpenOptions::new()
+    let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(existing == 0)
         .open(dest)
         .map_err(|error| format!("Could not open the download file: {error}"))?;
+    // Buffer 1 MiB so the loop coalesces network chunks (~16-64 KB each) into
+    // large sequential writes instead of one syscall per chunk.
+    let mut file = BufWriter::with_capacity(DOWNLOAD_WRITE_BUFFER, file);
 
     let response = client
         .get(link)
@@ -249,18 +256,23 @@ async fn download_file(
     // from byte 0 — reset the resume cursor accordingly.
     if status == reqwest::StatusCode::OK {
         existing = 0;
-        file = fs::OpenOptions::new()
+        let reopened = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
             .open(dest)
             .map_err(|error| format!("Could not (re)open the download file: {error}"))?;
+        file = BufWriter::with_capacity(DOWNLOAD_WRITE_BUFFER, reopened);
     }
 
     let total_for_span = total.max(existing);
 
     let mut stream = response.bytes_stream();
     use futures_util::StreamExt;
+    // Progress events cross the Tauri IPC bridge — one per network chunk can
+    // mean thousands per second on a fast link, starving the download loop.
+    // Throttle to ~10/s; the bar animates over 0.2s anyway.
+    let mut last_emit = Instant::now();
     while let Some(chunk) = stream.next().await {
         // Cancellation check per chunk — aborts promptly without tearing the
         // partial archive down (it survives for a Range-resumed re-install).
@@ -272,15 +284,20 @@ async fn download_file(
         file.write_all(&chunk)
             .map_err(|error| format!("Could not write the downloaded data: {error}"))?;
         existing += chunk.len() as u64;
-        let frac = if total_for_span > 0 {
-            (existing as f64 / total_for_span as f64).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-        let percent = span_start + frac * (span_end - span_start);
-        emit_progress(app, "download", percent, None);
+        if last_emit.elapsed() >= Duration::from_millis(100) {
+            last_emit = Instant::now();
+            let frac = if total_for_span > 0 {
+                (existing as f64 / total_for_span as f64).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let percent = span_start + frac * (span_end - span_start);
+            emit_progress(app, "download", percent, None);
+        }
     }
-    file.flush().map_err(|error| format!("Could not flush the download: {error}"))?;
+    file.flush()
+        .map_err(|error| format!("Could not flush the download: {error}"))?;
+    emit_progress(app, "download", span_end, None);
 
     // The CDN may not report an exact 206 length; trust we hit the target.
     Ok(InstallOutcome::Done)
@@ -387,26 +404,100 @@ fn extract_unrar(
     Ok(InstallOutcome::Done)
 }
 
-/// After extraction, the archive creates a `Steam_JUP_S6_Haunting` subfolder
-/// inside the install directory. This moves its contents up to the install
-/// directory root so `install.bat` / `startgame.bat` / `CoD` sit directly
-/// in the user's chosen folder, then removes the now-empty wrapper.
+/// Move the tree at `from` to `to`. A plain rename only works when `to`
+/// doesn't already exist — on Windows renaming a directory ONTO an existing
+/// non-empty directory always fails (ERROR_ALREADY_EXISTS). That failure was
+/// the root cause of installs ending up with only the tiny `cod_files` overlay
+/// and none of the extracted game: the big `Steam_JUP_S6_Haunting\CoD` move
+/// silently failed (leave + user-folder already present, or a prior partial
+/// run), the game never reached `install_dir\CoD`, and nothing detected it.
+/// This helper falls back to a recursive per-entry merge into the destination
+/// so the game always lands in place, then removes the source once it's empty.
+fn move_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    // Fast path: a plain rename moves the whole tree in one call (works when
+    // `to` doesn't exist yet, or is an existing file we can move over).
+    match fs::rename(from, to) {
+        Ok(()) => return Ok(()),
+        Err(_) => {} // fall through to the merge below
+    }
+
+    // Source is a file. A rename only fails here if a destination of the same
+    // name already exists — replace it (the extractor's output wins), then
+    // move. Never lose data: fall back to a copy+delete if the retry fails.
+    if !from.is_dir() {
+        if to.exists() {
+            let _ = fs::remove_file(to);
+        }
+        if fs::rename(from, to).is_err() {
+            let _ = fs::copy(from, to);
+            let _ = fs::remove_file(from);
+        }
+        return Ok(());
+    }
+
+    // Source is a directory and the rename failed — the destination directory
+    // already exists, so merge the entries recursively instead.
+    fs::create_dir_all(to)?;
+    let mut pending = 0usize;
+    let entries = fs::read_dir(from)?;
+    for entry in entries {
+        let entry = entry?;
+        let source = entry.path();
+        let target = to.join(entry.file_name());
+        if let Err(error) = move_tree(&source, &target) {
+            pending += 1;
+            eprintln!("[game_install] could not move {:?} -> {:?}: {error}", source, target);
+        }
+    }
+    // Only remove the source once every child has been lifted out.
+    if pending == 0 {
+        let _ = fs::remove_dir(from);
+    }
+    Ok(())
+}
+
+/// After extraction the archive creates a `Steam_JUP_S6_Haunting` subfolder
+/// inside the install directory containing the game (`CoD\cod.exe`). This
+/// lifts the whole wrapper up to the install directory root so `install.bat` /
+/// `startgame.bat` / `CoD` sit directly in the user's chosen folder, then
+/// removes the now-empty wrapper. Robust against the destination folder
+/// already existing (re-install / leftover partial run) via `move_tree`.
 fn flatten_extracted_archive(install_dir: &Path) {
     let nested = install_dir.join("Steam_JUP_S6_Haunting");
     if !nested.is_dir() {
         return;
     }
-    // Move every entry in the nested folder up to the install dir.
+    // Move every entry in the nested wrapper up to the install dir.
     if let Ok(entries) = fs::read_dir(&nested) {
         for entry in entries.filter_map(Result::ok) {
             let dest = install_dir.join(entry.file_name());
-            if let Err(error) = fs::rename(entry.path(), &dest) {
+            if let Err(error) = move_tree(&entry.path(), &dest) {
                 eprintln!("[game_install] could not move {:?} -> {:?}: {error}", entry.path(), dest);
             }
         }
     }
     // Remove the now-empty wrapper folder (best-effort).
     let _ = fs::remove_dir(&nested);
+}
+
+/// The game is considered installed only once its real executable is present
+/// at `install_dir\CoD\cod.exe` — the path `StartGame.bat` (`cd /d CoD` then
+/// `bootstrapper.exe cod.exe`) and the distribution readme both expect. If
+/// it's missing we fail loudly instead of reporting a "successful" install
+/// that only contains the small `cod_files` mod overlay.
+fn verify_game_present(install_dir: &Path) -> Result<(), String> {
+    let game_root = install_dir.join("CoD");
+    let game_exe = game_root.join("cod.exe");
+    if !game_exe.is_file() {
+        return Err(
+            "The game archive was extracted but the game executable \
+             CoD\\cod.exe is missing from the install folder. The download may \
+             have been incomplete. The downloaded .rar is kept so you can extract \
+             it manually — please run the install again."
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 /// Copy bundled mod files from `src-tauri/resources/cod_files` into the
@@ -597,6 +688,11 @@ pub async fn install_jupiter_game_command(app: AppHandle, install_dir: String) -
     emit_progress(&app, "auth", 0.0, Some("Connecting to GoFile…"));
     let client = reqwest::Client::builder()
         .user_agent(GOFILE_USER_AGENT)
+        // Single-connection throughput over HTTP/2: the default 64 KB H2
+        // stream window caps a fast high-latency (CDN) link well below what
+        // the TCP connection itself can carry. The adaptive window grows it
+        // toward the measured bandwidth×delay product. No-op on HTTP/1.1.
+        .http2_adaptive_window(true)
         .build()
         .map_err(|error| error.to_string())?;
     let token = get_guest_token(&client).await?;
@@ -627,12 +723,18 @@ pub async fn install_jupiter_game_command(app: AppHandle, install_dir: String) -
 
     // The archive creates a `Steam_JUP_S6_Haunting` subfolder; move its
     // contents up so install.bat / startgame.bat / CoD sit directly in
-    // the user's chosen folder.
+    // the user's chosen folder. Robust to the destination already existing.
     flatten_extracted_archive(&dir);
 
     // Merge bundled mod files (CoD/ DLLs, steam_settings, etc.) into the
     // install directory, overwriting any duplicates from the archive.
     copy_cod_files(&app, &dir)?;
+
+    // Only after everything is merged do we guarantee the real game actually
+    // made it into place. If cod.exe is missing the install FAILS here with a
+    // clear message (and the .rar is intentionally left on disk so the user
+    // can extract it manually) instead of waving through a broken folder.
+    verify_game_present(&dir)?;
 
     // The extracted game no longer needs the 100+ GB archive — free it as soon
     // as extraction finishes. A missing file is fine (already deleted / a
