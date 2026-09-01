@@ -1,6 +1,6 @@
 [package]
 name = "legacy-warzone-launcher"
-version = "3.2.1"
+version = "3.3.0"
 description = "Legacy Modern Warfare III Launcher - Jupiter Mod (Warzone III)"
 authors = ["beanstalk313_16060"]
 edition = "2021"
@@ -32,6 +32,10 @@ serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["stream", "json", "rustls-tls", "http2"] }
 # Stream utility for reading reqwest's chunked download body.
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# Native RAR extraction for the 100+ GB game archive (statically linked
+# unrar C++ source; builds with the MSVC toolchain). Per-entry progress
+# and cancel checked between entries.
+unrar = "0.5"
 # Website-token generation reproduces GoFile's client-side sha256.
 sha2 = "0.10"
 tokio = { version = "1", features = ["rt", "macros"] }

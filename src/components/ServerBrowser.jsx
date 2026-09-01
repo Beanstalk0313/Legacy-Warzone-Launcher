@@ -110,6 +110,11 @@ export default function ServerBrowser({ theme = 'jupiter', onBack, initialInputM
             // to the provider when the row is selected (it writes the join
             // trigger files).
             lanSession: typeof row.lan_session === 'string' ? row.lan_session.trim() : '',
+            // Propagate the game mode (warzone / multiplayer / zombies) so
+            // the join flow knows whether to prep + push the exec-hash
+            // config cbuf. Without it beginJoin defaults real lobbies to
+            // 'multiplayer' and skips the warzone prep/config entirely.
+            gameMode: row.game_mode || 'multiplayer',
           }))
         )
         setLoading(false)

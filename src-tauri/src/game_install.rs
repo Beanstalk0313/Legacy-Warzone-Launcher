@@ -1,7 +1,6 @@
 use std::fs;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -95,20 +94,9 @@ fn emit_progress(app: &AppHandle, phase: &str, percent: f64, message: Option<&st
     let _ = app.emit("game-install-progress", payload);
 }
 
-/// Resolve the bundled UnRAR.exe inside the app's resource directory.
-fn unrar_binary_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|error| format!("Could not locate the app resource folder: {error}"))?;
-    let path = resource_dir.join("resources").join("UnRAR.exe");
-    if !path.is_file() {
-        return Err(
-            "The bundled UnRAR.exe extractor is missing from the app's resources.".to_string(),
-        );
-    }
-    Ok(path)
-}
+// (parse_percent and unrar_binary_path were removed with the UnRAR.exe
+// subprocess — the native `unrar` crate reports per-entry progress and
+// honours the cancel flag between entries.)
 
 // ── GoFile API: guest token + content metadata ─────────────────────────────
 async fn get_guest_token(client: &reqwest::Client) -> Result<String, String> {
@@ -303,30 +291,12 @@ async fn download_file(
     Ok(InstallOutcome::Done)
 }
 
-/// Parse a trailing ``NN%`` (UnRAR's progress) out of one of its console lines.
-fn parse_percent(line: &str) -> Option<f64> {
-    let bytes = line.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' {
-            // Scan backwards over the digits (and decimal point) preceding `%`.
-            let mut j = i;
-            while j > 0 && bytes[j - 1].is_ascii_digit() {
-                j -= 1;
-            }
-            if j < i {
-                if let Ok(value) = line[j..i].parse::<f64>() {
-                    return Some(value.clamp(0.0, 100.0));
-                }
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Extract the game archive into `install_dir` with bundled UnRAR.exe,
-/// streaming its percentage into the combined install bar (span_start..span_end).
+/// Extract the game archive into `install_dir` with the native `unrar`
+/// crate (statically linked unrar C++ source — no bundled UnRAR.exe).
+/// Progress: archive size is listed up front, each entry's uncompressed
+/// size advances the combined install bar (span_start..span_end). Cancel:
+/// checked between entries; the current file finishes (entries can be
+/// large) and the loop exits before starting the next one.
 fn extract_unrar(
     app: &AppHandle,
     archive: &Path,
@@ -335,71 +305,49 @@ fn extract_unrar(
     span_end: f64,
 ) -> Result<InstallOutcome, String> {
     emit_progress(app, "extract", span_start, Some("Extracting the game…"));
-    let unrar_path = unrar_binary_path(app)?;
-    // UnRAR expects a trailing separator so it extracts into the folder.
-    let mut dest = install_dir.to_string_lossy().to_string();
-    if !dest.ends_with(['\\', '/']) {
-        dest.push('\\');
+
+    // Pass 1: list the archive to total the uncompressed size so per-entry
+    // progress maps onto the combined bar.
+    let list = unrar::Archive::new(archive)
+        .open_for_listing()
+        .map_err(|e| format!("Could not open the game archive: {e}"))?;
+    let mut total_bytes: u64 = 0;
+    for entry in list {
+        let header = entry.map_err(|e| format!("Could not read the game archive: {e}"))?;
+        total_bytes += header.unpacked_size;
+    }
+    if total_bytes == 0 {
+        return Err("The game archive lists no files.".to_string());
     }
 
-    let mut command = Command::new(&unrar_path);
-    command
-        .arg("x") // extract with full paths
-        .arg("-y") // yes to all prompts
-        .arg("-o+") // overwrite existing files
-        .arg(archive)
-        .arg(&dest)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    // CREATE_NO_WINDOW so the bundled extractor never pops its own console.
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
+    // Pass 2: extract entry by entry with per-entry progress + cancel.
+    let archive_proc = unrar::Archive::new(archive)
+        .open_for_processing()
+        .map_err(|e| format!("Could not open the game archive for extraction: {e}"))?;
 
-    let mut child = command
-        .spawn()
-        .map_err(|error| format!("Could not start the game extractor: {error}"))?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "Could not read the extractor's output.".to_string())?;
-
-    let app_clone = app.clone();
-    let reader_thread = std::thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines().map_while(Result::ok) {
-            if let Some(pct) = parse_percent(&line) {
-                let overall = span_start + (pct / 100.0) * (span_end - span_start);
-                emit_progress(&app_clone, "extract", overall, None);
-            }
-        }
-    });
-
-    // Poll try_wait so a cancel request can kill UnRAR mid-extract instead of
-    // blocking on child.wait() until it finishes naturally.
-    let status = loop {
+    let mut done_bytes: u64 = 0;
+    let mut data = archive_proc;
+    loop {
         if cancel_requested() {
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = reader_thread.join();
             return Ok(InstallOutcome::Cancelled);
         }
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => std::thread::sleep(Duration::from_millis(200)),
-            Err(error) => {
-                let _ = reader_thread.join();
-                return Err(format!("The game extractor failed: {error}"));
-            }
-        }
-    };
-    let _ = reader_thread.join();
-    if !status.success() {
-        return Err("The game archive could not be extracted.".to_string());
+        // Read the next header (None = end of archive).
+        let before_file = match data.read_header() {
+            Ok(Some(next)) => next,
+            Ok(None) => break,
+            Err(e) => return Err(format!("Could not read the game archive: {e}")),
+        };
+        let entry_size = before_file.entry().unpacked_size;
+        let filename = before_file.entry().filename.display().to_string();
+        data = match before_file.extract_with_base(install_dir) {
+            Ok(next) => next,
+            Err(e) => return Err(format!("Could not extract {filename}: {e}")),
+        };
+        done_bytes += entry_size;
+        let overall = span_start + (done_bytes as f64 / total_bytes as f64) * (span_end - span_start);
+        emit_progress(app, "extract", overall.min(span_end), None);
     }
+
     emit_progress(app, "extract", span_end, Some("Game extracted"));
     Ok(InstallOutcome::Done)
 }
@@ -607,7 +555,10 @@ fn remove_dir_recursive(path: &Path) -> std::io::Result<()> {
 
 /// Run one of the game's .bat steps with the work dir set to the install dir.
 /// Used for install.bat (during install) and startgame.bat (on launch).
-fn run_install_script(install_dir: &Path, script_name: &str) -> Result<(), String> {
+/// `wait` blocks until the script exits — used for install.bat so the
+/// "done" modal only appears after its setup actually finished. Launch
+/// scripts (startgame.bat) run detached because the game never exits.
+fn run_install_script(install_dir: &Path, script_name: &str, wait: bool) -> Result<(), String> {
     let script = install_dir.join(script_name);
     if !script.is_file() {
         // A missing optional script is fine (e.g. launch before install.bat).
@@ -615,6 +566,26 @@ fn run_install_script(install_dir: &Path, script_name: &str) -> Result<(), Strin
     }
     #[cfg(target_os = "windows")]
     {
+        if wait {
+            // Blocking elevated run: Start-Process -Verb RunAs elevates the
+            // bat (so its own `net session` self-elevation check passes) and
+            // -Wait holds until it exits — the install's done modal never
+            // appears before install.bat actually completed.
+            let ps_cmd = format!(
+                "Start-Process -FilePath '{}' -Verb RunAs -Wait",
+                script.to_string_lossy().replace('\'', "''")
+            );
+            let status = std::process::Command::new("powershell.exe")
+                .args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd])
+                .status()
+                .map_err(|error| format!("Could not run {script_name}: {error}"))?;
+            if !status.success() {
+                return Err(format!(
+                    "{script_name} failed — was the admin consent prompt declined?"
+                ));
+            }
+            return Ok(());
+        }
         // Use ShellExecuteW with the "runas" verb to elevate the bat file
         // through UAC. This shows the admin consent dialog so startgame.bat
         // runs with elevated privileges.
@@ -651,7 +622,7 @@ fn run_install_script(install_dir: &Path, script_name: &str) -> Result<(), Strin
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let mut command = Command::new("cmd");
+        let mut command = std::process::Command::new("cmd");
         command
             .arg("/C")
             .arg(&script)
@@ -750,7 +721,9 @@ pub async fn install_jupiter_game_command(app: AppHandle, install_dir: String) -
     };
 
     emit_progress(&app, "finalize", 100.0, Some("Finalizing install…"));
-    run_install_script(&dir, "install.bat")?;
+    // Wait for install.bat to finish (elevated service setup) before the
+    // done modal appears, so Launch never races the Randgrid service.
+    run_install_script(&dir, "install.bat", true)?;
     let done_message = if archive_deleted {
         "Install complete"
     } else {
@@ -784,7 +757,8 @@ pub fn launch_jupiter_game_command(app: AppHandle, install_dir: String) -> Resul
     // `app` keeps the signature consistent with the other commands; the bat is
     // run from the install dir, not the launcher.
     let _ = &app;
-    run_install_script(&PathBuf::from(&install_dir), "startgame.bat")
+    // startgame.bat launches the game, which never exits — run detached.
+    run_install_script(&PathBuf::from(&install_dir), "startgame.bat", false)
 }
 
 /// Report whether the game is installed at `install_dir` (i.e. its

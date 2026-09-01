@@ -6,8 +6,8 @@ import { isTauriRuntime } from './jupiterRtm'
 // Frontend glue for the Jupiter game install / launch feature. The heavy
 // lifting lives in the Rust command `install_jupiter_game` (see
 // src-tauri/src/game_install.rs): it authenticates with GoFile, streams the
-// archive with a real progress bar, extracts it with the bundled UnRAR.exe,
-// and runs the game's install.bat. The launcher's LAUNCH button runs
+// archive with a real progress bar, extracts it natively in Rust (unrar
+// crate), and runs the game's install.bat. The launcher's LAUNCH button runs
 // startgame.bat in the same folder.
 //
 // The Rust side pushes `game-install-progress` events with a SINGLE combined

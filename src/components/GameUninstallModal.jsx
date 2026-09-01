@@ -85,11 +85,10 @@ export default function GameUninstallModal({
           <div className={`${modalPrefix}-error-copy`}>
             <span className={`${modalPrefix}-error-kicker`}>{t('install.kicker')}</span>
             <h2 id="game-uninstall-title">{t('uninstall.title')}</h2>
-            <p className="game-uninstall-desc" dangerouslySetInnerHTML={{ __html: t('uninstall.desc', { path: installPath || 'your install folder' }) }} />
             <div className="game-uninstall-actions">
               <button
                 type="button"
-                className={`${modalPrefix}-error-acknowledge ${isFocused(0) ? 'controller-focused' : ''}`}
+                className={`jupiter-join-button ${isFocused(0) ? 'controller-focused' : ''}`}
                 onMouseEnter={() => playSound(hoverSound)}
                 onClick={handleClose}
               >
@@ -97,7 +96,7 @@ export default function GameUninstallModal({
               </button>
               <button
                 type="button"
-                className={`${modalPrefix}-error-acknowledge game-uninstall-btn-danger ${isFocused(1) ? 'controller-focused' : ''}`}
+                className={`jupiter-join-button ${isFocused(1) ? 'controller-focused' : ''}`}
                 onMouseEnter={() => playSound(hoverSound)}
                 onClick={handleConfirm}
               >

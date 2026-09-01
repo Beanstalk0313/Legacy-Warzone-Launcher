@@ -866,6 +866,10 @@ function JupiterInterfaceContent({ onGoLauncher, isEntering = false, isLeaving =
                             className="jupiter-card-image"
                             draggable="false"
                           />
+                          {/* Hover ring: a real border element (top/left/right
+                              only) that fades in — no mask/background tricks,
+                              so it renders identically everywhere. */}
+                          <div className="jupiter-card-ring" aria-hidden="true" />
                           <div className="jupiter-card-title">{cardLabel}</div>
                         </div>
                         <div className={`jupiter-card-select-bar-below ${isControllerFocused ? 'bar-controller-darken' : ''}`}>
@@ -949,6 +953,9 @@ function JupiterInterfaceContent({ onGoLauncher, isEntering = false, isLeaving =
                           </div>
                         )}
                         {!card.icon && <div className="jupiter-card-title">{cardName === 'Quick Play' ? t('play.quickplay') : cardName === 'Server Browser' ? t('play.serverbrowser') : cardName === 'Host a Match' ? t('play.hostmatch') : cardName}</div>}
+                        {/* Hover ring: same element as the install tile — fades
+                            in on hover / controller focus (see styles.css). */}
+                        <div className="jupiter-card-ring" aria-hidden="true" />
                       </div>
                       {/* The Quick Play badge lives OUTSIDE .jupiter-card: the
                           enlarged emblem mostly floats above the tile, and the

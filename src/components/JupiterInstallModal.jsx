@@ -214,13 +214,10 @@ export default function JupiterInstallModal({
 
             {stage === 'choice' && (
               <>
-                <p className="jupiter-install-desc">
-                  {t('install.choice')}
-                </p>
                 <div className="jupiter-install-actions">
                   <button
                     type="button"
-                    className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary ${isFocused(0) ? 'controller-focused' : ''}`}
+                    className={`jupiter-join-button ${isFocused(0) ? 'controller-focused' : ''}`}
                     onMouseEnter={() => playSound(hoverSound)}
                     onClick={() => {
                       playSound(selectSound)
@@ -231,7 +228,7 @@ export default function JupiterInstallModal({
                   </button>
                   <button
                     type="button"
-                    className={`${modalPrefix}-error-acknowledge ${isFocused(1) ? 'controller-focused' : ''}`}
+                    className={`jupiter-join-button ${isFocused(1) ? 'controller-focused' : ''}`}
                     onMouseEnter={() => playSound(hoverSound)}
                     onClick={() => {
                       playSound(selectSound)
@@ -242,7 +239,7 @@ export default function JupiterInstallModal({
                   </button>
                   <button
                     type="button"
-                    className={`${modalPrefix}-error-acknowledge ${isFocused(2) ? 'controller-focused' : ''}`}
+                    className={`jupiter-join-button ${isFocused(2) ? 'controller-focused' : ''}`}
                     onMouseEnter={() => playSound(hoverSound)}
                     onClick={handleClose}
                   >
@@ -254,19 +251,6 @@ export default function JupiterInstallModal({
 
             {(stage === 'setup' || stage === 'local') && (
               <>
-                <p className="jupiter-install-desc">
-                  {stage === 'local' ? (
-                    <>
-                      Point at the folder that already contains the game. It must include{' '}
-                      <code>startgame.bat</code> — no download needed.
-                    </>
-                  ) : (
-                    <>
-                      Enter the folder to install the Jupiter game into. Use a normal Windows
-                      path (for example <code>C:\Games\Warzone III</code>).
-                    </>
-                  )}
-                </p>
                 <input
                   type="text"
                   className={`jupiter-install-path-input ${isFocused(0) ? 'controller-focused' : ''}`}
@@ -299,18 +283,14 @@ export default function JupiterInstallModal({
               </>
             )}
 
-            {stage === 'done' && (
-              <p className="jupiter-install-desc">
-                The game is ready to launch from <code>{normalizeInstallPath(installPath) || 'your chosen folder'}</code>.
-              </p>
-            )}
+
           </div>
 
           {(stage === 'setup' || stage === 'local') && (
             <div className="jupiter-install-actions">
               <button
                 type="button"
-                className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary ${isFocused(1) ? 'controller-focused' : ''}`}
+                className={`jupiter-join-button ${isFocused(1) ? 'controller-focused' : ''}`}
                 onMouseEnter={() => playSound(hoverSound)}
                 onClick={() => {
                   if (stage === 'local') void handleUseLocalFolder()
@@ -322,7 +302,7 @@ export default function JupiterInstallModal({
               </button>
               <button
                 type="button"
-                className={`${modalPrefix}-error-acknowledge ${isFocused(2) ? 'controller-focused' : ''}`}
+                className={`jupiter-join-button ${isFocused(2) ? 'controller-focused' : ''}`}
                 onMouseEnter={() => playSound(hoverSound)}
                 onClick={() => setStage('choice')}
               >
@@ -331,10 +311,10 @@ export default function JupiterInstallModal({
             </div>
           )}            {stage === 'progress' && (
               <>
-                <div className="jupiter-install-progress-actions">
+                <div className="jupiter-install-actions">
                   <button
                     type="button"
-                    className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary jupiter-install-cancel-btn ${isFocused(0) ? 'controller-focused' : ''}`}
+                    className={`jupiter-join-button ${isFocused(0) ? 'controller-focused' : ''}`}
                     onMouseEnter={() => playSound(hoverSound)}
                     onClick={handleCancel}
                     disabled={!installState.busy}
@@ -343,7 +323,7 @@ export default function JupiterInstallModal({
                   </button>
                   <button
                     type="button"
-                    className={`jupiter-install-close-btn ${isFocused(1) ? 'controller-focused' : ''}`}
+                    className={`jupiter-join-button ${isFocused(1) ? 'controller-focused' : ''}`}
                     onMouseEnter={() => playSound(hoverSound)}
                     onClick={handleClose}
                   >
@@ -354,25 +334,24 @@ export default function JupiterInstallModal({
                   {t('install.closeHint')}
                 </p>
               </>
-            )}            {stage === 'done' && (
-              <div className="jupiter-install-actions">
-                <button
-                  type="button"
-                  className={`${modalPrefix}-error-acknowledge jupiter-install-btn-primary ${isFocused(0) ? 'controller-focused' : ''}`}
-                  onMouseEnter={() => playSound(hoverSound)}
-                  onClick={() => void handleLaunch()}
-                >
-                  {t('install.launch')}
-                </button>
-                <button
-                  type="button"
-                  className={`${modalPrefix}-error-acknowledge ${isFocused(1) ? 'controller-focused' : ''}`}
-                  onMouseEnter={() => playSound(hoverSound)}
-                  onClick={handleClose}
-                >
-                  {t('install.close')}
-                </button>
-              </div>
+            )}            {stage === 'done' && (                <div className="jupiter-install-actions">
+                  <button
+                    type="button"
+                    className={`jupiter-join-button ${isFocused(0) ? 'controller-focused' : ''}`}
+                    onMouseEnter={() => playSound(hoverSound)}
+                    onClick={() => void handleLaunch()}
+                  >
+                    {t('install.launch')}
+                  </button>
+                  <button
+                    type="button"
+                    className={`jupiter-join-button ${isFocused(1) ? 'controller-focused' : ''}`}
+                    onMouseEnter={() => playSound(hoverSound)}
+                    onClick={handleClose}
+                  >
+                    {t('install.close')}
+                  </button>
+                </div>
             )}
         </div>
       </div>

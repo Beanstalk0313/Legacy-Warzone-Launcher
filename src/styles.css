@@ -22,6 +22,11 @@
   /* Jupiter Mod Theme Variables */
   --jupiter-accent: #028fcc;
   --jupiter-accent-hover: #03a6ed;  --jupiter-bg-red: #8b0000;
+  /* Hover fill for buttons + tabs + tiles: the static modal accent blue
+     (#028fcc) — flat, no gradient. Expressed as a gradient of the accent
+     var so it resolves to the mode's accent automatically (flat red in
+     zombies mode). */
+  --jupiter-hover-gradient: linear-gradient(var(--jupiter-accent), var(--jupiter-accent));
   --jupiter-card-bg: #1c1e22;
 
   /* Shared full-screen background scrim. The launcher AND the game
@@ -34,6 +39,126 @@
     rgba(0, 0, 0, 0.35) 45%,
     rgba(0, 0, 0, 0.82) 100%
   );
+}
+
+/* Smooth hover color: the static accent-blue fill fades in instead of
+   snapping (background-image can't interpolate between two gradients).
+   Each button keeps its base surface underneath; a ::before overlay —
+   z-index -1, held above the button's own background by `isolation:
+   isolate` and below its text — fades to full opacity on hover / controller
+   focus. */
+.jupiter-error-acknowledge,
+.jupiter-join-button,
+.jupiter-quit-option-btn,
+.jupiter-quickplay-modal-btn,
+.btn-launcher-mode,
+.server-browser-back,
+.server-browser-deploy,
+.host-match-back,
+.host-match-deploy,
+.options-reset-btn,
+.modding-tool-btn,
+.account-provider-btn,
+.account-email-submit,
+.account-signout-btn,
+.social-locked-cta.jupiter-theme,
+.jupiter-auth-notice .auth-required-notice-signin,
+.launcher-bottom-bar-btn,
+.host-dashboard-return,
+.host-dashboard-close,
+.social-add-btn,
+.social-party-create,
+.jupiter-session-toast-actions button:not(.secondary),
+.jupiter-tab-btn,
+.player-roster.jupiter-theme .player-roster-leave-btn {
+  position: relative;
+  isolation: isolate;
+}
+
+.jupiter-error-acknowledge::before,
+.jupiter-join-button::before,
+.jupiter-quit-option-btn::before,
+.jupiter-quickplay-modal-btn::before,
+.btn-launcher-mode::before,
+.server-browser-back::before,
+.server-browser-deploy::before,
+.host-match-back::before,
+.host-match-deploy::before,
+.options-reset-btn::before,
+.modding-tool-btn::before,
+.account-provider-btn::before,
+.account-email-submit::before,
+.account-signout-btn::before,
+.social-locked-cta.jupiter-theme::before,
+.jupiter-auth-notice .auth-required-notice-signin::before,
+.launcher-bottom-bar-btn::before,
+.host-dashboard-return::before,
+.host-dashboard-close::before,
+.social-add-btn::before,
+.social-party-create::before,
+.jupiter-session-toast-actions button:not(.secondary)::before,
+.jupiter-tab-btn::before,
+.player-roster.jupiter-theme .player-roster-leave-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--jupiter-hover-gradient);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.jupiter-error-acknowledge:is(:hover, .controller-focused)::before,
+.jupiter-join-button:is(:hover, .controller-focused)::before,
+.jupiter-quit-option-btn:is(:hover, .controller-focused)::before,
+.jupiter-quickplay-modal-btn:is(:hover, .controller-focused)::before,
+.btn-launcher-mode:is(:hover, .controller-focused)::before,
+.server-browser-back:is(:hover, .controller-focused)::before,
+.server-browser-deploy:is(:hover, .controller-focused)::before,
+.host-match-back:is(:hover, .controller-focused)::before,
+.host-match-deploy:is(:hover, .controller-focused)::before,
+.options-reset-btn:is(:hover, .controller-focused)::before,
+.modding-tool-btn:is(:hover, .controller-focused)::before,
+.account-provider-btn:is(:hover, .controller-focused)::before,
+.account-email-submit:is(:hover, .controller-focused)::before,
+.account-signout-btn:is(:hover, .controller-focused)::before,
+.social-locked-cta.jupiter-theme:is(:hover, .controller-focused)::before,
+.jupiter-auth-notice .auth-required-notice-signin:is(:hover, .controller-focused)::before,
+.launcher-bottom-bar-btn:is(:hover, .controller-focused)::before,
+.host-dashboard-return:is(:hover, .controller-focused):not(:disabled)::before,
+.host-dashboard-close:is(:hover, .controller-focused):not(:disabled)::before,
+.social-add-btn:is(:hover, .controller-focused):not(:disabled)::before,
+.social-party-create:is(:hover, .controller-focused):not(:disabled)::before,
+.jupiter-session-toast-actions button:not(.secondary):is(:hover, .controller-focused)::before,
+.jupiter-tab-btn:is(:hover, .controller-focused)::before,
+.player-roster.jupiter-theme .player-roster-leave-btn:is(:hover, .controller-focused)::before {
+  opacity: 1;
+}
+
+/* Tile hover ring: a real 3px border element (top/left/right only) that
+   fades in over the artwork. It lives INSIDE .jupiter-card, so it hugs
+   the artwork's edge (the card's transparent hover border insets the
+   artwork 3px) — which aligns it with the select bar below. No masks or
+   background tricks: a plain border renders identically everywhere and
+   can't leave stray segments behind. The bottom is open so the select bar
+   tucks flush under the tile with nothing between them. */
+.jupiter-card-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 3px solid var(--jupiter-accent);
+  border-bottom: 0;
+  border-radius: inherit; /* matches the card's 4px 4px 0 0 */
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.jupiter-card-wrapper:hover .jupiter-card-ring,
+.jupiter-card-wrapper.controller-focused .jupiter-card-ring {
+  opacity: 1;
 }
 
 /* Zombies mode swaps the launcher accent to the zombies red. The class sits
@@ -387,7 +512,6 @@ button, a {
 
 .launcher-container:not(.controller-mode) .btn-launcher-mode:hover,
 .launcher-container.controller-mode .btn-launcher-mode.controller-focused {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -429,26 +553,24 @@ button, a {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.jupiter-tab-btn:hover,
-.jupiter-tab-btn.controller-focused {
-  background-color: rgba(40, 44, 52, 0.95);
-}
 
 .jupiter-card-wrapper:hover .jupiter-card,
 .jupiter-card-wrapper.controller-focused .jupiter-card {
-  border: 3px solid var(--jupiter-accent);
-  background-color: rgba(20, 24, 30, 0.98);
+  /* The visible ring lives on .jupiter-card-ring (fades in). This border
+     only insets the artwork 3px so the ring hugs the artwork's edge. */
+  border: 3px solid transparent;
 }
 
 .jupiter-card-wrapper:hover .jupiter-card-select-bar-below,
 .jupiter-card-wrapper.controller-focused .jupiter-card-select-bar-below {
-  transform: translateY(0);
+  /* -3px: the bar rests 3px up into the tile, tucking under its bottom
+     edge (see the z-index note above). */
+  transform: translateY(-3px);
   opacity: 1;
 }
 
 .jupiter-quit-option-btn:hover,
 .jupiter-quit-option-btn.controller-focused {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -746,13 +868,16 @@ button, a {
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.jupiter-tab-btn:hover {
-  background-color: rgba(40, 44, 52, 0.95);
-}
 
 .jupiter-tab-btn.active {
   background-color: var(--jupiter-accent);
   color: #ffffff;
+}
+
+/* The selected tab wears the hover gradient as a steady state — same
+   treatment as the hover, just always on while active. */
+.jupiter-tab-btn.active::before {
+  opacity: 1;
 }
 
 /* Signed-in user chip — top-right of the Jupiter header. Vertically
@@ -862,6 +987,11 @@ button, a {
   aspect-ratio: 16 / 9;
   background-color: rgba(0, 0, 0, 0.7);
   border: 2px solid rgba(255, 255, 255, 0.08);
+  /* No bottom border: the hover select bar slides up flush against the
+     tile's bottom edge — a border strip there reads as a visible seam
+     between the bar and the artwork (and kept the gradient ring from
+     reaching the bar). */
+  border-bottom: 0;
   display: block;
   position: relative;
   cursor: pointer;
@@ -961,7 +1091,8 @@ button, a {
    tile feels picked up. The select bar slide-out below is unchanged. */
 .jupiter-card-wrapper:hover .jupiter-card,
 .jupiter-card-wrapper.controller-focused .jupiter-card {
-  border: 3px solid var(--jupiter-accent);
+  border: 3px solid transparent;
+  border-bottom: 0;
 }
 
 .jupiter-card-wrapper:hover .jupiter-card-image,
@@ -972,9 +1103,16 @@ button, a {
 
 .jupiter-card-select-bar-below {
   /* Slimmer than before — the tile's bottom corners are square now, so the
-     bar reads as a thin accent strip beneath the card. */
+     bar reads as a thin accent strip beneath the card. It wears the hover
+     fill (static accent blue in MP/WZ; zombies keeps its own red styling). */
   height: 30px;
+  /* Inset the bar by the card's hover border width (3px each side) so its
+     edges line up with the tile BODY (the artwork inside the ring), not
+     the wrapper edge — without this the bar reads wider than the tile it
+     slides out from. */
+  margin: 0 3px;
   background-color: var(--jupiter-accent);
+  background-image: var(--jupiter-hover-gradient);
   display: flex;
   align-items: center;
   padding: 0 20px;
@@ -985,7 +1123,10 @@ button, a {
   transform: translateY(-100%);
   opacity: 0;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
-  z-index: 1;
+  /* Paints ABOVE the card so its resting position can tuck 3px UNDER the
+     tile's bottom edge — covering the artwork's anti-aliased clip edge,
+     which otherwise shows as a dark hairline between the tile and the bar. */
+  z-index: 3;
   /* Asymmetric corner rounding: the top corners stay flat (0 px) so the
      bar's top edge sits flush against the card's straight bottom edge. The
      bottom corners keep the 4 px radius so the bar's lower silhouette
@@ -994,7 +1135,11 @@ button, a {
 }
 
 .jupiter-card-wrapper:hover .jupiter-card-select-bar-below {
-  transform: translateY(0);
+  /* Tucks 3px under the tile — same resting position as the
+     controller-focused rule above (the later duplicate that used to sit
+     flush at translateY(0) would otherwise win the cascade on mouse
+     hover and re-expose the seam). */
+  transform: translateY(-3px);
   opacity: 1;
 }
 
@@ -1192,7 +1337,6 @@ button, a {
 
 .jupiter-quickplay-modal-btn:hover,
 .jupiter-quickplay-modal-btn.controller-focused {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -1290,7 +1434,6 @@ button, a {
 
 .server-browser-back:hover,
 .server-browser-deploy:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -1547,7 +1690,6 @@ button, a {
 
 .server-browser-jupiter .server-browser-deploy:hover,
 .server-browser-jupiter .server-browser-back:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
   color: #ffffff;
 }
@@ -1609,7 +1751,6 @@ button, a {
 .host-match-back:hover,
 .host-match-deploy:hover,
 .host-match-deploy.controller-focused {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -1772,7 +1913,6 @@ button, a {
 .host-match-jupiter .host-match-deploy.controller-focused,
 .host-match-jupiter .host-match-back:hover {
   background-color: var(--jupiter-accent-hover);
-  background-image: none;
   border-color: var(--jupiter-accent-hover);
   color: #ffffff;
 }
@@ -2475,12 +2615,10 @@ button, a {
 }
 
 .options-reset-btn:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
 .options-reset-btn.controller-focused {
-  background-image: none;
   border-color: var(--jupiter-accent);
   box-shadow: 0 0 0 1px var(--jupiter-accent), 0 0 12px rgba(0, 200, 255, 0.18);
 }
@@ -2645,11 +2783,9 @@ button, a {
 }
 
 .modding-tool-btn:hover:not(:disabled) {
-  background-image: none;
 }
 
 .modding-tool-btn.controller-focused {
-  background-image: none;
 }
 
 .modding-tool-btn:disabled {
@@ -2999,7 +3135,7 @@ button, a {
 
 /* --- Jupiter Quit Modal --- */
 .jupiter-quit-modal {
-  width: 1190px;
+  width: 1435px;
   height: 455px;
   background-color: #111317;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -3061,7 +3197,6 @@ button, a {
 }
 
 .jupiter-quit-option-btn:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -3141,7 +3276,6 @@ button, a {
 
 .jupiter-error-acknowledge:hover,
 .jupiter-error-acknowledge.controller-focused {
-  background: var(--jupiter-accent);
   border-color: var(--jupiter-accent);
 }
 
@@ -3261,7 +3395,6 @@ button, a {
 
 .jupiter-join-button:hover,
 .jupiter-join-button.controller-focused {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -3275,7 +3408,6 @@ button, a {
 
 .jupiter-join-button.secondary:hover,
 .jupiter-join-button.secondary.controller-focused {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -3421,7 +3553,6 @@ button, a {
 }
 
 .jupiter-auth-notice .auth-required-notice-signin:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -3543,7 +3674,6 @@ button, a {
 }
 
 .social-locked-cta.jupiter-theme:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -3780,7 +3910,6 @@ button, a {
 }
 
 .account-signout-btn.jupiter-theme:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -3880,8 +4009,6 @@ button, a {
 }
 
 .account-provider-btn.jupiter-theme:hover {
-  background-color: var(--jupiter-accent);
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -3892,7 +4019,6 @@ button, a {
 
 .account-provider-btn.jupiter-theme.controller-focused {
   background-color: var(--jupiter-accent);
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -4082,7 +4208,6 @@ button, a {
 }
 
 .account-email-submit.jupiter-theme:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -4167,7 +4292,6 @@ button, a {
 }
 
 .launcher-bottom-bar-btn:hover {
-  background-image: none;
   border-color: var(--jupiter-accent);
   color: #ffffff;
 }
@@ -4258,10 +4382,6 @@ button, a {
   background-image: linear-gradient(to bottom, #424141 0%, #252626 100%);
   border-radius: 3px;
   transition: all 0.15s ease;
-}
-
-.jupiter-session-toast-actions button:hover {
-  background-image: none;
 }
 
 .jupiter-session-toast-actions button.secondary {
@@ -4551,7 +4671,6 @@ button, a {
 }
 
 .host-dashboard-return:hover:not(:disabled) {
-  background-image: none;
 }
 
 .host-dashboard-return.controller-focused {
@@ -4763,7 +4882,6 @@ button, a {
 }
 
 .host-dashboard-close:hover:not(:disabled) {
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -5011,7 +5129,6 @@ button, a {
 }
 
 .social-add-btn:hover:not(:disabled) {
-  background-image: none;
 }
 
 .social-accept {
@@ -5283,7 +5400,6 @@ button, a {
 }
 
 .social-party-create:hover:not(:disabled) {
-  background-image: none;
 }
 
 .social-party-or {
@@ -5532,8 +5648,6 @@ button, a {
 }
 
 .player-roster.jupiter-theme .player-roster-leave-btn:hover {
-  background-color: var(--jupiter-accent);
-  background-image: none;
   border-color: var(--jupiter-accent);
 }
 
@@ -6275,41 +6389,47 @@ button, a {
    stage, then one combined download+extract bar with a live ETA.
    ========================================================================== */
 .jupiter-install-modal {
-  /* Width inherits the 680px shell base, like every compact modal. */
-  max-height: 640px;
+  /* Match the PHA-client join modal's roomy size (1435px wide, growing up
+     to its 1190px max-height) instead of the compact error-modal shell. */
+  width: 1435px;
+  max-width: calc(100vw - 80px);
+  max-height: 1190px;
   overflow: auto;
 }
 
 .jupiter-install-content {
   flex-direction: column;
   align-items: stretch;
-  gap: 22px;
-  padding: 32px 38px;
+  gap: 18px;
+  padding: 52px 66px;
 }
 
 .jupiter-install-copy {
   text-align: left;
 }
 
-.jupiter-install-desc {
+/* Match the join modal's headline + intro typography. */
+.jupiter-install-modal .jupiter-error-copy h2 {
   margin-top: 12px;
-  font-size: 0.94rem;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.78);
-  text-transform: none;
+  font-size: 3.7625rem;
+  line-height: 1.05;
 }
 
-.jupiter-install-desc code {
-  color: var(--jupiter-accent);
-  font-family: inherit;
-  word-break: break-all;
+.jupiter-install-modal .jupiter-install-desc {
+  margin-top: 28px;
+  max-width: 1225px;
+  font-size: 1.575rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: none;
 }
 
 .jupiter-install-path-input {
   width: 100%;
-  margin-top: 14px;
-  padding: 13px 16px;
-  font-size: 1.05rem;
+  max-width: 640px;
+  margin-top: 28px;
+  padding: 16px 20px;
+  font-size: 1.3rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: #ffffff;
@@ -6342,8 +6462,9 @@ button, a {
 /* Single combined bar (download+extract). */
 .jupiter-install-progress {
   width: 100%;
-  height: 12px;
-  margin-top: 16px;
+  max-width: 640px;
+  height: 16px;
+  margin-top: 28px;
   border-radius: 6px;
   background-color: rgba(255, 255, 255, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -6369,69 +6490,22 @@ button, a {
   text-transform: uppercase;
 }
 
+/* Buttons are plain `.jupiter-join-button`s (the PHA-client modal family) —
+   the same gradient surface + cyan hover as every other modal button. */
 .jupiter-install-actions {
   display: flex;
-  gap: 12px;
-}
-
-.jupiter-install-actions button {
-  flex: 1;
-  min-width: 0;
-}
-
-.jupiter-install-btn-primary {
-  /* Flat accent tint instead of the shell's gray gradient so the primary
-     action reads as filled next to the plain buttons. */
-  background-image: none;
-  background-color: rgba(2, 143, 204, 0.28);
-}
-
-.jupiter-install-btn-primary:hover:not(:disabled),
-.jupiter-install-btn-primary.controller-focused {
-  background-color: rgba(2, 143, 204, 0.45);
-}
-
-/* Progress stage: a normal Cancel button plus a deliberately SMALL Close —
-   the default .error-acknowledge style (full-width, large) was overwhelming
-   next to the progress bar. */
-.jupiter-install-progress-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.jupiter-install-cancel-btn {
-  flex: 1;
-  min-width: 0;
-}
-
-.jupiter-install-close-btn {
-  padding: 7px 16px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.85);
-  background-color: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  white-space: nowrap;
-}
-
-.jupiter-install-close-btn:hover,
-.jupiter-install-close-btn.controller-focused {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.55);
-  color: #ffffff;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 21px;
+  margin-top: 49px;
 }
 
 .jupiter-install-cancel-hint {
-  margin: 10px 0 0;
+  margin: 14px 0 0;
   font-size: 0.78rem;
   color: rgba(255, 255, 255, 0.5);
   text-transform: none;
-  text-align: center;
+  text-align: right;
 }
 
 /* ==========================================================================
@@ -6494,14 +6568,16 @@ button, a {
    3. Uninstall section — the right half of the bar for the Launch Game tile.
    ========================================================================== */
 
-/* Mouse hover darkening — when the cursor is over the bar itself */
+/* Mouse hover darkening — when the cursor is over the bar itself. The bar
+   now wears the hover gradient, so darken via brightness instead of a
+   background-color mix (which the gradient would cover). */
 .jupiter-card-select-bar-below:hover {
-  background-color: color-mix(in srgb, var(--jupiter-accent) 78%, #000);
+  filter: brightness(0.92);
 }
 
 /* Controller auto-darkening — same effect as bar:hover */
 .jupiter-card-select-bar-below.bar-controller-darken {
-  background-color: color-mix(in srgb, var(--jupiter-accent) 78%, #000);
+  filter: brightness(0.92);
 }
 
 /* Center divider line — a thin vertical line a few pixels thick, pinned to
@@ -6611,40 +6687,31 @@ button, a {
 /* ==========================================================================
    GAME UNINSTALL MODAL
    ==========================================================================
-   Inherits the whole `.jupiter-error-modal` shell — size (680px), rail,
-   kicker, title, and message typography — exactly like JupiterErrorModal.
-   Only the danger button and the install-path `code` chip are its own.
+   Inherits the whole `.jupiter-error-modal` shell — size (1435px, like the
+   install modal), rail, kicker, and title typography. No subtitle copy —
+   just the confirm actions.
    ========================================================================== */
 
-.game-uninstall-desc code {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 0.85rem;
-  word-break: break-all;
+/* Match the PHA-client modal size and typography, like the install modal. */
+.game-uninstall-modal {
+  width: 1435px;
+  max-width: calc(100vw - 80px);
+  max-height: 1190px;
+  overflow: auto;
+}
+
+.game-uninstall-modal .jupiter-error-copy h2 {
+  margin-top: 12px;
+  font-size: 3.7625rem;
+  line-height: 1.05;
 }
 
 .game-uninstall-actions {
   display: flex;
-  gap: 10px;
-}
-
-.game-uninstall-actions button {
-  flex: 1;
-  min-width: 0;
-}
-
-.game-uninstall-btn-danger {
-  background-image: none !important;
-  background-color: #c0392b !important;
-  border-color: #c0392b !important;
-  color: #ffffff !important;
-}
-
-.game-uninstall-btn-danger:hover,
-.game-uninstall-btn-danger.controller-focused {
-  background-color: #e74c3c !important;
-  border-color: #e74c3c !important;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 21px;
+  margin-top: 49px;
 }
 
 /* ==========================================================================
